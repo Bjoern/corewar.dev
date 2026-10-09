@@ -109,7 +109,7 @@ function markDirty() {
   $('changed').textContent = dirty ? 'Sources, selection or settings changed. Run applies them before instruction 1; otherwise Reset applies them and Resume keeps the loaded battle.' : '';
 }
 function legend() {
-  const names = engine && latest ? latest.warriors.map(w => w.name) : sources.map(draftName);
+  const names = engine && latest ? latest.warriors.map(w => w.name) : selectedIndices().map(i=>draftName(sources[i],i));
   $('legendNames').replaceChildren(...names.map((name,i) => {
     const span = document.createElement('span');
     span.style.color = warriorColor(i);
@@ -148,7 +148,13 @@ function editors() {
     widen.onclick=()=>{wideEditors[i]=!wideEditors[i];editorVisibility();sourceEditors[i].view.requestMeasure();};
     const include=document.createElement('input');include.type='checkbox';include.className='include-warrior';
     include.checked=!excludedWarriors[i];include.title='Include in next run';include.setAttribute('aria-label','Include warrior '+(i+1)+' in next run');
-    include.onchange=()=>{excludedWarriors[i]=!include.checked;markDirty();rosterCount();controls();};
+    include.onchange=safe(async()=>{
+      const reload=state==='idle' || state==='loading' || (state==='paused' && total===0);
+      excludedWarriors[i]=!include.checked;markDirty();rosterCount();controls();legend();
+      if(!reload)return;
+      if(selectedIndices().length)await load();
+      else {clearBattle();status('Select at least one warrior for the next run.');}
+    });
     top.append(include,edit,nameGroup,widen,compile,save,remove);
     const area=document.createElement('div');area.className='source-editor';
     const editor=createEditor(area,{theme:$('editorTheme').value,syntax:$('editorSyntax').value,value:source,id:label.htmlFor,label:`Warrior ${i+1} source`,onChange:value=>{
