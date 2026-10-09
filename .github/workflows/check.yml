@@ -1,0 +1,32 @@
+name: Check app
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python scripts/build.py
+      - run: node docs/test-engine.mjs
+      - run: node docs/test-native-cdb.mjs
+      - run: npm ci
+      - run: npm install --no-save playwright@1.62.1
+      - run: npx playwright install --with-deps chromium
+      - name: Browser checks against deployment output
+        env:
+          PMARS_URL: http://127.0.0.1:8766/
+        run: |
+          python -m http.server 8766 --bind 127.0.0.1 --directory _site > /tmp/corewar-preview.log 2>&1 &
+          trap 'kill $!' EXIT
+          for i in $(seq 1 30); do curl -fsS "$PMARS_URL" > /dev/null && break; sleep 1; done
+          node docs/test-selection.mjs
+          node docs/test-empty-roster.mjs
+          node docs/test-results.mjs
+          node docs/test-release-assets.mjs

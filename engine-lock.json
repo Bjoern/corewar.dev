@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/Bjoern/pmars_experiments",
+  "commit": "8c5e4a9f1b9fc886fadaedc210bbe81bd2e1250e",
+  "tag": "pre-app-split-2026-10-09",
+  "files": {
+    "docs/dist/pmars.mjs": "59d90951a37d3b60aeb46ee654eb5659c05b9e553bd5a75f8f1debf9eea1e962",
+    "docs/dist/pmars.wasm": "10e1645475572a6dd97dee6317bb01aa4c0023ee853c3c5e74a264d37197bf4c",
+    "docs/pmars-source.zip": "fe37a3a0df4768bcaca78643b07344743e4ddb6b2e754f3465f0cb361c8ff384",
+    "docs/demo-warriors.mjs": "45e51a3aac6aef41dadad83ad64d2fa32ffb1727eb2193fa6f0506804c05b29b"
+  }
+}

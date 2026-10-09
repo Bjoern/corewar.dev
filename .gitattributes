@@ -1,0 +1,5 @@
+* text=auto eol=lf
+/docs/dist/pmars.mjs -text whitespace=cr-at-eol
+/docs/demo-warriors.mjs -text
+*.wasm binary
+*.zip binary
