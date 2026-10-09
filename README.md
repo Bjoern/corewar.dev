@@ -1,7 +1,7 @@
 # corewar.dev
 
 Browser interface for pMARS: warrior editing and selection, graphical battles,
-and the native debugger. Tournament and benchmark orchestration will live here.
+and the native debugger, with a separate tournament and benchmark workspace.
 
 ## Engine boundary
 
@@ -54,3 +54,37 @@ Preserved GPL-2.0-or-later notices are in COPYING and the upstream sources.
 The site provides the pinned engine source archive and an app source archive
 containing the build inputs. CodeMirror dependencies have separate notices in
 `docs/dist/editor-LICENSES.txt`.
+
+## Tournaments and benchmarks
+
+The shared roster checkboxes choose entrants. Match settings are shared, but each
+run snapshots its sources and configuration; later edits cannot alter that run.
+Opening the tournament tab pauses a running graphical battle.
+
+- Round robin runs each unordered pair, optionally including self fights.
+- Melee runs all selected warriors in one core.
+- Challenge runs a selected challenger against each other entrant.
+- Benchmark runs selected candidates against a suite. Identical-source self fights
+  are excluded unless enabled. Rankings show candidates only.
+
+Bundled examples are provided as a sample suite, not a classic benchmark.
+Save session suite copies selected sources and current match settings into a named
+opponent list; then select candidates. These lists last for the page session only.
+Classic suites, persistent libraries, and king-of-the-hill admission rules are not
+implemented yet.
+
+The worker count defaults to half the browser-reported logical processor count,
+with a minimum of one. A queue feeds persistent workers; each matchup gets a fresh
+engine and keeps all rounds together, preserving P-space and RNG continuity.
+The seed and stable job number determine starting positions, independent of worker
+count or completion order. Tournament rounds and seed override the shared rounds
+and positioning options. Assemble-only and permutation modes are rejected.
+
+Workers suppress visualization/debug tracing and report only completed matchups.
+Progress, normalized rankings, and charts update in batches at most ten times per
+second while results arrive. Charts retain the last 300 samples. Pause stops new
+jobs and finishes active matchups; Cancel terminates workers and retains completed
+results. JSON export includes sources, settings, seeds, results, and run status.
+Engine API comparisons and serial/parallel browser comparisons cover the execution
+boundary. New tournament tests: `node docs/test-tournament-plan.mjs` and
+`node docs/test-tournaments.mjs` (the latter needs the preview and Playwright).

@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import {pathToFileURL} from 'node:url';
+import {readFile,mkdir} from 'node:fs/promises';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.BROWSER_CHANNEL?{channel:process.env.BROWSER_CHANNEL}:{})});
+const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.addInitScript(()=>Object.defineProperty(navigator,'hardwareConcurrency',{value:4}));
+const status=page.locator('#tournamentStatus');
+const complete=()=>page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Complete'));
+const exportRun=async()=>{const d=page.waitForEvent('download');await page.locator('#tournamentExport').click();return JSON.parse(await readFile(await (await d).path(),'utf8'));};
+try {
+ await page.goto(process.env.PMARS_URL||'http://127.0.0.1:8766/');
+ await page.locator('#warriorFiles').setInputFiles(['Imp','Dwarf','Loop'].map((name,i)=>({name:name+'.red',mimeType:'text/plain',buffer:Buffer.from(';redcode\n;name '+name+'\n;assert 1\n'+['mov 0,1','add.ab #4,3\nmov.i 2,@2\njmp -2\ndat 0,0','jmp 0'][i]+'\n')})));
+ await page.locator('#tournamentTab').click();assert(await page.locator('#emulatorPanel').isHidden());
+ await page.locator('#editSettings').click();await page.locator('#cycles').fill('200');
+ await page.locator('#tournamentRounds').fill('5');await page.locator('#tournamentWorkers').fill('1');
+ await page.locator('#tournamentStart').click();await complete();const first=await exportRun();
+ assert.equal(first.results.length,3);assert.equal(first.standings.length,3);
+ const {Engine}=await import('./engine.mjs');
+ const job=first.plan.jobs[0],engine=await Engine.create(job.config,{visual:false,log:()=>{}});engine.compile(job.warriors.map(w=>w.source));
+ let update=engine.start();while(!update.done)update=engine.advance(100000,8);
+ assert.deepEqual(first.results.find(r=>r.id===0).warriors,update.warriors.map(({name,wins,ties,losses,score})=>({name,wins,ties,losses,score})));
+ await page.locator('#tournamentWorkers').fill('3');await page.locator('#tournamentStart').click();await complete();const parallel=await exportRun();
+ assert.deepEqual(parallel.results.sort((a,b)=>a.id-b.id),first.results.sort((a,b)=>a.id-b.id));
+ assert.deepEqual(parallel.standings,first.standings);
+ await page.locator('#tournamentMode').selectOption('challenge');await page.locator('#challenger').selectOption('roster-1');
+ await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results.length,2);
+ await page.locator('#tournamentMode').selectOption('melee');await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results[0].warriors.length,3);
+ await page.locator('#tournamentMode').selectOption('benchmark');await page.locator('#benchmarkSetup summary').click();await page.locator('#benchmarkName').fill('My suite');await page.locator('#saveBenchmark').click();
+ await page.locator('.include-warrior').nth(1).uncheck();await page.locator('.include-warrior').nth(2).uncheck();
+ await page.locator('#tournamentStart').click();await complete();const bench=await exportRun();assert.equal(bench.results.length,2);assert.equal(bench.standings.length,1);
+ // Restore three entrants and exercise pause at matchup boundaries.
+ await page.locator('.include-warrior').nth(1).check();await page.locator('.include-warrior').nth(2).check();
+ await page.locator('#tournamentMode').selectOption('round-robin');await page.locator('#cycles').fill('10000');await page.locator('#tournamentRounds').fill('100');await page.locator('#tournamentWorkers').fill('1');
+ await page.locator('#tournamentStart').click();await page.locator('#tournamentPause').click();
+ await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Paused'));
+ const paused=await exportRun();assert.equal(paused.results.length,1);
+ await page.locator('#tournamentPause').click();await complete();
+ await page.locator('#tournamentRounds').fill('100000');await page.locator('#tournamentStart').click();await page.locator('#tournamentCancel').click();assert.match(await status.textContent(),/^Cancelled/);
+ // Invalid source must fail clearly and leave controls usable.
+ await page.locator('#warriorFiles').setInputFiles({name:'bad.red',mimeType:'text/plain',buffer:Buffer.from('invalid opcode')});
+ await page.waitForFunction(()=>document.querySelectorAll('.include-warrior').length===4);
+ await page.locator('#tournamentRounds').fill('1');await page.locator('#tournamentStart').click();
+ await page.waitForFunction(()=>document.querySelector('#tournamentStart').disabled===false && document.querySelector('#tournamentStatus').textContent.includes('no instructions'));
+ assert.deepEqual(errors,[]);
+ await page.locator('.remove-warrior').last().click();
+ await page.locator('#tournamentRounds').fill('5');await page.locator('#tournamentStart').click();await complete();
+ await mkdir('docs/test-output',{recursive:true});await page.screenshot({path:'docs/test-output/tournaments-desktop.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.screenshot({path:'docs/test-output/tournaments-mobile.png',fullPage:true});
+ console.log('PASS: four modes, session suites, serial/parallel parity, pause/resume, cancel, errors and mobile layout.');
+}finally{await browser.close();}

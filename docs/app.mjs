@@ -1,3 +1,4 @@
+import {setupTournaments} from './tournaments.mjs';
 import {bundledWarriors} from './demo-warriors.mjs?v=bd68579c2c000dd9';
 import {createEditor} from './dist/editor.mjs?v=bd68579c2c000dd9';
 // SPDX-License-Identifier: GPL-2.0-or-later
@@ -18,6 +19,7 @@ let lastText = 0, dirty = false, stepping = false, stepEpoch = 0;
 let collapsedEditors=[], wideEditors=[], scoreViewKey=null;
 let sourceEditors=[], compileIssues=[];
 const demoSources = [";redcode-94\n;name Imp\n;author A. K. Dewdney\n;assert 1\nmov.i 0, 1\nend\n", ";redcode-94\n;name Dwarf\n;author A. K. Dewdney\n;assert 1\nadd.ab #4, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat.f #0, #0\nend\n"];
+let tournaments=null;
 let sources = [];
 let excludedWarriors = [];
 const selectedIndices = () => sources.map((_,i)=>i).filter(i=>!excludedWarriors[i]);
@@ -103,6 +105,7 @@ function draftName(source, i) {
   return source.match(/^\s*;name\s+([^\r\n]*)/im)?.[1].trim() || `Warrior ${i + 1}`;
 }
 function markDirty() {
+ tournaments?.refresh();
  compileIssues=[];refreshDiagnostics();
   revision++;cancelCompileCheck();compileStates=[];refreshCompileButtons();scheduleValidation();
   dirty = !!engine || state === 'loading';
@@ -165,7 +168,7 @@ function editors() {
     box.append(top,area); return box;
   }));
   editorVisibility();refreshCompileButtons();
-  rosterCount();
+  rosterCount();tournaments?.refresh();
   $('newWarrior').disabled = sources.length >= 36;
   $('demos').hidden = sources.length !== 0;
   $('toggleEditors').hidden = sources.length === 0;
@@ -718,6 +721,7 @@ async function startDemo(selected){
  $('rounds').value='1';$('debugEnabled').checked=false;
  $('speed').value='3';$('speed').oninput();
  markDirty();editors();
+ if($('tournamentTab').getAttribute('aria-selected')==='true')return;
  if(await load())resume();
 }
 $('demo').onclick=safe(()=>startDemo(demoSources));
@@ -758,3 +762,9 @@ $('editorTheme').onchange=$('editorSyntax').onchange=()=>{
 editors(); clearBattle();
 
 addConsole('cdb');addConsole('all');
+
+tournaments=setupTournaments({
+ roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),source:sources[i]})),
+ readConfig:()=>readSettings({warriors:2}),
+ onTab:index=>{if(index===1 && state==='running')pause();if(index===0){display.redraw();processChart.draw();scoreChart.draw();}}
+});

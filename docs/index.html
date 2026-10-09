@@ -12,6 +12,7 @@
 <header><h1>corewar.dev</h1>
 <p>based on pmars</p></header>
 <main>
+<div class="workspace-tabs" role="tablist" aria-label="Workspace"><button id="emulatorTab" role="tab" aria-selected="true" aria-controls="emulatorPanel">Emulator &amp; Debugger</button><button id="tournamentTab" role="tab" aria-selected="false" aria-controls="tournamentPanel" tabindex="-1">Tournaments &amp; Benchmarks</button></div>
 <div class="roster"><span id="warriorCount">0 warriors</span><label class="editor-theme-control">Background <select id="editorTheme"><option value="dark">Dark</option><option value="light">Light</option><option value="contrast">High contrast</option></select></label><label class="syntax-theme-control">Syntax colors <select id="editorSyntax"><option value="ocean">Ocean</option><option value="warm">Warm</option><option value="mono">Monochrome</option></select></label><button id="toggleEditors" hidden class="disclosure-all" aria-expanded="true" aria-controls="editors">▾ Collapse all</button></div>
 <section id="editors" class="editors" aria-label="Warrior source code"></section>
 <section id="demos" class="demos"><h2>Try a demo:</h2><div class="demo-buttons"><button id="demo" title="Load Dwarf and Imp and start a standard match">Dwarf vs Imp</button><button id="randomDemo" title="Start a duel between two different bundled warriors">Random duel</button><button id="multiDemo" title="Start a battle with all bundled warriors except validate.red">Multiwarrior</button></div></section>
@@ -24,6 +25,7 @@
 </div>
 <div id="settingsDetails" hidden><div id="settingsFields" class="settings"></div><p id="presetSource" class="hint"></p>
 <p class="hint">Each cycle allows one instruction per living warrior. Settings remain editable after selecting a preset.</p></div></section>
+<div id="emulatorPanel" role="tabpanel" aria-labelledby="emulatorTab">
 <p id="status" class="sr-only" role="status" aria-atomic="true">Ready to assemble.</p>
 <p id="activeSettings" class="hint" aria-live="polite"></p>
 <progress id="progress" value="0" max="100" aria-label="Series progress" hidden></progress>
@@ -65,6 +67,28 @@
 <section><label><input id="pauseScores" type="checkbox"> Pause score chart</label><canvas id="scoreChart" aria-label="Cumulative score over completed battles"></canvas></section></div></section>
 <div class="lower">
 <details id="diagnostics"><summary id="diagnosticsTitle">Show diagnostics</summary><p id="sliceTiming">Peak simulation slice: 0.0 ms</p><pre id="log" aria-label="Assembly diagnostics">Ready.</pre></details></div>
+</div>
+<section id="tournamentPanel" role="tabpanel" aria-labelledby="tournamentTab" hidden>
+<fieldset id="tournamentSetup"><legend>Tournament setup</legend>
+<div class="tournament-controls">
+<label>Mode <select id="tournamentMode"><option value="round-robin">Round robin</option><option value="melee">Melee</option><option value="challenge">Challenge</option><option value="benchmark">Benchmark</option></select></label>
+<label>Rounds per matchup <input id="tournamentRounds" type="number" min="1" max="2147483647" value="100"></label>
+<label>Parallel workers <input id="tournamentWorkers" type="number" min="1" value="1"></label><span id="workerLimit" class="hint"></span>
+<label>Seed <input id="tournamentSeed" maxlength="120" value="corewar-1"></label>
+<label><input id="selfFights" type="checkbox"> Self fights</label>
+</div>
+<p id="tournamentEntrants" class="hint"></p>
+<div id="challengeSetup" hidden><label>Challenger <select id="challenger"></select></label></div>
+<div id="benchmarkSetup" hidden><label>Opponent suite <select id="benchmarkSuite"></select></label>
+<details><summary>Create a suite from selected warriors</summary><div class="tournament-controls"><label>Name <input id="benchmarkName" maxlength="100"></label><button id="saveBenchmark" type="button">Save session suite</button></div><p class="hint">Copies the selected sources and current match settings. Then select the candidates you want to test.</p></details></div>
+<p id="tournamentWorkload"></p><p id="tournamentRules" class="hint"></p><p class="hint">The seed here determines reproducible starting positions. Pause finishes active matchups; Cancel stops them immediately.</p>
+</fieldset>
+<div class="tournament-controls"><button id="tournamentStart" class="primary">Run tournament</button><button id="tournamentPause" disabled title="Finish active matchups before pausing">Pause</button><button id="tournamentCancel" disabled>Cancel</button><button id="tournamentExport" disabled>Export results</button></div>
+<p id="tournamentStatus" role="status">Ready.</p><progress id="tournamentProgress" value="0" max="1" aria-label="Tournament progress"></progress>
+<div class="tournament-table"><table><thead><tr><th>Warrior</th><th>Rounds</th><th>Wins</th><th>Ties</th><th>Losses</th><th>Points</th><th>Points / round</th></tr></thead><tbody id="tournamentStandings"></tbody></table></div>
+<canvas id="tournamentChart" aria-label="Tournament score progress"></canvas>
+<details><summary>Completed matchups</summary><ol id="matchupResults"></ol></details>
+</section>
 <footer>pMARS 0.9.6-dev · ICWS ’94 extensions · GPL-2.0-or-later · <a href="COPYING">License</a> · <a href="dist/editor-LICENSES.txt">Editor licenses</a> · <a href="pmars-source.zip">Engine source</a> · <a href="app-source.zip">App source</a></footer>
 </main><script type="module" src="app.mjs?v=bd68579c2c000dd9"></script>
 </body></html>

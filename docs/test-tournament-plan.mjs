@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {planTournament} from './tournament-plan.mjs';
+const entrants=['A','B','C'].map(id=>({id,name:id,source:';name '+id+'\njmp 0'}));
+const base={entrants,config:{},rounds:10,seed:'test'};
+const plan=(mode,extra={})=>planTournament({...base,mode,...extra});
+assert.equal(plan('round-robin').jobs.length,3);
+assert.equal(plan('round-robin',{selfFights:true}).jobs.length,6);
+assert.deepEqual(plan('challenge',{challenger:'B'}).jobs.map(j=>j.warriors.map(w=>w.id)),[['B','A'],['B','C']]);
+assert.equal(plan('melee').jobs[0].warriors.length,3);
+assert.equal(plan('benchmark',{opponents:entrants}).jobs.length,6);
+assert.equal(plan('benchmark',{opponents:entrants,selfFights:true}).jobs.length,9);
+assert.equal(plan('round-robin').totalRounds,30);
+assert.deepEqual(plan('round-robin'),plan('round-robin'));
+assert.equal(new Set(plan('round-robin').jobs.map(j=>j.config.fixedPosition)).size,3);
+assert.throws(()=>plan('round-robin',{entrants:[]}),/Select/);
+assert.throws(()=>plan('round-robin',{rounds:0}),/Rounds/);
+assert.throws(()=>plan('round-robin',{config:{permutate:true}}),/Permutate/);
+console.log('PASS: tournament schedules, self fights, settings validation and reproducible seeds.');
