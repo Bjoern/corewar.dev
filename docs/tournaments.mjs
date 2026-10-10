@@ -75,7 +75,7 @@ export function setupTournaments({roster,readConfig,onTab}) {
    const tr=document.createElement('tr');for(const value of [r.name,r.rounds,r.wins,r.ties,r.losses,r.score,r.rounds?(r.score/r.rounds).toFixed(3):'—']){const td=document.createElement('td');td.textContent=value;tr.append(td);}tr.firstChild.style.color=r.color;body.append(tr);
   });
   $('matchupResults').replaceChildren(...[...run.results].sort((a,b)=>a.id-b.id).map(result=>{
-   const row=document.createElement('li');row.textContent=run.plan.jobs[result.id].warriors.map((w,i)=>`${w.name}: ${result.warriors[i].score}`).join(' / ')+` · ${result.completed} rounds`;return row;
+   const row=document.createElement('li');row.textContent=run.plan.jobs[result.id].warriors.map((w,i)=>`${w.name}: ${result.warriors[i].wins} wins, ${result.warriors[i].losses} losses, ${result.warriors[i].ties} ties (${result.warriors[i].score} points)`).join(' / ')+` · ${result.completed} rounds`;return row;
   }));controls();
  }
  function scheduleRender(){if(pendingRender===null)pendingRender=setTimeout(render,100);}

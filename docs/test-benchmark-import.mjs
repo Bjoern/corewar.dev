@@ -32,6 +32,10 @@ try{
  await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Complete'));
  const download=page.waitForEvent('download');await page.locator('#tournamentExport').click();const result=JSON.parse(await readFile(await (await download).path(),'utf8'));
  assert.equal(result.plan.jobs[0].config.coreSize,80);assert.equal(result.results[0].completed,3);
+ const matchups=await page.locator('#matchupResults li').allTextContents();
+ assert.match(matchups[0],/Candidate: 0 wins, 0 losses, 3 ties/);
+ assert.match(matchups[1],/Candidate: 3 wins, 0 losses, 0 ties/);
+ assert.match(matchups[1],/Dead: 0 wins, 3 losses, 0 ties/);
  await page.locator('#benchmarkDescriptor').fill(JSON.stringify({...descriptor,name:'Edited suite',parameters:{...descriptor.parameters,rounds:9}}));await page.locator('#applyBenchmark').click();assert.equal(await page.locator('#tournamentRounds').inputValue(),'9');
  const count=await page.locator('#benchmarkSuite option').count();
  await page.locator('#benchmarkFiles').setInputFiles(file('missing.benchmark.json',JSON.stringify(descriptor)));
