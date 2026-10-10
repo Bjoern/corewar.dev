@@ -32,7 +32,8 @@ executable argument; native-engine parity remains an upstream responsibility.
 ## Deployment and domain transfer
 
 CI builds and checks the static site on pushes and pull requests.
-The separate Pages workflow runs only when manually dispatched. It deploys `_site/`.
+The Pages workflow deploys `_site/` automatically on pushes to `master`.
+It can also be run manually from the Actions tab.
 No CNAME is shipped and no domain settings are changed by these files.
 Before dispatching, enable GitHub Actions as the Pages publishing source and test
 at the repository's GitHub Pages URL. Keep the existing corewar.dev deployment
