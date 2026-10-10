@@ -7,6 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg?v=bd68579c2c000dd9">
 <meta name="description" content="Play Core War in your browser with pMARS. Edit and validate warriors, watch battles, or run match series locally with WebAssembly.">
 <link rel="stylesheet" href="style.css?v=bd68579c2c000dd9">
+<script defer src="https://cloud.umami.is/script.js" data-website-id="e78560ba-d8d1-44de-a5f3-4048690fef79"></script>
 </head>
 <body>
 <header><h1>corewar.dev</h1>
@@ -30,8 +31,7 @@
 <p id="status" class="sr-only" role="status" aria-atomic="true">Ready to assemble.</p>
 <p id="activeSettings" class="hint" aria-live="polite"></p>
 <progress id="progress" value="0" max="100" aria-label="Series progress" hidden></progress>
-<p id="fastNotice" class="fast-notice" role="status" hidden>Fast skips graphics. For maximum speed, use Melee in Tournaments.</p>
-<div class="page-layout"><label>Layout <select id="arenaLayout"><option value="vertical">Scroll vertically</option><option value="horizontal">Scroll horizontally</option><option value="fill">Fill vertically</option><option value="fill-horizontal">Fill horizontally</option></select></label><label>Cell size <select id="cellSize"><option value="0">Auto · whole pixels</option><option value="4">Classic · 2×2 mark</option><option value="6">Compact · 4×4 mark</option><option value="8" selected>8 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="24">24 px</option></select></label><label class="arena-theme">Theme <select id="theme"><option value="modern">Modern</option><option value="classic">pMARS classic</option><option value="accessible">pMARS accessible</option></select></label></div>
+<div class="page-layout"><p id="fastNotice" class="fast-notice" role="status" hidden><svg class="fast-notice-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 22 21H2Z" fill="currentColor"/><path d="M12 9v5" stroke="#09141d" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.5" r="1.2" fill="#09141d"/></svg><span>Fast skips graphics. For maximum speed, use Melee in Tournaments.</span></p><label>Layout <select id="arenaLayout"><option value="vertical">Scroll vertically</option><option value="horizontal">Scroll horizontally</option><option value="fill">Fill vertically</option><option value="fill-horizontal">Fill horizontally</option></select></label><label>Cell size <select id="cellSize"><option value="0">Auto · whole pixels</option><option value="4">Classic · 2×2 mark</option><option value="6">Compact · 4×4 mark</option><option value="8" selected>8 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="24">24 px</option></select></label><label class="arena-theme">Theme <select id="theme"><option value="modern">Modern</option><option value="classic">pMARS classic</option><option value="accessible">pMARS accessible</option></select></label></div>
 <section class="arena" aria-label="Core arena">
 <div class="arena-controls">
 <div class="battle-toolbar">
