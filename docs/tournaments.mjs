@@ -13,13 +13,11 @@ export function setupTournaments({roster,readConfig,onTab}) {
  new ResizeObserver(([entry])=>{const width=entry.contentRect.width;if(width>0&&width!==chartWidth){chartWidth=width;chart.draw();}}).observe($('tournamentChart'));
  const processors=Math.max(1,navigator.hardwareConcurrency||2);
  $('tournamentWorkers').max=processors;$('tournamentWorkers').value=Math.max(1,Math.floor(processors/2));
- $('workerLimit').textContent=navigator.hardwareConcurrency?`The browser reports ${processors} logical processors (hardware threads), not necessarily ${processors} physical cores.`:'The browser did not report a processor count. Using a limit of 2 workers.';
+ $('workerLimit').textContent=navigator.hardwareConcurrency?`${processors} logical processors available (not necessarily physical cores).`:'The browser did not report a processor count. Using a limit of 2 workers.';
  $('workerSlider').max=processors;
- $('workerSlots').replaceChildren(...Array.from({length:processors},()=>document.createElement('span')));
  function workerPreview(){
   const count=Number($('tournamentWorkers').value);
   $('workerSlider').value=count;
-  [...$('workerSlots').children].forEach((slot,i)=>slot.classList.toggle('selected',i<count));
   $('workerSummary').textContent=`${count} of ${processors} available workers`;
  }
  $('tournamentWorkers').addEventListener('input',workerPreview);

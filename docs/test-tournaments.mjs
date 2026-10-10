@@ -12,9 +12,8 @@ try {
  await page.goto(process.env.PMARS_URL||'http://127.0.0.1:8766/');
  await page.locator('#warriorFiles').setInputFiles(['Imp','Dwarf','Loop'].map((name,i)=>({name:name+'.red',mimeType:'text/plain',buffer:Buffer.from(';redcode\n;name '+name+'\n;assert 1\n'+['mov 0,1','add.ab #4,3\nmov.i 2,@2\njmp -2\ndat 0,0','jmp 0'][i]+'\n')})));
  await page.locator('#tournamentTab').click();assert(await page.locator('#emulatorPanel').isHidden());
- assert.equal(await page.locator('#workerSlots .selected').count(),2);
  await page.locator('[data-workers=all]').click();assert.equal(await page.locator('#tournamentWorkers').inputValue(),'4');
- await page.locator('#workerSlider').focus();await page.locator('#workerSlider').press('ArrowLeft');assert.equal(await page.locator('#tournamentWorkers').inputValue(),'3');assert.equal(await page.locator('#workerSlots .selected').count(),3);
+ await page.locator('#workerSlider').focus();await page.locator('#workerSlider').press('ArrowLeft');assert.equal(await page.locator('#tournamentWorkers').inputValue(),'3');
  await page.locator('[data-workers=one]').click();assert.equal(await page.locator('#workerSlider').inputValue(),'1');
  await page.locator('#mode-round-robin').focus();await page.locator('#mode-round-robin').press('ArrowRight');assert.equal(await page.locator('#mode-benchmark').getAttribute('aria-selected'),'true');await page.locator('#mode-benchmark').press('Home');
  await page.locator('#editSettings').click();await page.locator('#cycles').fill('200');await page.locator('#permutate').check();

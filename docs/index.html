@@ -73,9 +73,8 @@
 <fieldset id="parallelSetup" class="parallel-panel"><legend>Parallel execution</legend>
 <p id="workerLimit" class="hint"></p>
 <div class="worker-controls"><label for="workerSlider">Parallel workers</label><input id="workerSlider" type="range" min="1" max="1" value="1" aria-describedby="workerExplanation"><input id="tournamentWorkers" type="number" min="1" value="1" aria-label="Parallel workers" aria-describedby="workerExplanation"></div>
-<div id="workerSlots" class="worker-slots" aria-hidden="true"></div>
 <div class="worker-presets"><button type="button" data-workers="one">1 worker</button><button type="button" data-workers="half">Half</button><button type="button" data-workers="all">All available</button><output id="workerSummary"></output></div>
-<p id="workerExplanation" class="hint">Each worker runs one matchup at a time. More workers can finish a tournament sooner, but may make other apps less responsive. The browser schedules workers; this does not reserve specific CPU cores. A single matchup uses one worker.</p>
+<p id="workerExplanation" class="hint">One worker per matchup. More workers can finish sooner but leave less CPU time for other apps.</p>
 </fieldset>
 <fieldset id="tournamentSetup"><legend>Tournament setup</legend>
 <div id="tournamentModes" class="mode-tabs" role="tablist" aria-label="Tournament mode">
