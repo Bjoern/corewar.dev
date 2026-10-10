@@ -129,15 +129,18 @@ export function setupTournaments({roster,readConfig,onTab}) {
  };
  $('tournamentCancel').onclick=()=>{run.state='cancelled';dispose();render();};
  $('saveBenchmark').onclick=()=>{
+  const feedback=$('saveBenchmarkStatus');feedback.hidden=false;
   try {
    const warriors=roster();if(!warriors.length)throw new Error('Select warriors to add to the suite.');
-   const name=$('benchmarkName').value.trim();if(!name)throw new Error('Enter a suite name.');
+   const name=$('benchmarkName').value.trim();if(!name){$('benchmarkName').focus();throw new Error('Enter a name for the new suite.');}
    const config=readConfig();const id='suite-'+(++serial);
    const descriptor={version:1,name,parameters:Object.fromEntries(benchmarkParameters.filter(k=>k in config).map(k=>[k,config[k]])),warriors:warriors.map((_,i)=>`warrior-${i+1}.red`)};
    descriptor.parameters.rounds=Number($('tournamentRounds').value);
    suites.push(readBenchmark(descriptor,Object.fromEntries(warriors.map((w,i)=>[descriptor.warriors[i],w.source])),id));
-   refresh();$('benchmarkSuite').value=id;refresh();$('tournamentStatus').textContent=`Saved “${name}” for this session.`;
-  }catch(error){$('tournamentStatus').textContent=error.message;}
+   refresh();$('benchmarkSuite').value=id;refresh();
+   feedback.dataset.result='ok';feedback.textContent=`Created “${name}” with ${warriors.length} opponent${warriors.length===1?'':'s'} and selected it in Opponent suite above. Available until you reload or close this page.`;
+   $('tournamentStatus').textContent=`Saved “${name}” for this session.`;
+  }catch(error){feedback.dataset.result='failed';feedback.textContent=error.message;}
  };
  $('tournamentExport').onclick=()=>{
   const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify({...run,standings:resultRows()},null,2)],{type:'application/json'}));

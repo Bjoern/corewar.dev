@@ -206,3 +206,6 @@ header h1,header p{margin:0}header p{white-space:nowrap;font-size:14px}
 .editor-title .warrior{border:0;background:transparent;padding:0;text-align:left;font:inherit;cursor:pointer}
 .editor-title.editing{outline:1px solid #54d8df;outline-offset:4px;border-radius:3px}
 .workspace-tabs{margin-top:24px}
+
+#saveBenchmarkStatus{padding:10px 12px;border-left:3px solid #54d8df;background:#101d29}
+#saveBenchmarkStatus[data-result=failed]{border-color:#ec7777;color:#ffb9b9}
