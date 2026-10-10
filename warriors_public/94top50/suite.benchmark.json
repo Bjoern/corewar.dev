@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Koenigstuhl ’94nop · 2026-10-10",
-  "description": "58 of 59 supplied warriors are runnable. Numb is retained in the archive but excluded because the pinned engine reports Assembly complexity limit exceeded. Rounds defaults to 100 in this app.",
+  "description": "59 supplied warriors. Rounds defaults to 100 in this app.",
   "parameters": {
     "coreSize": 8000,
     "cycles": 80000,
@@ -53,6 +53,7 @@
     "HILL32/metal.red",
     "HILL32/neith.red",
     "HILL32/nightstalker.red",
+    "HILL32/numb.red",
     "HILL32/olivia.red",
     "HILL32/pdqscan.red",
     "HILL32/pendulum.red",
@@ -74,11 +75,5 @@
     "HILL32/ziggy.red",
     "HILL32/zplusplus.red"
   ],
-  "retrievedAt": "2026-10-10",
-  "excludedWarriors": [
-    {
-      "file": "HILL32/numb.red",
-      "reason": "Pinned pMARS engine assembly complexity limit exceeded."
-    }
-  ]
+  "retrievedAt": "2026-10-10"
 }
