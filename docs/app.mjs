@@ -1,3 +1,4 @@
+import {warriorFilename} from './warrior-files.mjs';
 import {setupTournaments} from './tournaments.mjs';
 import {bundledWarriors} from './demo-warriors.mjs?v=bd68579c2c000dd9';
 import {createEditor} from './dist/editor.mjs?v=bd68579c2c000dd9';
@@ -20,7 +21,7 @@ let collapsedEditors=[], scoreViewKey=null;
 let sourceEditors=[], compileIssues=[];
 const demoSources = [";redcode-94\n;name Imp\n;author A. K. Dewdney\n;assert 1\nmov.i 0, 1\nend\n", ";redcode-94\n;name Dwarf\n;author A. K. Dewdney\n;assert 1\nadd.ab #4, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat.f #0, #0\nend\n"];
 let tournaments=null;
-let sources = [];
+let sources = [], sourceFiles = [];
 let excludedWarriors = [];
 const selectedIndices = () => sources.map((_,i)=>i).filter(i=>!excludedWarriors[i]);
 function rosterCount() {
@@ -137,7 +138,7 @@ function editors() {
     const remove = document.createElement('button');
     remove.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';remove.title='Remove warrior'; remove.className = 'remove-warrior';
     remove.setAttribute('aria-label', `Remove warrior ${i+1}`);
-    remove.onclick = () => { if(nativeBusy)return; sources.splice(i,1);excludedWarriors.splice(i,1);collapsedEditors.splice(i,1); markDirty(); if(!sources.length)clearBattle(); editors(); };
+    remove.onclick = () => { if(nativeBusy)return; sources.splice(i,1);sourceFiles.splice(i,1);excludedWarriors.splice(i,1);collapsedEditors.splice(i,1); markDirty(); if(!sources.length)clearBattle(); editors(); };
     const save=document.createElement('button');save.textContent='Download';save.className='save-warrior';save.setAttribute('aria-label','Download warrior '+(i+1));save.onclick=()=>saveWarrior(i);
     const compile=document.createElement('button');compile.className='compile-warrior';
     compile.title='Revalidate warrior and show assembly output';compile.setAttribute('aria-label','Validate warrior '+(i+1));compile.onclick=()=>checkWarrior(i);
@@ -691,7 +692,7 @@ function sampleScores(update){
 }
 function saveWarrior(i){
  const a=document.createElement('a'),url=URL.createObjectURL(new Blob([sources[i]],{type:'text/plain;charset=utf-8'}));
- a.href=url;a.download=(draftName(sources[i],i).replace(/[^a-z0-9_.-]+/gi,'_')||'warrior')+'.red';
+ a.href=url;a.download=sourceFiles[i]||warriorFilename(draftName(sources[i],i));
  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 async function importFiles(files){
@@ -701,18 +702,19 @@ async function importFiles(files){
  if(list.some(f=>f.size>65536))throw new Error('Warrior files must be at most 64 KiB each.');
  const texts=await Promise.all(list.map(f=>f.text()));
  if(sources.length+texts.length>36)throw new Error('Too many warriors after concurrent imports.');
- sources.push(...texts);markDirty();editors();
+ sources.push(...texts);sourceFiles.push(...list.map(f=>f.name));markDirty();editors();
  status('Imported '+list.length+' warrior files. Edit them below or Reset to load them.');
 }
 $('newWarrior').onclick=()=>{
  if(sources.length>=36)return;
+ sourceFiles.push(null);
  collapsedEditors=sources.map(()=>true);collapsedEditors[sources.length]=false;
  sources.push(';redcode-94\n;name Warrior '+(sources.length+1)+'\n;assert 1\nmov.i 0, 1\nend\n');
  markDirty();editors();
 };
 async function startDemo(selected){
  if(sources.length)return;
- sources=[...selected];excludedWarriors=[];collapsedEditors=[];
+ sources=[...selected];sourceFiles=selected.map(source=>bundledWarriors.find(w=>w.source===source)?.file||null);excludedWarriors=[];collapsedEditors=[];
  $('preset').value='standard';$('preset').onchange();
  $('rounds').value='1';$('debugEnabled').checked=false;
  $('speed').value='3';$('speed').oninput();
@@ -760,7 +762,7 @@ editors(); clearBattle();
 addConsole('cdb');addConsole('all');
 
 tournaments=setupTournaments({
- roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),source:sources[i]})),
+ roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),
  readConfig:()=>readSettings({warriors:2}),
  onTab:index=>{if(index===1 && state==='running')pause();if(index===0){display.redraw();processChart.draw();scoreChart.draw();}}
 });

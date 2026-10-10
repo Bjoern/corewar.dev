@@ -1,3 +1,4 @@
+import {suiteFilenames} from './warrior-files.mjs';
 import {benchmarkZip} from './benchmark-zip.mjs';
 import {benchmarkCatalog} from './benchmark-catalog.mjs';
 import {readBenchmark,importBenchmarkFiles,benchmarkParameters} from './benchmarks.mjs';
@@ -159,7 +160,7 @@ export function setupTournaments({roster,readConfig,onTab}) {
    const warriors=roster();if(!warriors.length)throw new Error('Select warriors to add to the suite.');
    const name=$('benchmarkName').value.trim();if(!name){$('benchmarkName').focus();throw new Error('Enter a name for the new suite.');}
    const config=readConfig();const id='suite-'+(++serial);
-   const descriptor={version:1,name,parameters:Object.fromEntries(benchmarkParameters.filter(k=>k in config).map(k=>[k,config[k]])),warriors:warriors.map((_,i)=>`warrior-${i+1}.red`)};
+   const descriptor={version:1,name,parameters:Object.fromEntries(benchmarkParameters.filter(k=>k in config).map(k=>[k,config[k]])),warriors:suiteFilenames(warriors)};
    descriptor.parameters.rounds=Number($('tournamentRounds').value);
    suites.push(readBenchmark(descriptor,Object.fromEntries(warriors.map((w,i)=>[descriptor.warriors[i],w.source])),id));
    refresh();$('benchmarkSuite').value=id;refresh();
