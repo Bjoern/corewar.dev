@@ -1,17 +1,12 @@
 import {benchmarkCatalog} from './benchmark-catalog.mjs';
 import {readBenchmark,importBenchmarkFiles,benchmarkParameters} from './benchmarks.mjs';
 // SPDX-License-Identifier: GPL-2.0-or-later
-import {bundledWarriors} from './demo-warriors.mjs';
 import {planTournament} from './tournament-plan.mjs';
 import {HistoryChart} from './charts.mjs';
 import {warriorColor} from './display.mjs';
 const $=id=>document.getElementById(id);
-const nameOf=(source,index)=>source.match(/^\s*;name\s+([^\r\n]*)/im)?.[1].trim()||`Warrior ${index+1}`;
 export function setupTournaments({roster,readConfig,onTab}) {
- let suites=[{id:'bundled',name:'Bundled examples',warriors:bundledWarriors.map((w,i)=>({id:'demo-'+i,name:nameOf(w.source,i),source:w.source}))}];
- const bundled=suites[0];
- const descriptor={version:1,name:bundled.name,parameters:{rounds:100},warriors:bundled.warriors.map((_,i)=>`example-${i+1}.red`)};
- suites=[readBenchmark(descriptor,Object.fromEntries(bundled.warriors.map((w,i)=>[descriptor.warriors[i],w.source])),'bundled'),...benchmarkCatalog.map(s=>readBenchmark(s.descriptor,s.files,s.id))];
+ const suites=benchmarkCatalog.map(s=>readBenchmark(s.descriptor,s.files,s.id));
  let serial=0,run=null,workers=[],pendingRender=null,displayedSuite=null;
  const chart=new HistoryChart($('tournamentChart'),'Average points / round · completed matchups');
  let chartWidth=0;
