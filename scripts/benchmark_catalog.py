@@ -30,4 +30,12 @@ def catalog(root):
                 text = raw.decode("cp1252")
             files[name] = text
         result.append({"id": "public-"+path.relative_to(folder).as_posix(), "descriptor": descriptor, "files": files})
-    return result
+    # Standard '94 suites first, then '88, then small-core/other formats.
+    # Preserve the existing order within each group.
+    def group(entry):
+        parameters = entry["descriptor"].get("parameters", {})
+        if parameters.get("rules88", False):
+            return 1
+        return 0 if parameters.get("coreSize", 8000) == 8000 else 2
+
+    return sorted(result, key=group)
