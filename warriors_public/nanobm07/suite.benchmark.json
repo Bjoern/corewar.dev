@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "name": "Metcalf Nano 2007 · sampled positions",
-  "description": "Original TESTXXXX.BAT uses -P permutation and -F 15. This runner uses seeded sampled positions instead; 142 rounds matches the native default permutation round count, not its placement coverage.",
+  "name": "Metcalf Nano 2007",
+  "description": "Uses the original script’s permutation mode. A full pass covers 71 legal relative positions with both starting orders (142 rounds). The tournament seed determines their traversal order instead of the original -F 15.",
   "parameters": {
     "coreSize": 80,
     "cycles": 800,
@@ -12,7 +12,8 @@
     "rules88": false,
     "noPspace": false,
     "formula": "(W*W-1)/S",
-    "rounds": 142
+    "rounds": 142,
+    "permutate": true
   },
   "warriors": [
     "8C094799.RED",

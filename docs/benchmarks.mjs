@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {defaults,settings} from './settings.mjs';
-export const benchmarkParameters=['coreSize','cycles','tasks','maxLength','distance','pspace','rules88','noPspace','formula','rounds'];
+export const benchmarkParameters=['coreSize','cycles','tasks','maxLength','distance','pspace','rules88','noPspace','permutate','formula','rounds'];
 export function benchmarkPath(path){
  if(typeof path!=='string'||!path||path.length>256||path.includes('\\')||path.startsWith('/')||path.split('/').some(p=>!p||p==='.'||p==='..')||/[:\0]/.test(path))throw new Error('Invalid benchmark file path: '+path);
  return path;
@@ -11,7 +11,7 @@ export function readBenchmark(descriptor,files,id='imported'){
  const parameters=descriptor.parameters??{};
  if(typeof parameters!=='object'||Array.isArray(parameters)||parameters===null)throw new Error('parameters must be an object.');
  for(const key of Object.keys(parameters))if(!benchmarkParameters.includes(key))throw new Error('Unknown benchmark parameter: '+key);
- for(const key of ['rules88','noPspace'])if(key in parameters&&typeof parameters[key]!=='boolean')throw new Error(key+' must be true or false.');
+ for(const key of ['rules88','noPspace','permutate'])if(key in parameters&&typeof parameters[key]!=='boolean')throw new Error(key+' must be true or false.');
  const rounds=parameters.rounds??100;
  if(!Number.isInteger(rounds)||rounds<1)throw new Error('Benchmark rounds must be a positive integer.');
  const config=settings({...defaults,...parameters,rounds,warriors:2});

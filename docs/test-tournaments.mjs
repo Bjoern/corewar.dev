@@ -12,7 +12,7 @@ try {
  await page.goto(process.env.PMARS_URL||'http://127.0.0.1:8766/');
  await page.locator('#warriorFiles').setInputFiles(['Imp','Dwarf','Loop'].map((name,i)=>({name:name+'.red',mimeType:'text/plain',buffer:Buffer.from(';redcode\n;name '+name+'\n;assert 1\n'+['mov 0,1','add.ab #4,3\nmov.i 2,@2\njmp -2\ndat 0,0','jmp 0'][i]+'\n')})));
  await page.locator('#tournamentTab').click();assert(await page.locator('#emulatorPanel').isHidden());
- await page.locator('#editSettings').click();await page.locator('#cycles').fill('200');
+ await page.locator('#editSettings').click();await page.locator('#cycles').fill('200');await page.locator('#permutate').check();
  await page.locator('#tournamentRounds').fill('5');await page.locator('#tournamentWorkers').fill('1');
  await page.locator('#tournamentStart').click();await complete();const first=await exportRun();
  assert.equal(first.results.length,3);assert.equal(first.standings.length,3);
@@ -25,6 +25,7 @@ try {
  assert.deepEqual(parallel.standings,first.standings);
  await page.locator('#tournamentMode').selectOption('challenge');await page.locator('#challenger').selectOption('roster-1');
  await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results.length,2);
+ await page.locator('#permutate').uncheck();
  await page.locator('#tournamentMode').selectOption('melee');await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results[0].warriors.length,3);
  await page.locator('#tournamentMode').selectOption('benchmark');await page.getByText('Create a suite from selected warriors',{exact:true}).click();await page.locator('#benchmarkName').fill('My suite');await page.locator('#saveBenchmark').click();
  await page.locator('.include-warrior').nth(1).uncheck();await page.locator('.include-warrior').nth(2).uncheck();

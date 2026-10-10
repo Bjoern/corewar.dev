@@ -45,7 +45,7 @@ export function setupTournaments({roster,readConfig,onTab}) {
    $('benchmarkDescriptor').value=JSON.stringify(suite.descriptor,null,2);
   }
   $('tournamentEntrants').textContent=roster().map(w=>w.name).join(', ')||'Select warriors in the roster above.';
-  try {const c=configForRun();$('tournamentRules').textContent=`${mode==='benchmark'&&suites.find(s=>s.id===$('benchmarkSuite').value)?.config?'Saved suite settings':'Match settings'} · core ${c.coreSize} · cycles ${c.cycles} · processes ${c.tasks} · length ${c.maxLength}`;const p=plan();$('tournamentWorkload').textContent=`${p.jobs.length} matchups · ${p.totalRounds.toLocaleString()} rounds`;}
+  try {const c=configForRun();$('tournamentRules').textContent=`${mode==='benchmark'&&suites.find(s=>s.id===$('benchmarkSuite').value)?.config?'Saved suite settings':'Match settings'} · core ${c.coreSize} · cycles ${c.cycles} · processes ${c.tasks} · length ${c.maxLength}${c.permutate?` · permutation: ${2*(c.coreSize-2*(c.distance||c.maxLength)+1)} rounds per full pass`: ""}`;const p=plan();$('tournamentWorkload').textContent=`${p.jobs.length} matchups · ${p.totalRounds.toLocaleString()} rounds`;}
   catch(error){$('tournamentWorkload').textContent=error.message;}
  }
  function dispose(){for(const slot of workers){clearTimeout(slot.timer);slot.worker.terminate();}workers=[];}

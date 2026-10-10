@@ -25,7 +25,7 @@ attribution and collection README files alongside them. The build packages only
 suites with descriptors; it does not guess rules from folder names.
 
 Parameters: `coreSize`, `cycles`, `tasks`, `maxLength`, `distance`, `pspace`,
-`rules88`, `noPspace`, `formula`, and `rounds`. Omitted settings use pMARS defaults;
+`rules88`, `noPspace`, `permutate`, `formula`, and `rounds`. Omitted settings use pMARS defaults;
 omitted rounds defaults to 100. Descriptors can also retain descriptive metadata
 such as `description`, `sourceUrl`, and `retrievedAt`.
 
@@ -58,6 +58,7 @@ ranking: 59 '88 opponents, 58 runnable '94nop opponents out of 59, and 53 P-spac
 opponents. `Numb` remains in the archive but exceeds the pinned assembler's
 complexity limit and is listed in its descriptor's `excludedWarriors` metadata.
 Franz's Tiny contains 10 of the 20 warriors described by its README and is labeled
-partial. Nano 2007 uses seeded sampled positions here, not the original script's
-permutation mode; the distinction is displayed in its name and description.
+partial. Nano 2007 uses permutation mode with a 142-round default, covering every
+legal relative placement and both first-warrior choices. Round overrides can
+request a partial pass or additional passes.
 Historical `-F` positions are replaced by the tournament seed for all suites.

@@ -17,6 +17,7 @@ jobs:
       - run: node docs/test-engine.mjs
       - run: node docs/test-native-cdb.mjs
       - run: node docs/test-tournament-plan.mjs
+      - run: node docs/test-permutation.mjs
       - run: node docs/test-benchmarks.mjs
       - run: node docs/test-catalog-engine.mjs
       - run: npm ci

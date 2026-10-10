@@ -6,7 +6,6 @@ export function planTournament({mode,entrants,opponents=[],challenger,rounds,see
  if(!Number.isInteger(rounds)||rounds<1||rounds>2147483647)throw new Error('Rounds must be a positive integer.');
  if(typeof seed!=='string'||!seed.trim()||seed.length>120)throw new Error('Enter a seed of 1–120 characters.');
  if(config.assembleOnly)throw new Error('Turn off Assemble only in match settings.');
- if(config.permutate)throw new Error('Turn off Permutate positions for tournaments.');
  const pairs=[];
  if(mode==='melee')pairs.push(entrants);
  else if(mode==='round-robin'){

@@ -80,7 +80,10 @@ with a minimum of one. A queue feeds persistent workers; each matchup gets a fre
 engine and keeps all rounds together, preserving P-space and RNG continuity.
 The seed and stable job number determine starting positions, independent of worker
 count or completion order. Tournament rounds and seed override the shared rounds
-and positioning options. Assemble-only and permutation modes are rejected.
+and positioning options. Assemble-only is rejected. Permutation is supported for every two-warrior matchup,
+including two-entrant Melee; larger Melees are rejected when it is enabled.
+The displayed full-pass count is 2 * (core size - 2 * minimum separation + 1).
+Fewer rounds sample without repetition; additional rounds begin another pass.
 
 Workers suppress visualization/debug tracing and report only completed matchups.
 Progress, normalized rankings, and charts update in batches at most ten times per
