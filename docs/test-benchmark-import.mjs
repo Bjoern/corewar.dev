@@ -10,7 +10,7 @@ try{
  await page.goto(process.env.PMARS_URL||'http://127.0.0.1:8766/');
  await page.locator('#warriorFiles').setInputFiles(file('candidate.red',';redcode\n;name Candidate\n;assert 1\njmp 0'));
  await page.waitForFunction(()=>document.querySelectorAll('.include-warrior').length===1);
- await page.locator('#tournamentTab').click();await page.locator('#tournamentMode').selectOption('benchmark');
+ await page.locator('#tournamentTab').click();await page.locator('#mode-benchmark').click();
  const {benchmarkCatalog}=await import('../_site/benchmark-catalog.mjs');
  for(const entry of benchmarkCatalog){
   await page.locator('#benchmarkSuite').selectOption(entry.id);

@@ -13,7 +13,30 @@ export function setupTournaments({roster,readConfig,onTab}) {
  new ResizeObserver(([entry])=>{const width=entry.contentRect.width;if(width>0&&width!==chartWidth){chartWidth=width;chart.draw();}}).observe($('tournamentChart'));
  const processors=Math.max(1,navigator.hardwareConcurrency||2);
  $('tournamentWorkers').max=processors;$('tournamentWorkers').value=Math.max(1,Math.floor(processors/2));
- $('workerLimit').textContent=`Up to ${processors} parallel workers`;
+ $('workerLimit').textContent=navigator.hardwareConcurrency?`The browser reports ${processors} logical processors (hardware threads), not necessarily ${processors} physical cores.`:'The browser did not report a processor count. Using a limit of 2 workers.';
+ $('workerSlider').max=processors;
+ $('workerSlots').replaceChildren(...Array.from({length:processors},()=>document.createElement('span')));
+ function workerPreview(){
+  const count=Number($('tournamentWorkers').value);
+  $('workerSlider').value=count;
+  [...$('workerSlots').children].forEach((slot,i)=>slot.classList.toggle('selected',i<count));
+  $('workerSummary').textContent=`${count} of ${processors} available workers`;
+ }
+ $('tournamentWorkers').addEventListener('input',workerPreview);
+ $('workerSlider').oninput=()=>{$('tournamentWorkers').value=$('workerSlider').value;workerPreview();};
+ document.querySelectorAll('[data-workers]').forEach(button=>button.onclick=()=>{
+  $('tournamentWorkers').value=button.dataset.workers==='one'?1:button.dataset.workers==='half'?Math.max(1,Math.floor(processors/2)):processors;workerPreview();
+ });
+ workerPreview();
+ const modeTabs=[...document.querySelectorAll('[data-mode]')];
+ function chooseMode(tab){$('tournamentMode').value=tab.dataset.mode;suiteDefaults();}
+ modeTabs.forEach((tab,index)=>{
+  tab.onclick=()=>chooseMode(tab);
+  tab.onkeydown=event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();
+   const next=event.key==='Home'?0:event.key==='End'?modeTabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+modeTabs.length)%modeTabs.length;
+   chooseMode(modeTabs[next]);modeTabs[next].focus();
+  };
+ });
  const tabs=[$('emulatorTab'),$('tournamentTab')];
  function selectTab(index){
   tabs.forEach((tab,i)=>{tab.setAttribute('aria-selected',String(i===index));tab.tabIndex=i===index?0:-1;});
@@ -27,6 +50,9 @@ export function setupTournaments({roster,readConfig,onTab}) {
   challenger:$('challenger').value,rounds:Number($('tournamentRounds').value),seed:$('tournamentSeed').value,config:configForRun(),selfFights:$('selfFights').checked});}
  function refresh(){
   const mode=$('tournamentMode').value;
+  modeTabs.forEach(tab=>{const selected=tab.dataset.mode===mode;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;});
+  $('modePanel').setAttribute('aria-labelledby','mode-'+mode);
+  $('modeDescription').textContent={'round-robin':'Each selected warrior fights every other selected warrior, one on one.',benchmark:'Test each selected warrior against the opponents in a benchmark suite.',challenge:'One challenger fights each of the other selected warriors, one on one.',melee:'All selected warriors fight together in the same core.'}[mode];
   $('selfFights').disabled=mode==='melee';
   $('benchmarkSetup').hidden=mode!=='benchmark';$('challengeSetup').hidden=mode!=='challenge';
   const old=$('challenger').value;$('challenger').replaceChildren(...roster().map(w=>new Option(w.name,w.id)));if(roster().some(w=>w.id===old))$('challenger').value=old;
@@ -50,7 +76,7 @@ export function setupTournaments({roster,readConfig,onTab}) {
   $('tournamentPause').textContent=run?.state==='paused'?'Resume':run?.state==='pausing'?'Finishing active matchups…':'Pause';
   $('tournamentPause').disabled=!busy||run.state==='pausing';$('tournamentCancel').disabled=!busy;
   $('tournamentExport').disabled=!run;
-  $('tournamentSetup').disabled=!!busy;
+  $('tournamentSetup').disabled=!!busy;$('parallelSetup').disabled=!!busy;
  }
  function resultRows(){
   if(!run)return [];

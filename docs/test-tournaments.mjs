@@ -12,6 +12,11 @@ try {
  await page.goto(process.env.PMARS_URL||'http://127.0.0.1:8766/');
  await page.locator('#warriorFiles').setInputFiles(['Imp','Dwarf','Loop'].map((name,i)=>({name:name+'.red',mimeType:'text/plain',buffer:Buffer.from(';redcode\n;name '+name+'\n;assert 1\n'+['mov 0,1','add.ab #4,3\nmov.i 2,@2\njmp -2\ndat 0,0','jmp 0'][i]+'\n')})));
  await page.locator('#tournamentTab').click();assert(await page.locator('#emulatorPanel').isHidden());
+ assert.equal(await page.locator('#workerSlots .selected').count(),2);
+ await page.locator('[data-workers=all]').click();assert.equal(await page.locator('#tournamentWorkers').inputValue(),'4');
+ await page.locator('#workerSlider').focus();await page.locator('#workerSlider').press('ArrowLeft');assert.equal(await page.locator('#tournamentWorkers').inputValue(),'3');assert.equal(await page.locator('#workerSlots .selected').count(),3);
+ await page.locator('[data-workers=one]').click();assert.equal(await page.locator('#workerSlider').inputValue(),'1');
+ await page.locator('#mode-round-robin').focus();await page.locator('#mode-round-robin').press('ArrowRight');assert.equal(await page.locator('#mode-benchmark').getAttribute('aria-selected'),'true');await page.locator('#mode-benchmark').press('Home');
  await page.locator('#editSettings').click();await page.locator('#cycles').fill('200');await page.locator('#permutate').check();
  await page.locator('#tournamentRounds').fill('5');await page.locator('#tournamentWorkers').fill('1');
  await page.locator('#tournamentStart').click();await complete();const first=await exportRun();
@@ -23,17 +28,17 @@ try {
  await page.locator('#tournamentWorkers').fill('3');await page.locator('#tournamentStart').click();await complete();const parallel=await exportRun();
  assert.deepEqual(parallel.results.sort((a,b)=>a.id-b.id),first.results.sort((a,b)=>a.id-b.id));
  assert.deepEqual(parallel.standings,first.standings);
- await page.locator('#tournamentMode').selectOption('challenge');await page.locator('#challenger').selectOption('roster-1');
+ await page.locator('#mode-challenge').click();await page.locator('#challenger').selectOption('roster-1');
  await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results.length,2);
  await page.locator('#permutate').uncheck();
- await page.locator('#tournamentMode').selectOption('melee');await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results[0].warriors.length,3);
- await page.locator('#tournamentMode').selectOption('benchmark');await page.getByText('Create a suite from selected warriors',{exact:true}).click();await page.locator('#saveBenchmark').click();assert.match(await page.locator('#saveBenchmarkStatus').textContent(),/Enter a name/);assert(await page.locator('#benchmarkName').evaluate(e=>e===document.activeElement));await page.locator('#benchmarkName').fill('My suite');await page.locator('#saveBenchmark').click();assert.match(await page.locator('#saveBenchmarkStatus').textContent(),/Created “My suite” with 3 opponents/);assert.equal(await page.locator('#benchmarkSuite option:checked').textContent(),'My suite');
+ await page.locator('#mode-melee').click();await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results[0].warriors.length,3);
+ await page.locator('#mode-benchmark').click();await page.getByText('Create a suite from selected warriors',{exact:true}).click();await page.locator('#saveBenchmark').click();assert.match(await page.locator('#saveBenchmarkStatus').textContent(),/Enter a name/);assert(await page.locator('#benchmarkName').evaluate(e=>e===document.activeElement));await page.locator('#benchmarkName').fill('My suite');await page.locator('#saveBenchmark').click();assert.match(await page.locator('#saveBenchmarkStatus').textContent(),/Created “My suite” with 3 opponents/);assert.equal(await page.locator('#benchmarkSuite option:checked').textContent(),'My suite');
  await page.locator('.include-warrior').nth(1).uncheck();await page.locator('.include-warrior').nth(2).uncheck();
  await page.locator('#tournamentStart').click();await complete();const bench=await exportRun();assert.equal(bench.results.length,2);assert.equal(bench.standings.length,1);
  // Restore three entrants and exercise pause at matchup boundaries.
  await page.locator('.include-warrior').nth(1).check();await page.locator('.include-warrior').nth(2).check();
- await page.locator('#tournamentMode').selectOption('round-robin');await page.locator('#cycles').fill('10000');await page.locator('#tournamentRounds').fill('100');await page.locator('#tournamentWorkers').fill('1');
- await page.locator('#tournamentStart').click();await page.locator('#tournamentPause').click();
+ await page.locator('#mode-round-robin').click();await page.locator('#cycles').fill('10000');await page.locator('#tournamentRounds').fill('100');await page.locator('#tournamentWorkers').fill('1');
+ await page.locator('#tournamentStart').click();await page.locator('#tournamentPause').click();assert(await page.locator('#workerSlider').isDisabled());
  await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Paused'));
  const paused=await exportRun();assert.equal(paused.results.length,1);
  await page.locator('#tournamentPause').click();await complete();
