@@ -59,15 +59,19 @@ export function setupTournaments({roster,readConfig,onTab}) {
  }
  function resultRows(){
   if(!run)return [];
-  const totals=run.plan.entrants.map(w=>({...w,wins:0,ties:0,losses:0,score:0,rounds:0}));
+  const totals=run.plan.entrants.filter(w=>!run.excluded.some(e=>e.source===w.source)).map(w=>({...w,wins:0,ties:0,losses:0,score:0,rounds:0}));
   for(const result of run.results){const job=run.plan.jobs[result.id];result.warriors.forEach((w,i)=>{const row=totals.find(t=>t.id===job.warriors[i].id);if(!row)return;for(const key of ['wins','ties','losses','score'])row[key]+=w[key];row.rounds+=result.completed;});}
   return totals;
  }
  function render(){
   pendingRender=null;if(!run)return;
   const completed=run.results.length,active=workers.filter(w=>w.job!==null).length;
-  $('tournamentProgress').max=run.plan.jobs.length;$('tournamentProgress').value=completed;
-  $('tournamentStatus').textContent=run.error||`${run.state[0].toUpperCase()+run.state.slice(1)} · ${completed} / ${run.plan.jobs.length} matchups · ${active} active`;
+  $('tournamentProgress').max=run.plan.jobs.length;$('tournamentProgress').value=completed+run.skipped.length;
+  $('tournamentStatus').textContent=run.error||`${run.state[0].toUpperCase()+run.state.slice(1)} · ${completed} / ${run.plan.jobs.length} matchups · ${active} active${run.skipped.length?` · ${run.skipped.length} matchups skipped`:""}`;
+  const exclusions=$('tournamentExclusions');exclusions.hidden=!run.excluded.length;
+  exclusions.replaceChildren();
+  if(run.excluded.length){const title=document.createElement('strong');title.textContent=`${run.excluded.length} warrior(s) excluded from this benchmark`;exclusions.append(title);
+   const list=document.createElement('ul');for(const entry of run.excluded){const li=document.createElement('li');li.textContent=`${entry.name}: ${entry.reason}`;list.append(li);}exclusions.append(list);}
   const rows=resultRows();
   chart.add(completed,rows.map(r=>r.rounds?r.score/r.rounds:0));
   const body=$('tournamentStandings');body.replaceChildren();
@@ -81,13 +85,15 @@ export function setupTournaments({roster,readConfig,onTab}) {
  function scheduleRender(){if(pendingRender===null)pendingRender=setTimeout(render,100);}
  function fail(message){run.state='failed';run.error=message;dispose();render();}
  function dispatch(slot){
-  if(!run||run.state!=='running'||run.next>=run.plan.jobs.length)return;
+  if(!run||run.state!=='running')return;
+  while(run.next<run.plan.jobs.length&&run.skipped.includes(run.plan.jobs[run.next].id))run.next++;
+  if(run.next>=run.plan.jobs.length)return;
   const job=run.plan.jobs[run.next++];slot.job=job.id;
   slot.timer=setTimeout(()=>fail('Assembly timed out for '+job.warriors.map(w=>w.name).join(' / ')),15000);
   slot.worker.postMessage(job);
  }
  function settle(){
-  if(run.results.length===run.plan.jobs.length){run.state='complete';dispose();}
+  if(run.results.length+run.skipped.length===run.plan.jobs.length){run.state='complete';dispose();}
   else if(run.state==='pausing'&&workers.every(w=>w.job===null))run.state='paused';
   scheduleRender();controls();
  }
@@ -96,7 +102,7 @@ export function setupTournaments({roster,readConfig,onTab}) {
    const next=plan(),count=Number($('tournamentWorkers').value);
    if(!Number.isInteger(count)||count<1||count>processors)throw new Error(`Choose 1–${processors} workers.`);
    dispose();clearTimeout(pendingRender);pendingRender=null;chart.clear();
-   run={plan:next,results:[],next:0,state:'running',workers:Math.min(count,next.jobs.length)};
+   run={plan:next,results:[],excluded:[],skipped:[],next:0,state:'running',workers:Math.min(count,next.jobs.length)};
    for(let i=0;i<run.workers;i++){
     const worker=new Worker(new URL('./tournament-worker.mjs',import.meta.url),{type:'module'}),slot={worker,job:null,timer:null};workers.push(slot);
     worker.onerror=e=>{if(workers.includes(slot))fail(e.message||'Worker failed.');};
@@ -104,6 +110,16 @@ export function setupTournaments({roster,readConfig,onTab}) {
      if(!workers.includes(slot)||data.id!==slot.job)return;
      clearTimeout(slot.timer);
      if(data.type==='started')return;
+     if(data.type==='error'&&run.plan.mode==='benchmark'&&Number.isInteger(data.assemblyWarrior)){
+      const warrior=run.plan.jobs[data.id].warriors[data.assemblyWarrior];
+      if(!run.excluded.some(e=>e.source===warrior.source)){
+       run.excluded.push({...warrior,reason:[data.message,data.diagnostics.trim()].filter(Boolean).join(' — ')});
+       chart.clear(); // The remaining series must not inherit another entrant's history.
+      }
+      for(const job of run.plan.jobs)if(job.warriors.some(w=>w.source===warrior.source)&&!run.skipped.includes(job.id))run.skipped.push(job.id);
+      slot.job=null;dispatch(slot);settle();return;
+     }
+     if(run.skipped.includes(data.id)){slot.job=null;dispatch(slot);settle();return;}
      if(data.type==='error'){fail('Matchup '+(data.id+1)+' ('+run.plan.jobs[data.id].warriors.map(w=>w.name).join(' / ')+'): '+data.message+' '+data.diagnostics);return;}
      run.results.push(data);slot.job=null;dispatch(slot);settle();
     };

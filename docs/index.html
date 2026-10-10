@@ -87,6 +87,7 @@
 </fieldset>
 <div class="tournament-controls"><button id="tournamentStart" class="primary">Run tournament</button><button id="tournamentPause" disabled title="Finish active matchups before pausing">Pause</button><button id="tournamentCancel" disabled>Cancel</button><button id="tournamentExport" disabled>Export results</button></div>
 <p id="tournamentStatus" role="status">Ready.</p><progress id="tournamentProgress" value="0" max="1" aria-label="Tournament progress"></progress>
+<div id="tournamentExclusions" class="tournament-exclusions" role="alert" hidden></div>
 <div class="tournament-table"><table><thead><tr><th>Warrior</th><th>Rounds</th><th>Wins</th><th>Ties</th><th>Losses</th><th>Points</th><th>Points / round</th></tr></thead><tbody id="tournamentStandings"></tbody></table></div>
 <canvas id="tournamentChart" aria-label="Tournament score progress"></canvas>
 <details><summary>Completed matchups</summary><ol id="matchupResults"></ol></details>

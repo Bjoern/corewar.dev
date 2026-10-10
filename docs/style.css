@@ -198,3 +198,6 @@ header h1,header p{margin:0}header p{white-space:nowrap;font-size:14px}
 #tournamentChart{margin-bottom:20px}#matchupResults{font-size:13px;max-height:300px;overflow:auto}
 
 .benchmark-import{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}.benchmark-upload{display:flex;flex-direction:column;gap:6px;max-width:100%}.benchmark-upload input{max-width:100%;width:300px}#benchmarkMembers{max-height:200px;overflow:auto;font-size:13px}#benchmarkDescriptor{height:230px;font-size:12px}
+
+.tournament-exclusions { border: 2px solid #d68a24; border-radius: 6px; padding: 12px; margin: 12px 0; }
+.tournament-exclusions li { white-space: pre-wrap; overflow-wrap: anywhere; }
