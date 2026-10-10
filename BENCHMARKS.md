@@ -1,6 +1,6 @@
 # Benchmark descriptors
 
-Put public collections under `warrior_public/`, preserving their subdirectories.
+Put public collections under `warriors_public/`, preserving their subdirectories.
 Each selectable suite has a file ending in `.benchmark.json` in its directory:
 
 ```json
@@ -48,3 +48,16 @@ Self fights includes a warrior against itself in round robin/Challenge. In
 Benchmark mode it includes opponents whose source text exactly matches the
 candidate; unchecked skips those entries. It does not use warrior names as an
 identity test. Melee ignores this option because all entrants already share a core.
+
+## Supplied catalog (2026-10-10)
+
+The catalog contains 11 suites and 339 runnable opponent entries. Original files,
+readmes, and historical runner scripts are preserved under `warriors_public/`.
+Koenigstuhl archive membership follows the supplied files, not an inferred top-50
+ranking: 59 '88 opponents, 58 runnable '94nop opponents out of 59, and 53 P-space
+opponents. `Numb` remains in the archive but exceeds the pinned assembler's
+complexity limit and is listed in its descriptor's `excludedWarriors` metadata.
+Franz's Tiny contains 10 of the 20 warriors described by its README and is labeled
+partial. Nano 2007 uses seeded sampled positions here, not the original script's
+permutation mode; the distinction is displayed in its name and description.
+Historical `-F` positions are replaced by the tournament seed for all suites.

@@ -39,6 +39,7 @@ export function setupTournaments({roster,readConfig,onTab}) {
   const suite=suites.find(s=>s.id===$('benchmarkSuite').value);
   if(displayedSuite!==suite){
    displayedSuite=suite;
+   $('benchmarkDescription').textContent=suite.descriptor.description||'';
    $('benchmarkSummary').textContent=`${suite.name} · ${suite.warriors.length} opponents · default ${suite.rounds} rounds`;
    $('benchmarkMembers').replaceChildren(...suite.warriors.map(w=>{const li=document.createElement('li');li.textContent=w.name+' ('+w.file+')';return li;}));
    $('benchmarkDescriptor').value=JSON.stringify(suite.descriptor,null,2);

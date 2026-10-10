@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "name": "Metcalf Tiny 2002",
+  "description": "Rules and default rounds follow TESTXXXX.BAT; the app seed replaces its historical fixed position.",
+  "parameters": {
+    "coreSize": 800,
+    "cycles": 8000,
+    "tasks": 800,
+    "maxLength": 20,
+    "distance": 20,
+    "pspace": 50,
+    "rules88": false,
+    "noPspace": false,
+    "formula": "(W*W-1)/S",
+    "rounds": 500
+  },
+  "warriors": [
+    "DETTOL.RED",
+    "DK-SKIES.RED",
+    "E-THREAT.RED",
+    "EASTER.RED",
+    "GUNMAN.RED",
+    "HEMULEN.RED",
+    "HIRED.RED",
+    "KB2.RED",
+    "MOOMIN.RED",
+    "MUSKRAT.RED",
+    "POTENZA.RED",
+    "RASP.RED",
+    "S774.RED",
+    "SNOWST.RED",
+    "SWARM.RED",
+    "TINYBI2.RED",
+    "TINYBLOW.RED",
+    "TINYFREE.RED",
+    "TINYPOKE.RED",
+    "XYZZY.RED"
+  ]
+}

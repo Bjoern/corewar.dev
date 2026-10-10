@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 
 def catalog(root):
-    folder = root / "warrior_public"
+    folder = root / "warriors_public"
     result = []
     if not folder.exists():
         return result

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "name": "Franz’s Tiny · partial collection",
+  "description": "10 warriors supplied; README describes 20. This is a partial collection. Settings follow TESTXXXX.BAT; the app seed replaces its historical fixed position.",
+  "parameters": {
+    "coreSize": 800,
+    "cycles": 8000,
+    "tasks": 800,
+    "maxLength": 20,
+    "distance": 20,
+    "pspace": 50,
+    "rules88": false,
+    "noPspace": false,
+    "formula": "(W*W-1)/S",
+    "rounds": 1000
+  },
+  "warriors": [
+    "TINYAK47.RED",
+    "TINYBARB.RED",
+    "TINYBRUT.RED",
+    "TINYDCLR.RED",
+    "TINYEVER.RED",
+    "TINYGOLD.RED",
+    "TINYPORT.RED",
+    "TINYSPIR.RED",
+    "TINYTIBE.RED",
+    "TINYWICK.RED"
+  ]
+}

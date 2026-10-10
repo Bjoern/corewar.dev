@@ -29,7 +29,7 @@ for path in WEB.iterdir():
     elif path.is_file():
         shutil.copy2(path, OUT / path.name)
 shutil.copy2(ROOT / "engine-lock.json", OUT / "engine-lock.json")
-(OUT / "benchmark-catalog.mjs").write_text("// Generated from warrior_public descriptors.\nexport const benchmarkCatalog = " + json.dumps(catalog(ROOT), ensure_ascii=True) + ";\n", encoding="utf-8")
+(OUT / "benchmark-catalog.mjs").write_text("// Generated from warriors_public descriptors.\nexport const benchmarkCatalog = " + json.dumps(catalog(ROOT), ensure_ascii=True) + ";\n", encoding="utf-8")
 text_paths = sorted(OUT.glob("*.mjs")) + [OUT / "index.html", OUT / "style.css", OUT / "favicon.svg"]
 normalized = {p: re.sub(r"\?v=[A-Za-z0-9_-]+", "", p.read_text(encoding="utf-8")) for p in text_paths}
 digest = hashlib.sha256()
@@ -53,7 +53,7 @@ with zipfile.ZipFile(OUT / "app-source.zip", "w", zipfile.ZIP_DEFLATED) as archi
     paths += sorted((ROOT / "scripts").glob("*.py"))
     paths += sorted((ROOT / ".github/workflows").glob("*.yml"))
     paths += sorted(p for p in WEB.rglob("*") if p.is_file() and "test-output" not in p.parts)
-    paths += sorted(p for p in (ROOT / "warrior_public").rglob("*") if p.is_file())
+    paths += sorted(p for p in (ROOT / "warriors_public").rglob("*") if p.is_file())
     for p in paths:
         info = zipfile.ZipInfo(p.relative_to(ROOT).as_posix(), (1980,1,1,0,0,0))
         archive.writestr(info, p.read_bytes(), compress_type=zipfile.ZIP_DEFLATED)

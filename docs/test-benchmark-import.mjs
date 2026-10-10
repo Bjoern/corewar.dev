@@ -11,6 +11,18 @@ try{
  await page.locator('#warriorFiles').setInputFiles(file('candidate.red',';redcode\n;name Candidate\n;assert 1\njmp 0'));
  await page.waitForFunction(()=>document.querySelectorAll('.include-warrior').length===1);
  await page.locator('#tournamentTab').click();await page.locator('#tournamentMode').selectOption('benchmark');
+ const {benchmarkCatalog}=await import('../_site/benchmark-catalog.mjs');
+ for(const entry of benchmarkCatalog){
+  await page.locator('#benchmarkSuite').selectOption(entry.id);
+  assert.equal(await page.locator('#tournamentRounds').inputValue(),String(entry.descriptor.parameters.rounds));
+ }
+ const nano=benchmarkCatalog.find(e=>e.id.includes('/nanobm07/')||e.id.startsWith('public-nanobm07/'));
+ if(nano){
+  await page.locator('#benchmarkSuite').selectOption(nano.id);await page.locator('#tournamentRounds').fill('1');await page.locator('#tournamentStart').click();
+  await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Complete'));
+  assert.match(await page.locator('#tournamentStatus').textContent(),/50 \/ 50/);
+  assert.equal(await page.locator('.include-warrior').count(),1);
+ }
  await page.locator('#benchmarkFiles').setInputFiles([file('suite.benchmark.json',JSON.stringify(descriptor)),file('loop.red',';redcode\n;name Loop\n;assert 1\njmp 0'),file('dead.red',';redcode\n;name Dead\n;assert 1\ndat 0,0')]);
  await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Imported'));
  assert.equal(await page.locator('.include-warrior').count(),1);

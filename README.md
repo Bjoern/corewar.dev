@@ -70,7 +70,7 @@ Opening the tournament tab pauses a running graphical battle.
 Bundled examples are provided as a sample suite, not a classic benchmark.
 Save session suite copies selected sources and current match settings into a named
 opponent list; then select candidates. These lists last for the page session only.
-Public benchmark collections can be packaged from `warrior_public/` using
+Public benchmark collections can be packaged from `warriors_public/` using
 [benchmark descriptors](BENCHMARKS.md). A separate benchmark importer accepts a
 descriptor and its warriors without adding them to the emulator roster.
 Persistent libraries and king-of-the-hill admission rules are not implemented yet.

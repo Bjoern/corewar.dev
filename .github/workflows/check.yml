@@ -18,6 +18,7 @@ jobs:
       - run: node docs/test-native-cdb.mjs
       - run: node docs/test-tournament-plan.mjs
       - run: node docs/test-benchmarks.mjs
+      - run: node docs/test-catalog-engine.mjs
       - run: npm ci
       - run: npm install --no-save playwright@1.62.1
       - run: npx playwright install --with-deps chromium
