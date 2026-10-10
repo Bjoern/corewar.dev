@@ -30,6 +30,7 @@
 <p id="status" class="sr-only" role="status" aria-atomic="true">Ready to assemble.</p>
 <p id="activeSettings" class="hint" aria-live="polite"></p>
 <progress id="progress" value="0" max="100" aria-label="Series progress" hidden></progress>
+<p id="fastNotice" class="fast-notice" role="status" hidden>Fast skips graphics. For maximum speed, use Melee in Tournaments.</p>
 <div class="page-layout"><label>Layout <select id="arenaLayout"><option value="vertical">Scroll vertically</option><option value="horizontal">Scroll horizontally</option><option value="fill">Fill vertically</option><option value="fill-horizontal">Fill horizontally</option></select></label><label>Cell size <select id="cellSize"><option value="0">Auto · whole pixels</option><option value="4">Classic · 2×2 mark</option><option value="6">Compact · 4×4 mark</option><option value="8" selected>8 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="24">24 px</option></select></label><label class="arena-theme">Theme <select id="theme"><option value="modern">Modern</option><option value="classic">pMARS classic</option><option value="accessible">pMARS accessible</option></select></label></div>
 <section class="arena" aria-label="Core arena">
 <div class="arena-controls">
@@ -78,7 +79,7 @@
 </fieldset>
 <fieldset id="tournamentSetup"><legend>Tournament setup</legend>
 <div id="tournamentModes" class="mode-tabs" role="tablist" aria-label="Tournament mode">
-<button type="button" id="mode-round-robin" role="tab" data-mode="round-robin" aria-selected="true" aria-controls="modePanel">Round robin</button><button type="button" id="mode-benchmark" role="tab" data-mode="benchmark" aria-selected="false" tabindex="-1" aria-controls="modePanel">Benchmark</button><button type="button" id="mode-challenge" role="tab" data-mode="challenge" aria-selected="false" tabindex="-1" aria-controls="modePanel">Challenge</button><button type="button" id="mode-melee" role="tab" data-mode="melee" aria-selected="false" tabindex="-1" aria-controls="modePanel">Melee</button></div>
+<button type="button" id="mode-melee" role="tab" data-mode="melee" aria-selected="false" tabindex="-1" aria-controls="modePanel">Melee</button><button type="button" id="mode-round-robin" role="tab" data-mode="round-robin" aria-selected="true" aria-controls="modePanel">Round robin</button><button type="button" id="mode-benchmark" role="tab" data-mode="benchmark" aria-selected="false" tabindex="-1" aria-controls="modePanel">Benchmark</button><button type="button" id="mode-challenge" role="tab" data-mode="challenge" aria-selected="false" tabindex="-1" aria-controls="modePanel">Challenge</button></div>
 <div id="modePanel" role="tabpanel" aria-labelledby="mode-round-robin"><p id="modeDescription" class="hint"></p>
 <input id="tournamentMode" type="hidden" value="round-robin">
 <div class="tournament-controls">
@@ -90,10 +91,10 @@
 </div>
 <p id="tournamentEntrants" class="hint"></p>
 <div id="challengeSetup" hidden><label>Challenger <select id="challenger"></select></label></div>
-<div id="benchmarkSetup" hidden><label>Opponent suite <select id="benchmarkSuite"></select></label>
+<div id="benchmarkSetup" hidden><div class="tournament-controls"><label>Opponent suite <select id="benchmarkSuite"></select></label><button id="downloadBenchmarkZip" type="button">Download benchmark (.zip)</button></div>
 <p id="benchmarkDescription" class="hint"></p><div class="benchmark-import"><label class="benchmark-upload">Import benchmark <input id="benchmarkFiles" type="file" multiple accept=".json,.red,.rc,.txt"></label><label class="benchmark-upload">Import folder <input id="benchmarkFolder" type="file" webkitdirectory multiple></label></div>
 <details id="benchmarkDetails"><summary id="benchmarkSummary">Suite details</summary><ul id="benchmarkMembers"></ul><label>Descriptor <textarea id="benchmarkDescriptor" spellcheck="false" aria-label="Benchmark descriptor"></textarea></label><div class="tournament-controls"><button id="applyBenchmark" type="button">Apply changes</button><button id="downloadBenchmark" type="button">Download descriptor</button></div><p class="hint">Select a descriptor and its warrior files together. Editing changes this session only.</p></details>
-<details><summary>Create a suite from selected warriors</summary><div class="tournament-controls"><label>Name <input id="benchmarkName" maxlength="100"></label><button id="saveBenchmark" type="button">Save session suite</button></div><p id="saveBenchmarkStatus" role="status" aria-live="polite" hidden></p><p class="hint">Copies the selected sources and current match settings. Then select the candidates you want to test.</p></details></div>
+<details><summary>Create a suite from selected warriors</summary><div class="tournament-controls"><label>Name <input id="benchmarkName" maxlength="100"></label><button id="saveBenchmark" type="button">Save session suite</button><span class="hint">Then use Download benchmark (.zip) above to keep a copy.</span></div><p id="saveBenchmarkStatus" role="status" aria-live="polite" hidden></p><p class="hint">Copies the selected sources and current match settings. Then select the candidates you want to test.</p></details></div>
 <p id="tournamentWorkload"></p><p id="tournamentRules" class="hint"></p><p class="hint">The seed here determines reproducible starting positions. Pause finishes active matchups; Cancel stops them immediately.</p>
 </div></fieldset>
 <div class="tournament-controls"><button id="tournamentStart" class="primary">Run tournament</button><button id="tournamentPause" disabled title="Finish active matchups before pausing">Pause</button><button id="tournamentCancel" disabled>Cancel</button><button id="tournamentExport" disabled>Export results</button></div>

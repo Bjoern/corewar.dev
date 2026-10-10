@@ -601,7 +601,7 @@ async function command(text) {
   return nativeCommand(text);
 }
 function setFast(enabled){
- const wasFast=fastMode;fastMode=enabled;$('fast').setAttribute('aria-pressed',String(enabled));
+ const wasFast=fastMode;fastMode=enabled;$('fastNotice').hidden=!enabled;$('fast').setAttribute('aria-pressed',String(enabled));
  $('speed').disabled=enabled;syncTrace();
  if(!enabled){display.redraw();if(latest){if(wasFast)sampleScores(latest);textViews();}}
 }

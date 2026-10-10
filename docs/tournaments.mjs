@@ -1,3 +1,4 @@
+import {benchmarkZip} from './benchmark-zip.mjs';
 import {benchmarkCatalog} from './benchmark-catalog.mjs';
 import {readBenchmark,importBenchmarkFiles,benchmarkParameters} from './benchmarks.mjs';
 // SPDX-License-Identifier: GPL-2.0-or-later
@@ -178,6 +179,10 @@ export function setupTournaments({roster,readConfig,onTab}) {
  $('applyBenchmark').onclick=()=>{
   try{const old=suites.find(s=>s.id===$('benchmarkSuite').value),updated=readBenchmark(JSON.parse($('benchmarkDescriptor').value),old.files,old.id);suites[suites.indexOf(old)]=updated;suiteDefaults();$('tournamentStatus').textContent='Benchmark updated for this session.';}
   catch(error){$('tournamentStatus').textContent=error.message;}
+ };
+ $('downloadBenchmarkZip').onclick=()=>{
+  const suite=suites.find(s=>s.id===$('benchmarkSuite').value),a=document.createElement('a'),url=URL.createObjectURL(benchmarkZip(suite));
+  a.href=url;a.download=(suite.name.replace(/[^a-z0-9_-]+/gi,'-').replace(/^-|-$/g,'')||'benchmark')+'.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  };
  $('downloadBenchmark').onclick=()=>{
   const suite=suites.find(s=>s.id===$('benchmarkSuite').value),a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify(suite.descriptor,null,2)],{type:'application/json'}));a.href=url;a.download='suite.benchmark.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);

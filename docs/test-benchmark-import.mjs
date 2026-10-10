@@ -27,6 +27,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Imported'));
  assert.equal(await page.locator('.include-warrior').count(),1);
  assert.equal(await page.locator('#tournamentRounds').inputValue(),'7');
+ const zipDownload=page.waitForEvent('download');await page.locator('#downloadBenchmarkZip').click();const zip=await zipDownload;assert.match(zip.suggestedFilename(),/\.zip$/);await zip.saveAs('docs/test-output/benchmark-export.zip');
  await page.locator('#benchmarkDetails summary').click();assert.equal(await page.locator('#benchmarkMembers li').count(),2);
  await page.locator('#tournamentRounds').fill('3');await page.locator('#tournamentStart').click();
  await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Complete'));

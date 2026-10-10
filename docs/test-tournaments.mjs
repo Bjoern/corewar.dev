@@ -15,7 +15,7 @@ try {
  await page.locator('[data-workers=all]').click();assert.equal(await page.locator('#tournamentWorkers').inputValue(),'4');
  await page.locator('#workerSlider').focus();await page.locator('#workerSlider').press('ArrowLeft');assert.equal(await page.locator('#tournamentWorkers').inputValue(),'3');
  await page.locator('[data-workers=one]').click();assert.equal(await page.locator('#workerSlider').inputValue(),'1');
- await page.locator('#mode-round-robin').focus();await page.locator('#mode-round-robin').press('ArrowRight');assert.equal(await page.locator('#mode-benchmark').getAttribute('aria-selected'),'true');await page.locator('#mode-benchmark').press('Home');
+ await page.locator('#mode-round-robin').focus();await page.locator('#mode-round-robin').press('ArrowRight');assert.equal(await page.locator('#mode-benchmark').getAttribute('aria-selected'),'true');await page.locator('#mode-benchmark').press('Home');assert.equal(await page.locator('#mode-melee').getAttribute('aria-selected'),'true');await page.locator('#mode-round-robin').click();
  await page.locator('#editSettings').click();await page.locator('#cycles').fill('200');await page.locator('#permutate').check();
  await page.locator('#tournamentRounds').fill('5');await page.locator('#tournamentWorkers').fill('1');
  await page.locator('#tournamentStart').click();await complete();const first=await exportRun();

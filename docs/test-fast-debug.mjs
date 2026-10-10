@@ -26,15 +26,15 @@ try {
  await loadTestWarriors(page);
  assert.equal(await page.locator('#diagnostics').evaluate(e=>e.open),false);
  assert.equal(await page.locator('#series,#stop').count(),0);
- await page.locator('#toggleEditors').click();
- await page.locator('#first').fill(marked);
- await page.locator('#second').fill(';redcode\n;assert 1\njmp 0\n');
+ const edit=async(id,text)=>{if(!await page.locator(id).isVisible())await page.locator('.edit-warrior').nth(id==='#first'?0:1).click();await page.locator(id).fill(text);};
+ await edit('#first',marked);
+ await edit('#second',';redcode\n;assert 1\njmp 0\n');
  await page.locator('#debugRun').click();await ready('Debug marker:');
  assert(await page.locator('#debugEnabled').isChecked());assert.equal(await count(),2);
  await page.locator('#step').click();assert.equal(await count(),3);
  await page.locator('#debugEnabled').uncheck();
  const imp=';redcode\n;assert 1\nmov.i 0,1\n';
- await page.locator('#first').fill(imp);await page.locator('#second').fill(imp);
+ await edit('#first',imp);await edit('#second',imp);
  await page.locator('#editSettings').click();await page.locator('#cycles').fill('10000000');
  await page.locator('#rounds').fill('10000000');
  await page.locator('#reset').click();await ready('Paused before');
@@ -43,10 +43,10 @@ try {
  const before=await snapshot();
  await page.evaluate(()=>{window.pulses=[];let prev=performance.now();window.pulse=setInterval(()=>{const now=performance.now();pulses.push(now-prev);prev=now;},20);});
  await page.locator('#fast').click();await page.waitForTimeout(400);
- assert(await count()>100);assert.deepEqual(await snapshot(),before);
+ assert(await page.locator('#fastNotice').isVisible());assert(await count()>100);assert.deepEqual(await snapshot(),before);
  await page.locator('#run').click();await ready('Paused.');
  const paused=await count();await page.waitForTimeout(100);assert.equal(await count(),paused);
- assert.equal(await page.locator('#fast').getAttribute('aria-pressed'),'false');
+ assert.equal(await page.locator('#fast').getAttribute('aria-pressed'),'false');assert(await page.locator('#fastNotice').isHidden());
  const pulse=await page.evaluate(()=>{clearInterval(window.pulse);return Math.max(...pulses);});assert(pulse<250);
  for(const width of [1400,390]) {
   await page.setViewportSize({width,height:1000});
