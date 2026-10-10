@@ -70,8 +70,10 @@ Opening the tournament tab pauses a running graphical battle.
 Bundled examples are provided as a sample suite, not a classic benchmark.
 Save session suite copies selected sources and current match settings into a named
 opponent list; then select candidates. These lists last for the page session only.
-Classic suites, persistent libraries, and king-of-the-hill admission rules are not
-implemented yet.
+Public benchmark collections can be packaged from `warrior_public/` using
+[benchmark descriptors](BENCHMARKS.md). A separate benchmark importer accepts a
+descriptor and its warriors without adding them to the emulator roster.
+Persistent libraries and king-of-the-hill admission rules are not implemented yet.
 
 The worker count defaults to half the browser-reported logical processor count,
 with a minimum of one. A queue feeds persistent workers; each matchup gets a fresh

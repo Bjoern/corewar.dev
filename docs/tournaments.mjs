@@ -1,3 +1,5 @@
+import {benchmarkCatalog} from './benchmark-catalog.mjs';
+import {readBenchmark,importBenchmarkFiles,benchmarkParameters} from './benchmarks.mjs';
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {bundledWarriors} from './demo-warriors.mjs';
 import {planTournament} from './tournament-plan.mjs';
@@ -7,7 +9,10 @@ const $=id=>document.getElementById(id);
 const nameOf=(source,index)=>source.match(/^\s*;name\s+([^\r\n]*)/im)?.[1].trim()||`Warrior ${index+1}`;
 export function setupTournaments({roster,readConfig,onTab}) {
  let suites=[{id:'bundled',name:'Bundled examples',warriors:bundledWarriors.map((w,i)=>({id:'demo-'+i,name:nameOf(w.source,i),source:w.source}))}];
- let serial=0,run=null,workers=[],pendingRender=null;
+ const bundled=suites[0];
+ const descriptor={version:1,name:bundled.name,parameters:{rounds:100},warriors:bundled.warriors.map((_,i)=>`example-${i+1}.red`)};
+ suites=[readBenchmark(descriptor,Object.fromEntries(bundled.warriors.map((w,i)=>[descriptor.warriors[i],w.source])),'bundled'),...benchmarkCatalog.map(s=>readBenchmark(s.descriptor,s.files,s.id))];
+ let serial=0,run=null,workers=[],pendingRender=null,displayedSuite=null;
  const chart=new HistoryChart($('tournamentChart'),'Average points / round · completed matchups');
  let chartWidth=0;
  new ResizeObserver(([entry])=>{const width=entry.contentRect.width;if(width>0&&width!==chartWidth){chartWidth=width;chart.draw();}}).observe($('tournamentChart'));
@@ -31,6 +36,13 @@ export function setupTournaments({roster,readConfig,onTab}) {
   $('benchmarkSetup').hidden=mode!=='benchmark';$('challengeSetup').hidden=mode!=='challenge';
   const old=$('challenger').value;$('challenger').replaceChildren(...roster().map(w=>new Option(w.name,w.id)));if(roster().some(w=>w.id===old))$('challenger').value=old;
   const selected=$('benchmarkSuite').value;$('benchmarkSuite').replaceChildren(...suites.map(s=>new Option(s.name,s.id)));if(suites.some(s=>s.id===selected))$('benchmarkSuite').value=selected;
+  const suite=suites.find(s=>s.id===$('benchmarkSuite').value);
+  if(displayedSuite!==suite){
+   displayedSuite=suite;
+   $('benchmarkSummary').textContent=`${suite.name} · ${suite.warriors.length} opponents · default ${suite.rounds} rounds`;
+   $('benchmarkMembers').replaceChildren(...suite.warriors.map(w=>{const li=document.createElement('li');li.textContent=w.name+' ('+w.file+')';return li;}));
+   $('benchmarkDescriptor').value=JSON.stringify(suite.descriptor,null,2);
+  }
   $('tournamentEntrants').textContent=roster().map(w=>w.name).join(', ')||'Select warriors in the roster above.';
   try {const c=configForRun();$('tournamentRules').textContent=`${mode==='benchmark'&&suites.find(s=>s.id===$('benchmarkSuite').value)?.config?'Saved suite settings':'Match settings'} · core ${c.coreSize} · cycles ${c.cycles} · processes ${c.tasks} · length ${c.maxLength}`;const p=plan();$('tournamentWorkload').textContent=`${p.jobs.length} matchups · ${p.totalRounds.toLocaleString()} rounds`;}
   catch(error){$('tournamentWorkload').textContent=error.message;}
@@ -109,7 +121,9 @@ export function setupTournaments({roster,readConfig,onTab}) {
    const warriors=roster();if(!warriors.length)throw new Error('Select warriors to add to the suite.');
    const name=$('benchmarkName').value.trim();if(!name)throw new Error('Enter a suite name.');
    const config=readConfig();const id='suite-'+(++serial);
-   suites.push({id,name,warriors:warriors.map((w,i)=>({...w,id:id+'-'+i})),config});
+   const descriptor={version:1,name,parameters:Object.fromEntries(benchmarkParameters.filter(k=>k in config).map(k=>[k,config[k]])),warriors:warriors.map((_,i)=>`warrior-${i+1}.red`)};
+   descriptor.parameters.rounds=Number($('tournamentRounds').value);
+   suites.push(readBenchmark(descriptor,Object.fromEntries(warriors.map((w,i)=>[descriptor.warriors[i],w.source])),id));
    refresh();$('benchmarkSuite').value=id;refresh();$('tournamentStatus').textContent=`Saved “${name}” for this session.`;
   }catch(error){$('tournamentStatus').textContent=error.message;}
  };
@@ -117,7 +131,21 @@ export function setupTournaments({roster,readConfig,onTab}) {
   const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify({...run,standings:resultRows()},null,2)],{type:'application/json'}));
   a.href=url;a.download='corewar-results.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  };
- for(const id of ['tournamentMode','benchmarkSuite','tournamentRounds','tournamentSeed','selfFights'])$(id).addEventListener('change',refresh);
+ function suiteDefaults(){const suite=suites.find(s=>s.id===$('benchmarkSuite').value);if($('tournamentMode').value==='benchmark')$('tournamentRounds').value=suite.rounds;refresh();}
+ for(const id of ['benchmarkFiles','benchmarkFolder'])$(id).onchange=async()=>{
+  try{const suite=await importBenchmarkFiles($(id).files,'import-'+(++serial));suites.push(suite);refresh();$('benchmarkSuite').value=suite.id;suiteDefaults();$('tournamentStatus').textContent=`Imported “${suite.name}” (${suite.warriors.length} opponents).`;}
+  catch(error){$('tournamentStatus').textContent=error.message;}finally{$(id).value='';}
+ };
+ $('applyBenchmark').onclick=()=>{
+  try{const old=suites.find(s=>s.id===$('benchmarkSuite').value),updated=readBenchmark(JSON.parse($('benchmarkDescriptor').value),old.files,old.id);suites[suites.indexOf(old)]=updated;suiteDefaults();$('tournamentStatus').textContent='Benchmark updated for this session.';}
+  catch(error){$('tournamentStatus').textContent=error.message;}
+ };
+ $('downloadBenchmark').onclick=()=>{
+  const suite=suites.find(s=>s.id===$('benchmarkSuite').value),a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify(suite.descriptor,null,2)],{type:'application/json'}));a.href=url;a.download='suite.benchmark.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ };
+ $('benchmarkSuite').addEventListener('change',suiteDefaults);
+ $('tournamentMode').addEventListener('change',suiteDefaults);
+ for(const id of ['tournamentRounds','tournamentSeed','selfFights'])$(id).addEventListener('change',refresh);
  $('challenger').addEventListener('change',()=>{try{$('tournamentWorkload').textContent=`${plan().jobs.length} matchups`;}catch{}});
  refresh();controls();return {refresh};
 }

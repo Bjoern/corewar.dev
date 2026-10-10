@@ -196,3 +196,5 @@ header h1,header p{margin:0}header p{white-space:nowrap;font-size:14px}
 #benchmarkSetup details{margin-top:16px}#tournamentEntrants{overflow-wrap:anywhere}#tournamentStatus{overflow-wrap:anywhere;white-space:pre-wrap}
 .tournament-table{overflow-x:auto;margin-bottom:20px}.tournament-table table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}.tournament-table td,.tournament-table th{padding:10px 8px;text-align:right;border-bottom:1px solid #2a3d4d}.tournament-table th:first-child,.tournament-table td:first-child{text-align:left}
 #tournamentChart{margin-bottom:20px}#matchupResults{font-size:13px;max-height:300px;overflow:auto}
+
+.benchmark-import{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}.benchmark-upload{display:flex;flex-direction:column;gap:6px;max-width:100%}.benchmark-upload input{max-width:100%;width:300px}#benchmarkMembers{max-height:200px;overflow:auto;font-size:13px}#benchmarkDescriptor{height:230px;font-size:12px}

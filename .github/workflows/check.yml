@@ -17,6 +17,7 @@ jobs:
       - run: node docs/test-engine.mjs
       - run: node docs/test-native-cdb.mjs
       - run: node docs/test-tournament-plan.mjs
+      - run: node docs/test-benchmarks.mjs
       - run: npm ci
       - run: npm install --no-save playwright@1.62.1
       - run: npx playwright install --with-deps chromium
@@ -28,6 +29,7 @@ jobs:
           trap 'kill $!' EXIT
           for i in $(seq 1 30); do curl -fsS "$PMARS_URL" > /dev/null && break; sleep 1; done
           node docs/test-tournaments.mjs
+          node docs/test-benchmark-import.mjs
           node docs/test-selection.mjs
           node docs/test-empty-roster.mjs
           node docs/test-results.mjs

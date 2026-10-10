@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import {pathToFileURL} from 'node:url';
+import {readFile} from 'node:fs/promises';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.BROWSER_CHANNEL?{channel:process.env.BROWSER_CHANNEL}:{})});
+const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+const file=(name,text)=>({name,mimeType:'text/plain',buffer:Buffer.from(text)});
+const descriptor={version:1,name:'Nano upload',parameters:{coreSize:80,maxLength:5,distance:5,tasks:80,cycles:800,rounds:7},warriors:['loop.red','dead.red']};
+try{
+ await page.goto(process.env.PMARS_URL||'http://127.0.0.1:8766/');
+ await page.locator('#warriorFiles').setInputFiles(file('candidate.red',';redcode\n;name Candidate\n;assert 1\njmp 0'));
+ await page.waitForFunction(()=>document.querySelectorAll('.include-warrior').length===1);
+ await page.locator('#tournamentTab').click();await page.locator('#tournamentMode').selectOption('benchmark');
+ await page.locator('#benchmarkFiles').setInputFiles([file('suite.benchmark.json',JSON.stringify(descriptor)),file('loop.red',';redcode\n;name Loop\n;assert 1\njmp 0'),file('dead.red',';redcode\n;name Dead\n;assert 1\ndat 0,0')]);
+ await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Imported'));
+ assert.equal(await page.locator('.include-warrior').count(),1);
+ assert.equal(await page.locator('#tournamentRounds').inputValue(),'7');
+ await page.locator('#benchmarkDetails summary').click();assert.equal(await page.locator('#benchmarkMembers li').count(),2);
+ await page.locator('#tournamentRounds').fill('3');await page.locator('#tournamentStart').click();
+ await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Complete'));
+ const download=page.waitForEvent('download');await page.locator('#tournamentExport').click();const result=JSON.parse(await readFile(await (await download).path(),'utf8'));
+ assert.equal(result.plan.jobs[0].config.coreSize,80);assert.equal(result.results[0].completed,3);
+ await page.locator('#benchmarkDescriptor').fill(JSON.stringify({...descriptor,name:'Edited suite',parameters:{...descriptor.parameters,rounds:9}}));await page.locator('#applyBenchmark').click();assert.equal(await page.locator('#tournamentRounds').inputValue(),'9');
+ const count=await page.locator('#benchmarkSuite option').count();
+ await page.locator('#benchmarkFiles').setInputFiles(file('missing.benchmark.json',JSON.stringify(descriptor)));
+ await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.includes('Missing warrior'));
+ assert.equal(await page.locator('#benchmarkSuite option').count(),count);assert.equal(await page.locator('.include-warrior').count(),1);
+ assert.deepEqual(errors,[]);
+ console.log('PASS: separate benchmark upload, descriptor editing, defaults and rounds override, missing-file recovery, unchanged roster.');
+}finally{await browser.close();}

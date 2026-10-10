@@ -75,11 +75,13 @@
 <label>Rounds per matchup <input id="tournamentRounds" type="number" min="1" max="2147483647" value="100"></label>
 <label>Parallel workers <input id="tournamentWorkers" type="number" min="1" value="1"></label><span id="workerLimit" class="hint"></span>
 <label>Seed <input id="tournamentSeed" maxlength="120" value="corewar-1"></label>
-<label><input id="selfFights" type="checkbox"> Self fights</label>
+<label><input id="selfFights" type="checkbox" title="Include self matches in round robin/Challenge, or identical-source opponents in benchmarks."> Self fights</label>
 </div>
 <p id="tournamentEntrants" class="hint"></p>
 <div id="challengeSetup" hidden><label>Challenger <select id="challenger"></select></label></div>
 <div id="benchmarkSetup" hidden><label>Opponent suite <select id="benchmarkSuite"></select></label>
+<div class="benchmark-import"><label class="benchmark-upload">Import benchmark <input id="benchmarkFiles" type="file" multiple accept=".json,.red,.rc,.txt"></label><label class="benchmark-upload">Import folder <input id="benchmarkFolder" type="file" webkitdirectory multiple></label></div>
+<details id="benchmarkDetails"><summary id="benchmarkSummary">Suite details</summary><ul id="benchmarkMembers"></ul><label>Descriptor <textarea id="benchmarkDescriptor" spellcheck="false" aria-label="Benchmark descriptor"></textarea></label><div class="tournament-controls"><button id="applyBenchmark" type="button">Apply changes</button><button id="downloadBenchmark" type="button">Download descriptor</button></div><p class="hint">Select a descriptor and its warrior files together. Editing changes this session only.</p></details>
 <details><summary>Create a suite from selected warriors</summary><div class="tournament-controls"><label>Name <input id="benchmarkName" maxlength="100"></label><button id="saveBenchmark" type="button">Save session suite</button></div><p class="hint">Copies the selected sources and current match settings. Then select the candidates you want to test.</p></details></div>
 <p id="tournamentWorkload"></p><p id="tournamentRules" class="hint"></p><p class="hint">The seed here determines reproducible starting positions. Pause finishes active matchups; Cancel stops them immediately.</p>
 </fieldset>

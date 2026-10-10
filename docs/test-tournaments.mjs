@@ -26,7 +26,7 @@ try {
  await page.locator('#tournamentMode').selectOption('challenge');await page.locator('#challenger').selectOption('roster-1');
  await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results.length,2);
  await page.locator('#tournamentMode').selectOption('melee');await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results[0].warriors.length,3);
- await page.locator('#tournamentMode').selectOption('benchmark');await page.locator('#benchmarkSetup summary').click();await page.locator('#benchmarkName').fill('My suite');await page.locator('#saveBenchmark').click();
+ await page.locator('#tournamentMode').selectOption('benchmark');await page.getByText('Create a suite from selected warriors',{exact:true}).click();await page.locator('#benchmarkName').fill('My suite');await page.locator('#saveBenchmark').click();
  await page.locator('.include-warrior').nth(1).uncheck();await page.locator('.include-warrior').nth(2).uncheck();
  await page.locator('#tournamentStart').click();await complete();const bench=await exportRun();assert.equal(bench.results.length,2);assert.equal(bench.standings.length,1);
  // Restore three entrants and exercise pause at matchup boundaries.

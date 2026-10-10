@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 import zipfile
+from benchmark_catalog import catalog
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "docs"
@@ -28,6 +29,7 @@ for path in WEB.iterdir():
     elif path.is_file():
         shutil.copy2(path, OUT / path.name)
 shutil.copy2(ROOT / "engine-lock.json", OUT / "engine-lock.json")
+(OUT / "benchmark-catalog.mjs").write_text("// Generated from warrior_public descriptors.\nexport const benchmarkCatalog = " + json.dumps(catalog(ROOT), ensure_ascii=True) + ";\n", encoding="utf-8")
 text_paths = sorted(OUT.glob("*.mjs")) + [OUT / "index.html", OUT / "style.css", OUT / "favicon.svg"]
 normalized = {p: re.sub(r"\?v=[A-Za-z0-9_-]+", "", p.read_text(encoding="utf-8")) for p in text_paths}
 digest = hashlib.sha256()
@@ -47,10 +49,11 @@ for p, text in normalized.items():
     p.write_text(text, encoding="utf-8", newline="\n")
 # Include the app build inputs alongside the separate unchanged engine source archive.
 with zipfile.ZipFile(OUT / "app-source.zip", "w", zipfile.ZIP_DEFLATED) as archive:
-    paths = [ROOT / n for n in ("COPYING", "AUTHORS", "README.md", "package.json", "package-lock.json", "engine-lock.json", ".gitignore", ".gitattributes")]
+    paths = [ROOT / n for n in ("COPYING", "AUTHORS", "README.md", "BENCHMARKS.md", "package.json", "package-lock.json", "engine-lock.json", ".gitignore", ".gitattributes")]
     paths += sorted((ROOT / "scripts").glob("*.py"))
     paths += sorted((ROOT / ".github/workflows").glob("*.yml"))
     paths += sorted(p for p in WEB.rglob("*") if p.is_file() and "test-output" not in p.parts)
+    paths += sorted(p for p in (ROOT / "warrior_public").rglob("*") if p.is_file())
     for p in paths:
         info = zipfile.ZipInfo(p.relative_to(ROOT).as_posix(), (1980,1,1,0,0,0))
         archive.writestr(info, p.read_bytes(), compress_type=zipfile.ZIP_DEFLATED)
