@@ -180,8 +180,7 @@ header h1,header p{margin:0}header p{white-space:nowrap;font-size:14px}
 
 .syntax-theme-control{display:flex;align-items:center;gap:6px;font-size:12px}.syntax-theme-control select{font-size:12px;padding:4px}
 
-.editors{align-items:start}.wide-editor{grid-column:1 / -1}
-.widen-editor{padding:3px 6px;background:transparent;font-size:16px;flex-shrink:0}
+.editors{align-items:start}
 .source-editor{height:240px;min-height:140px;resize:vertical;overflow:hidden}
 .source-editor .cm-editor{height:100%}.source-editor .cm-scroller{height:100%;min-height:0;max-height:none}
 
@@ -201,3 +200,9 @@ header h1,header p{margin:0}header p{white-space:nowrap;font-size:14px}
 
 .tournament-exclusions { border: 2px solid #d68a24; border-radius: 6px; padding: 12px; margin: 12px 0; }
 .tournament-exclusions li { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.shared-editor-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+#sharedEditor{margin:16px 0}#sharedEditor .source-editor{height:380px}
+.editor-title .warrior{border:0;background:transparent;padding:0;text-align:left;font:inherit;cursor:pointer}
+.editor-title.editing{outline:1px solid #54d8df;outline-offset:4px;border-radius:3px}
+.workspace-tabs{margin-top:24px}

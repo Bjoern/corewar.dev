@@ -12,7 +12,7 @@ try {
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Paused before') && document.querySelectorAll('#legendNames > span').length===1);
  assert.match(await page.locator('#activeSettings').textContent(),/1 warriors/);
  assert.match(await page.locator('#legendNames').textContent(),/Bravo/);
- assert.equal(await page.locator('#editors .cm-content').count(),3);
+ assert.equal(await page.locator('#editorViews .cm-content').count(),3);
  await page.locator('#step').click();await page.waitForFunction(()=>document.querySelector('#timing').dataset.instructions==='1');
  await checks.nth(2).check();assert.match(await page.locator('#activeSettings').textContent(),/1 warriors/);
  await page.locator('#reset').click();await page.waitForFunction(()=>document.querySelector('#activeSettings').textContent.includes('2 warriors'));

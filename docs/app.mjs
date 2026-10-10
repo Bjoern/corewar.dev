@@ -16,7 +16,7 @@ const consoles=[];let consoleSerial=0;const commandHistory=[];
 let nativeBusy=false,nativeResume=false,nativeOutput='',nativeInput=null,nativeCancelled=false;
 let maxSlice = 0, pendingReject = null, latest = null, history = [], combined = [];
 let lastText = 0, dirty = false, stepping = false, stepEpoch = 0;
-let collapsedEditors=[], wideEditors=[], scoreViewKey=null;
+let collapsedEditors=[], scoreViewKey=null;
 let sourceEditors=[], compileIssues=[];
 const demoSources = [";redcode-94\n;name Imp\n;author A. K. Dewdney\n;assert 1\nmov.i 0, 1\nend\n", ";redcode-94\n;name Dwarf\n;author A. K. Dewdney\n;assert 1\nadd.ab #4, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat.f #0, #0\nend\n"];
 let tournaments=null;
@@ -126,29 +126,28 @@ function legend() {
 }
 function editors() {
  sourceEditors.forEach(e=>e.destroy());sourceEditors=[];
+ $('editorViews').replaceChildren();
   $('editors').replaceChildren(...sources.map((source, i) => {
     const box = document.createElement('div'), top = document.createElement('div');
     top.className = 'editor-title';
-    const label = document.createElement('label');
+    const label = document.createElement('button');
     label.htmlFor = i === 0 ? 'first' : i === 1 ? 'second' : `warrior-${i}`;
     label.className = 'warrior'; label.style.color = warriorColor(i);
     label.textContent = `${String(i+1).padStart(2,'0')} / ${draftName(source,i)}`;
     const remove = document.createElement('button');
     remove.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';remove.title='Remove warrior'; remove.className = 'remove-warrior';
     remove.setAttribute('aria-label', `Remove warrior ${i+1}`);
-    remove.onclick = () => { if(nativeBusy)return; sources.splice(i,1);excludedWarriors.splice(i,1);collapsedEditors.splice(i,1);wideEditors.splice(i,1); markDirty(); if(!sources.length)clearBattle(); editors(); };
+    remove.onclick = () => { if(nativeBusy)return; sources.splice(i,1);excludedWarriors.splice(i,1);collapsedEditors.splice(i,1); markDirty(); if(!sources.length)clearBattle(); editors(); };
     const save=document.createElement('button');save.textContent='Download';save.className='save-warrior';save.setAttribute('aria-label','Download warrior '+(i+1));save.onclick=()=>saveWarrior(i);
     const compile=document.createElement('button');compile.className='compile-warrior';
     compile.title='Revalidate warrior and show assembly output';compile.setAttribute('aria-label','Validate warrior '+(i+1));compile.onclick=()=>checkWarrior(i);
     const edit=document.createElement('button');edit.className='edit-warrior';
     edit.setAttribute('aria-controls',label.htmlFor);edit.setAttribute('aria-label','Edit or collapse warrior '+(i+1));
-    edit.onclick=()=>{collapsedEditors[i]=collapsedEditors[i]===false;editorVisibility();if(!collapsedEditors[i])sourceEditors[i].focus();};
+    edit.onclick=()=>{const closing=collapsedEditors[i]===false;collapsedEditors=sources.map(()=>true);collapsedEditors[i]=closing;editorVisibility();if(!collapsedEditors[i])sourceEditors[i].focus();};
     const pencil=document.createElement('button');pencil.className='edit-source';pencil.title='Edit warrior';pencil.setAttribute('aria-label','Edit warrior '+(i+1));
     pencil.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 15z"/></svg>';
-    pencil.onclick=edit.onclick;pencil.setAttribute('aria-controls',label.htmlFor);
+    label.onclick=edit.onclick;pencil.onclick=edit.onclick;pencil.setAttribute('aria-controls',label.htmlFor);
     const nameGroup=document.createElement('div');nameGroup.className='warrior-name-group';nameGroup.append(label,pencil);
-    const widen=document.createElement('button');widen.className='widen-editor';widen.textContent='↔';
-    widen.onclick=()=>{wideEditors[i]=!wideEditors[i];editorVisibility();sourceEditors[i].view.requestMeasure();};
     const include=document.createElement('input');include.type='checkbox';include.className='include-warrior';
     include.checked=!excludedWarriors[i];include.title='Include in next run';include.setAttribute('aria-label','Include warrior '+(i+1)+' in next run');
     include.onchange=safe(async()=>{
@@ -158,43 +157,40 @@ function editors() {
       if(selectedIndices().length)await load();
       else {clearBattle();status('Select at least one warrior for the next run.');}
     });
-    top.append(include,edit,nameGroup,widen,compile,save,remove);
+    top.append(include,edit,nameGroup,compile,save,remove);
     const area=document.createElement('div');area.className='source-editor';
     const editor=createEditor(area,{theme:$('editorTheme').value,syntax:$('editorSyntax').value,value:source,id:label.htmlFor,label:`Warrior ${i+1} source`,onChange:value=>{
       sources[i]=value;
+      if(collapsedEditors[i]===false)$('editingName').textContent=draftName(value,i);
       label.textContent=`${String(i+1).padStart(2,'0')} / ${draftName(value,i)}`;
       legend();markDirty();
     }});sourceEditors.push(editor);
-    box.append(top,area); return box;
+    box.append(top);$('editorViews').append(area); return box;
   }));
   editorVisibility();refreshCompileButtons();
   rosterCount();tournaments?.refresh();
   $('newWarrior').disabled = sources.length >= 36;
   $('demos').hidden = sources.length !== 0;
-  $('toggleEditors').hidden = sources.length === 0;
+
   controls();
   legend();
 }
 function editorVisibility(){
- document.querySelectorAll('#editors .source-editor').forEach((area,i)=>{
-  area.hidden=collapsedEditors[i]!==false;
+ const active=collapsedEditors.findIndex(value=>value===false);
+ document.querySelectorAll('#editorViews .source-editor').forEach((area,i)=>{
+  area.hidden=i!==active;
   const button=document.querySelectorAll('.edit-warrior')[i];
   button.textContent=area.hidden?'▸':'▾';
-  button.title=area.hidden?'Edit warrior':'Collapse editor';
+  button.title=area.hidden?'Edit warrior':'Close editor';
   button.setAttribute('aria-expanded',String(!area.hidden));
-  const pencil=area.parentElement.querySelector('.edit-source');pencil.title=button.title;pencil.setAttribute('aria-expanded',String(!area.hidden));
-  const widen=area.parentElement.querySelector('.widen-editor');widen.hidden=area.hidden;
-  widen.title=wideEditors[i]?'Restore editor width':'Widen editor';widen.setAttribute('aria-label',widen.title+' '+(i+1));widen.setAttribute('aria-pressed',String(!!wideEditors[i]));
-  area.parentElement.classList.toggle('wide-editor',!!wideEditors[i]&&!area.hidden);
+  const row=button.parentElement;row.classList.toggle('editing',!area.hidden);
+  row.querySelector('.edit-source').setAttribute('aria-expanded',String(!area.hidden));
+  if(!area.hidden)sourceEditors[i].view.requestMeasure();
  });
- const allClosed=sources.every((_,i)=>collapsedEditors[i]!==false);
- $('toggleEditors').textContent=allClosed?'▸ Expand all':'▾ Collapse all';
- $('toggleEditors').setAttribute('aria-expanded',String(!allClosed));
+ $('sharedEditor').hidden=active<0;
+ $('editingName').textContent=active<0?'':draftName(sources[active],active);
 }
-$('toggleEditors').onclick=()=>{
- const collapse=!sources.every((_,i)=>collapsedEditors[i]!==false);
- collapsedEditors=sources.map(()=>collapse);editorVisibility();
-};
+$('toggleEditors').onclick=()=>{collapsedEditors=sources.map(()=>true);editorVisibility();};
 function processIndicators(update){
  update.warriors.forEach((w,i)=>{
   const marker=$('legendNames').querySelector('[data-eliminated="'+i+'"]');
@@ -216,7 +212,7 @@ function refreshDiagnostics(){
  $('sourceDiagnostics').replaceChildren(...compileIssues.map(issue=>{
   const button=document.createElement('button');button.type='button';button.className='source-diagnostic';
   button.textContent=draftName(sources[issue.index]||'',issue.index)+' · line '+issue.line+' · '+issue.message;
-  button.onclick=()=>{collapsedEditors[issue.index]=false;editorVisibility();sourceEditors[issue.index]?.jump(issue.line);document.querySelectorAll('.source-editor')[issue.index]?.scrollIntoView({block:'center'});};return button;
+  button.onclick=()=>{collapsedEditors=sources.map(()=>true);collapsedEditors[issue.index]=false;editorVisibility();sourceEditors[issue.index]?.jump(issue.line);document.querySelectorAll('.source-editor')[issue.index]?.scrollIntoView({block:'center'});};return button;
  }));
 }
 function seriesActive() { return state.startsWith("series"); }
@@ -710,13 +706,13 @@ async function importFiles(files){
 }
 $('newWarrior').onclick=()=>{
  if(sources.length>=36)return;
- collapsedEditors[sources.length]=false;
+ collapsedEditors=sources.map(()=>true);collapsedEditors[sources.length]=false;
  sources.push(';redcode-94\n;name Warrior '+(sources.length+1)+'\n;assert 1\nmov.i 0, 1\nend\n');
  markDirty();editors();
 };
 async function startDemo(selected){
  if(sources.length)return;
- sources=[...selected];excludedWarriors=[];collapsedEditors=[];wideEditors=[];
+ sources=[...selected];excludedWarriors=[];collapsedEditors=[];
  $('preset').value='standard';$('preset').onchange();
  $('rounds').value='1';$('debugEnabled').checked=false;
  $('speed').value='3';$('speed').oninput();

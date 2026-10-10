@@ -34,6 +34,7 @@ jobs:
           node docs/test-benchmark-import.mjs
           node docs/test-benchmark-exclusions.mjs
           node docs/test-selection.mjs
+          node docs/test-shared-editor.mjs
           node docs/test-empty-roster.mjs
           node docs/test-results.mjs
           node docs/test-release-assets.mjs
