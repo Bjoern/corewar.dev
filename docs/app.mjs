@@ -26,7 +26,7 @@ let excludedWarriors = [];
 const selectedIndices = () => sources.map((_,i)=>i).filter(i=>!excludedWarriors[i]);
 function rosterCount() {
  const selected=selectedIndices().length;
- $('warriorCount').textContent=`${sources.length} warrior${sources.length===1?'':'s'}`+(selected===sources.length?'':` · ${selected} selected`);
+ $('warriorCount').textContent=`${sources.length} warrior${sources.length===1?'':'s'} loaded`+(sources.length===0?' - upload or create warriors, then run battles and tournaments':selected===sources.length?'':` · ${selected} selected`);
 }
 let consoleText='',sessionBattles=0,countedCompleted=0,lastScoreSample=-1;
 let compileStates=[], compileWorker=null, compileTimer=null, revision=0, chartRound=0;
