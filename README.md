@@ -19,6 +19,17 @@ assets together, and emits `_site/` without modifying source files.
 The editor bundle is committed. To rebuild it after editor changes, run
 `npm ci` and `npm run build:editor` before the Python build.
 
+## Match presets
+
+The dropdown is generated during the build from `docs/config/*.opt`.
+Add or edit an option file and rebuild; identical option sets share one entry.
+`scripts/option_presets.py` supplies optional friendly labels, with the filename
+as the fallback. Unsupported options fail the build instead of being ignored.
+The generated `_site/presets.mjs` and linked option files ship with the site.
+The app keeps its own option-file copies and needs no pMARS checkout to build.
+Tiny LP includes the corrected hill settings: 800 cells, 8 processes, 8,000
+cycles, length/separation/P-space of 50, and 250 rounds.
+
 ## Tests
 
 Run `node docs/test-engine.mjs` and `node docs/test-native-cdb.mjs`.

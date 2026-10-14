@@ -715,7 +715,7 @@ $('newWarrior').onclick=()=>{
 async function startDemo(selected){
  if(sources.length)return;
  sources=[...selected];sourceFiles=selected.map(source=>bundledWarriors.find(w=>w.source===source)?.file||null);excludedWarriors=[];collapsedEditors=[];
- $('preset').value='standard';$('preset').onchange();
+ $('preset').value='94';$('preset').onchange();
  $('rounds').value='1';$('debugEnabled').checked=false;
  $('speed').value='3';$('speed').oninput();
  markDirty();editors();

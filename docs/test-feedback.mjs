@@ -55,7 +55,7 @@ try {
   await page.locator('#preset').selectOption(preset);
   assert.equal(await page.locator('#fixedSeries').isChecked(),false);
  }
- await page.locator('#preset').selectOption('standard');
+ await page.locator('#preset').selectOption('94');
  await page.locator('#editSettings').click();await page.locator('#cycles').fill('10');
  await page.locator('#brief').check();
  await page.getByRole('button',{name:'Validate warrior 1',exact:true}).click();await compiled();

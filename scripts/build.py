@@ -6,6 +6,7 @@ import re
 import shutil
 import zipfile
 from benchmark_catalog import catalog
+from option_presets import write_presets
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "docs"
@@ -24,12 +25,13 @@ for path in WEB.iterdir():
     if path.is_file() and (path.name.startswith(("test-", "build-")) or path.name in {"README.md", "editor-source.mjs"}):
         continue
     if path.is_dir():
-        if path.name == "dist":
+        if path.name in {"dist", "config"}:
             shutil.copytree(path, OUT / path.name)
     elif path.is_file():
         shutil.copy2(path, OUT / path.name)
 shutil.copy2(ROOT / "engine-lock.json", OUT / "engine-lock.json")
 (OUT / "benchmark-catalog.mjs").write_text("// Generated from warriors_public descriptors.\nexport const benchmarkCatalog = " + json.dumps(catalog(ROOT), ensure_ascii=True) + ";\n", encoding="utf-8")
+write_presets(WEB / "config", OUT / "presets.mjs")
 text_paths = sorted(OUT.glob("*.mjs")) + [OUT / "index.html", OUT / "style.css", OUT / "favicon.svg"]
 normalized = {p: re.sub(r"\?v=[A-Za-z0-9_-]+", "", p.read_text(encoding="utf-8")) for p in text_paths}
 digest = hashlib.sha256()

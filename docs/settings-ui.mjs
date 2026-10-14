@@ -37,17 +37,19 @@ export function setupSettings(changed) {
   label.append(input);form.append(label);
  }
  $('preset').replaceChildren(new Option('Custom settings','custom'),...presets.map(p=>new Option(p.name,p.id)));
- for(const key of keys) $(key).addEventListener('input',()=>{$('preset').value='custom';refreshSummary();changed();});
+ for(const key of keys) $(key).addEventListener('input',()=>{$('preset').value='custom';$('presetSource').replaceChildren();refreshSummary();changed();});
  $('fixedPosition').addEventListener('input',()=>{if($('fixedPosition').value)$('fixedSeries').checked=false;});
  $('preset').onchange=()=>{
   const preset=presets.find(p=>p.id===$('preset').value);if(!preset)return;
   const values={...defaults,noPspace:false,fixedSeries:false,...preset.values};
   for(const key of keys) {if($(key).type==='checkbox')$(key).checked=!!values[key];else $(key).value=values[key];}
   $('presetSource').replaceChildren();
-  if(preset.sourceUrl || preset.source) {
-   const a=document.createElement('a');a.href=preset.sourceUrl || 'https://www.corewar.info/hills/'+preset.source+'.htm';a.target='_blank';a.rel='noopener';a.textContent='Published hill specification';
-   $('presetSource').append(a,' · historical parameters; round count is editable.');
+  for(const [index,file] of preset.files.entries()) {
+   if(index) $('presetSource').append(' / ');
+   const a=document.createElement('a');a.href='./config/'+file;a.target='_blank';a.rel='noopener';a.textContent=file;
+   $('presetSource').append(a);
   }
+  if(preset.note) $('presetSource').append(' · '+preset.note);
   refreshSummary();changed();
  };
  $('editSettings').onclick=()=>{
@@ -57,5 +59,5 @@ export function setupSettings(changed) {
   $('settingsArrow').textContent=panel.hidden?'▸':'▾';
  };
 
- refreshSummary();
+ $('preset').value='94';$('preset').onchange();
 }

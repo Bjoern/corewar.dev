@@ -13,6 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: python scripts/test_option_presets.py
       - run: python scripts/build.py
       - run: node docs/test-engine.mjs
       - run: node docs/test-native-cdb.mjs
@@ -30,6 +31,7 @@ jobs:
           python -m http.server 8766 --bind 127.0.0.1 --directory _site > /tmp/corewar-preview.log 2>&1 &
           trap 'kill $!' EXIT
           for i in $(seq 1 30); do curl -fsS "$PMARS_URL" > /dev/null && break; sleep 1; done
+          node docs/test-koth-presets.mjs
           node docs/test-tournaments.mjs
           node docs/test-benchmark-import.mjs
           node docs/test-benchmark-exclusions.mjs

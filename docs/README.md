@@ -14,11 +14,12 @@ repeatable placement. Entering `-F` also disables it.
 Permutation requires two warriors. Zero rounds and assemble-only both assemble
 without running a battle.
 
-Preset choices fill the editable form: standard pMARS, KotH '94 no-P-space,
-KotH '88, SAL nano, tiny, tiny limited-process, and KotH '94 experimental.
-These are historical rule references, with source links in the UI, not claims
-about currently operating servers. The no-P-space preset rejects PIN, LDP,
-and STP after assembly.
+Preset choices are generated from `config/*.opt` during the site build.
+Identical option sets share an entry, and each entry links to its source files.
+All values remain editable. Standard ’94 is selected initially.
+The `94nop.opt` preset sets P-space size to 1, matching native pMARS; it does
+not reject PIN, LDP or STP. The separate “No P-space instructions” checkbox
+still provides that stricter restriction.
 
 The native console sits below the battle controls and is collapsed by default.
 Click its heading to show/hide it; per-warrior Validate and compilation failures
