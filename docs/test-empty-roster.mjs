@@ -12,7 +12,7 @@ try{
  assert(await page.locator('#run').isDisabled());
  await page.locator('#demo').click();await page.waitForFunction(()=>Number(document.querySelector('#timing').dataset.instructions)>5);
  await empty();
- assert.equal(await page.locator('#warriorCount').textContent(),'0 warriors');
+ assert.equal(await page.locator('#warriorCount').textContent(),'0 warriors loaded - upload or create warriors, then run battles and tournaments');
  assert(await page.locator('#demo').isVisible());assert(await page.locator('#toggleEditors').isHidden());
  for(const id of ['run','step','reset','fast','debugRun'])assert(await page.locator('#'+id).isDisabled());
  await page.waitForTimeout(150);assert.equal(await page.locator('#timing').getAttribute('data-instructions'),'0');
@@ -20,7 +20,7 @@ try{
  await page.locator('#step').click();await page.waitForFunction(()=>document.querySelector('#timing').dataset.instructions==='1');
  await empty();
  await page.locator('#warriorFiles').setInputFiles({name:'solo.red',mimeType:'text/plain',buffer:Buffer.from(';redcode\n;name Uploaded\n;assert 1\njmp 0\n')});
- await page.waitForFunction(()=>document.querySelector('#warriorCount').textContent==='1 warrior');assert(await page.locator('#run').isEnabled());
+ await page.waitForFunction(()=>document.querySelector('#warriorCount').textContent==='1 warrior loaded');assert(await page.locator('#run').isEnabled());
  await empty();await page.setViewportSize({width:390,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  await page.locator('#demo').click();await page.waitForFunction(()=>Number(document.querySelector('#timing').dataset.instructions)>5);
  assert.equal(await page.locator('#editorViews .cm-content').count(),2);
