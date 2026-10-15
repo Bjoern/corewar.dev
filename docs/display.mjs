@@ -56,6 +56,16 @@ export class CoreDisplay {
     const naturalColumns = Math.ceil(Math.sqrt(this.size * 2.5));
     // Even CSS pixel sizes keep quarter-cell boundaries on whole pixels.
     this.cellSize = this.preferredCellSize || Math.max(2,2*Math.floor(available/naturalColumns/2));
+    if (!this.preferredCellSize && this.viewport?.dataset.layout==='fill' && this.viewport.clientHeight>0) {
+      // Fill: the largest even cell size whose whole grid fits both dimensions.
+      const height=this.viewport.clientHeight;
+      let best=2;
+      for (let size=Math.max(2,2*Math.floor(Math.min(available,height)/2)); size>=2; size-=2) {
+        const columns=Math.max(1,Math.floor(available/size));
+        if (Math.ceil(this.size/columns)*size<=height) { best=size; break; }
+      }
+      this.cellSize=best;
+    }
     if (constrainedHeight) {
       const rows = Math.max(1,Math.floor(this.viewport.clientHeight/this.cellSize));
       this.columns = Math.min(this.size,Math.max(Math.floor(available/this.cellSize),Math.ceil(this.size/rows)));

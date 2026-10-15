@@ -9,68 +9,117 @@
 <link rel="stylesheet" href="style.css?v=bd68579c2c000dd9">
 <script defer src="https://cloud.umami.is/script.js" data-website-id="e78560ba-d8d1-44de-a5f3-4048690fef79"></script>
 </head>
-<body>
-<header><h1>corewar.dev</h1>
-<p>based on pmars</p></header>
-<main>
-<section id="demos" class="demos"><h2>Try a demo:</h2><div class="demo-buttons"><button id="demo" title="Load Dwarf and Imp and start a standard match">Dwarf vs Imp</button><button id="randomDemo" title="Start a duel between two different bundled warriors">Random duel</button><button id="multiDemo" title="Start a battle with all bundled warriors except validate.red">Multiwarrior</button></div></section>
+<body data-welcome="true" data-pane="core">
+<header class="topbar">
+<a class="wordmark" href="./" id="wordmark">corewar.dev</a>
+<nav id="modeTabs" class="mode-nav" role="tablist" aria-label="Mode"></nav>
+<nav class="help-nav" aria-label="Help"><button id="helpBtn" class="phone-only" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Tutorial, reference and about">?</button><div id="helpLinks" class="help-links"><a href="#tutorial">Tutorial</a><a href="https://corewar.co.uk/icws94.txt" target="_blank" rel="noopener">Redcode reference</a><a href="#about">About</a></div></nav>
+</header>
+<main id="app">
+<aside id="sidebar" class="sidebar" aria-label="Warriors">
+<div class="side-head"><h2>Warriors</h2><div class="side-actions">
+<div class="menu-wrap"><button id="examplesBtn" type="button" class="small" aria-haspopup="true" aria-expanded="false" aria-controls="examplesMenu">Examples ▾</button>
+<div id="examplesMenu" class="popover menu" hidden><button id="demo" type="button" title="Load Dwarf and Imp and start a standard match">Dwarf vs Imp</button><button id="randomDemo" type="button" title="Start a duel between two different bundled warriors">Random duel</button><button id="multiDemo" type="button" title="Start a battle with all bundled warriors except validate.red">Multiwarrior</button></div></div>
+<button id="uploadBtn" type="button" class="small icon" title="Upload warrior files" aria-label="Upload warrior files"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></button>
+<button id="newWarrior" type="button" class="small icon" title="New warrior" aria-label="New warrior">+</button>
+</div></div>
 <div class="roster"><span id="warriorCount">0 warriors loaded - upload or create warriors, then run battles and tournaments</span></div>
-<section id="editors" class="editors" aria-label="Warrior source code"></section>
-<section id="sharedEditor" hidden aria-label="Warrior editor"><div class="shared-editor-toolbar"><strong id="editingName"></strong><label class="editor-theme-control">Background <select id="editorTheme"><option value="dark">Dark</option><option value="light">Light</option><option value="contrast">High contrast</option></select></label><label class="syntax-theme-control">Syntax colors <select id="editorSyntax"><option value="ocean">Ocean</option><option value="warm">Warm</option><option value="mono">Monochrome</option></select></label><button id="toggleEditors" aria-controls="editorViews">Close editor</button></div><div id="editorViews"></div></section>
-<div class="warrior-import"><div id="dropZone" tabindex="0" role="button" aria-label="Drop warrior files or open file picker">Drop warrior files here, or click to upload</div><span class="warrior-create"><span>or create a</span><button id="newWarrior"><span class="control-icon" aria-hidden="true">+</span> New warrior</button></span></div>
+<section id="editors" class="editors" aria-label="Warrior list"></section>
+<div class="warrior-import"><div id="dropZone" tabindex="0" role="button" aria-label="Drop warrior files or open file picker">Drop warrior files anywhere, or click to upload</div></div>
 <input id="warriorFiles" type="file" multiple accept=".red,.rc,.txt" hidden>
-<details id="consoleWindow"><summary><span>pMARS console output</span><button id="clearConsole" type="button">Clear output</button></summary><div id="sourceDiagnostics" aria-label="Source diagnostics"></div><pre id="consoleOutput" aria-label="Native pMARS console output">Validate a warrior or run a battle to see assembly output here.</pre></details>
-<div class="workspace-tabs" role="tablist" aria-label="Workspace"><button id="emulatorTab" role="tab" aria-selected="true" aria-controls="emulatorPanel">Emulator &amp; Debugger</button><button id="tournamentTab" role="tab" aria-selected="false" aria-controls="tournamentPanel" tabindex="-1">Tournaments &amp; Benchmarks</button></div>
-<p id="changed" class="hint" role="status"></p>
-<section class="match-settings"><div class="settings-bar"><button id="editSettings" class="settings-disclosure" aria-expanded="false" aria-controls="settingsDetails" aria-label="Expand match settings"><span id="settingsArrow" aria-hidden="true">▸</span> <strong id="settingsSummary"></strong></button>
-<label>Preset <select id="preset"></select></label>
-</div>
-<div id="settingsDetails" hidden><div id="settingsFields" class="settings"></div><p id="presetSource" class="hint"></p>
-<p class="hint">Each cycle allows one instruction per living warrior. Settings remain editable after selecting a preset.</p></div></section>
-<div id="emulatorPanel" role="tabpanel" aria-labelledby="emulatorTab">
+</aside>
+<div id="sidebarSplitter" class="splitter" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Resize warriors panel" title="Drag to resize · double-click to reset" tabindex="0"></div>
+<div id="modeArea" class="mode-area">
+<div id="emulatorPanel" class="battle-view" role="tabpanel" aria-labelledby="emulatorTab">
+<section id="center" class="center" aria-label="Workspace">
+<div id="centerTabs" class="tabstrip" role="tablist" aria-label="Workspace"></div>
+<div id="coreView" class="core-view">
 <p id="status" class="sr-only" role="status" aria-atomic="true">Ready to assemble.</p>
-<p id="activeSettings" class="hint" aria-live="polite"></p>
 <progress id="progress" value="0" max="100" aria-label="Series progress" hidden></progress>
-<div class="page-layout"><p id="fastNotice" class="fast-notice" role="status" hidden><svg class="fast-notice-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 22 21H2Z" fill="currentColor"/><path d="M12 9v5" stroke="#09141d" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.5" r="1.2" fill="#09141d"/></svg><span>Fast skips graphics. For maximum speed, use Melee in Tournaments.</span></p><label>Layout <select id="arenaLayout"><option value="vertical">Scroll vertically</option><option value="horizontal">Scroll horizontally</option><option value="fill">Fill vertically</option><option value="fill-horizontal">Fill horizontally</option></select></label><label>Cell size <select id="cellSize"><option value="0">Auto · whole pixels</option><option value="4">Classic · 2×2 mark</option><option value="6">Compact · 4×4 mark</option><option value="8" selected>8 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="24">24 px</option></select></label><label class="arena-theme">Theme <select id="theme"><option value="modern">Modern</option><option value="classic">pMARS classic</option><option value="accessible">pMARS accessible</option></select></label></div>
-<section class="arena" aria-label="Core arena">
 <div class="arena-controls">
 <div class="battle-toolbar">
 <button id="run" class="primary"><span class="control-icon" aria-hidden="true">▶</span> Run</button><button id="step"><span class="control-icon" aria-hidden="true">▸</span> Step</button><button id="reset" title="Reload current sources and pause before the first instruction"><span class="control-icon" aria-hidden="true">↺</span> Reset</button>
-<button id="debugRun" title="Run to the next ;break or ;trace instruction"><span class="control-icon" aria-hidden="true">◇</span> Debug</button><button id="fast" aria-pressed="false" title="Run all configured rounds without speed throttling, drawing, charts, or instruction logging"><span class="control-icon" aria-hidden="true">»</span> Fast</button>
 </div>
+<div id="battleExtras" class="battle-extras">
+<button id="debugRun" title="Run to the next ;break or ;trace instruction"><span class="control-icon" aria-hidden="true">◇</span> Debug</button><button id="fast" aria-pressed="false" title="Run all configured rounds without speed throttling, drawing, charts, or instruction logging. Fast skips graphics; for maximum speed, use Melee in Tournaments."><span class="control-icon" aria-hidden="true">»</span> Fast</button>
 <label class="rounds-control">Rounds <input id="rounds" aria-label="Rounds (-r)" type="number" min="0" max="2147483647" value="1"></label>
-<span id="timing">Cycle —</span>
-<label class="speed-control" title="Instructions per second">Speed <input id="speed" aria-label="Instructions per second" aria-valuetext="1,000 instructions per second" type="range" min="0" max="5.1" value="3" step="0.1"><output id="speedValue">1,000</output></label>
-<output id="hoverAddress" aria-label="Hovered memory address">Cell: —</output>
+<span class="speed-slot"><label class="speed-control" title="Instructions per second">Speed <input id="speed" aria-label="Instructions per second" aria-valuetext="1,000 instructions per second" type="range" min="0" max="5.1" value="3" step="0.1"><output id="speedValue">1,000</output><span class="speed-unit">instr/s</span></label><p id="fastNotice" class="fast-notice" role="status" hidden><svg class="fast-notice-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 22 21H2Z" fill="currentColor"/><path d="M12 9v5" stroke="#09141d" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.5" r="1.2" fill="#09141d"/></svg><span>Graphics off · use Tournaments for max speed</span></p></span>
 </div>
-<div class="arena-space"><div class="arena-viewport" data-layout="vertical" tabindex="0" role="region" aria-label="Scrollable core arena">
-<canvas id="core" aria-label="Core memory activity; click a cell to inspect it in the debugger"></canvas></div></div>
+<span id="timing">Cycle —</span>
+<div class="menu-wrap"><button id="viewBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View ▾</button>
+<div id="viewMenu" class="popover view-menu" hidden>
+<label>Layout <select id="arenaLayout"><option value="vertical">Scroll vertically</option><option value="horizontal">Scroll horizontally</option><option value="fill" selected>Fill vertically</option><option value="fill-horizontal">Fill horizontally</option></select></label><label>Cell size <select id="cellSize"><option value="0" selected>Auto · whole pixels</option><option value="4">Classic · 2×2 mark</option><option value="6">Compact · 4×4 mark</option><option value="8">8 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="24">24 px</option></select></label><label class="arena-theme">Theme <select id="theme"><option value="modern">Modern</option><option value="classic">pMARS classic</option><option value="accessible">pMARS accessible</option></select></label></div></div>
+</div>
+<section class="arena" aria-label="Core arena">
+<div class="arena-space"><div class="arena-viewport" data-layout="fill" data-cells="auto" tabindex="0" role="region" aria-label="Core arena filling vertically">
+<canvas id="core" aria-label="Core memory activity; click a cell to inspect it in the debugger"></canvas></div>
+<section id="demos" class="welcome" aria-label="Welcome">
+<p class="eyebrow">New to Core War?</p><h2>Watch programs fight for control of a shared memory</h2>
+<p>Warriors are small Redcode programs. Each tries to make the others execute an illegal instruction. Pick a demo to see one battle.</p>
+<div class="demo-cards">
+<button type="button" class="demo-card" data-demo="demo"><span class="demo-art" aria-hidden="true"><i style="background:#54d8df"></i><i style="background:#f9a567"></i></span><strong>Dwarf vs Imp</strong><span>The two classic warriors from A. K. Dewdney.</span><em>▶ Watch</em></button>
+<button type="button" class="demo-card" data-demo="randomDemo"><span class="demo-art" aria-hidden="true"><i style="background:#54d8df"></i><i style="background:#b79cff"></i></span><strong>Random duel</strong><span>Two different bundled warriors, chosen at random.</span><em>▶ Watch</em></button>
+<button type="button" class="demo-card" data-demo="multiDemo"><span class="demo-art" aria-hidden="true"><i style="background:#54d8df"></i><i style="background:#f9a567"></i><i style="background:#b79cff"></i><i style="background:#a7e8a3"></i></span><strong>Multiwarrior</strong><span>Every bundled warrior in one free-for-all.</span><em>▶ Watch</em></button>
+</div>
+<div class="welcome-foot"><a class="button primary" href="#tutorial">Start the tutorial</a><span>Already know Redcode? Write a warrior or drop your .red files here.</span></div>
+</section></div>
+<div id="legendNames" class="warrior-chips" aria-label="Warriors"></div>
 </section>
-<div class="legend"><span id="legendNames"></span><span><span class="glyph read"></span> Read (top-left)
-<span class="glyph write"></span> Write (opposite corners)
-<span class="glyph exec"></span> Execute (all four)
-<span class="glyph dec"></span> Decrement (top row)
-<span class="glyph inc"></span> Increment (left column) · White outline: last execution</span></div>
-<section id="battleResults" hidden aria-label="Battle results"><h2 id="battleTotals">Results</h2><div id="scores"></div></section>
-<section class="debugger" tabindex="0" aria-label="Core debugger">
-<div class="console-heading"><h2>Debugger / Consoles</h2></div><span id="coreViewTitle" class="hint"></span><div class="debug-options"><label><input id="debugEnabled" type="checkbox"> Stop at breakpoints and debug markers</label></div>
-
-<div id="execution" class="console-grid"><button id="addConsole" class="add-console" type="button">+ Add console</button></div>
-<div class="command-workspace"><div id="commandHistory" aria-label="Command history"></div><form id="commandForm"><label for="command">Native cdb command</label><input id="command" title="Enter a command; press Enter with an empty field to repeat the last command" placeholder="list 0,9 · step · macro f7 · calc 2+3" autocomplete="off"><button>Execute</button></form><pre id="commandOutput" role="status"></pre></div>
-<details id="debugHelp"><summary>Native pMARS debugger help</summary>
+<div class="arena-foot">
+<div id="settingsDock" class="settings-dock">
+<label class="preset-control">Preset <select id="preset"></select></label>
+<button id="editSettings" class="settings-disclosure" aria-expanded="false" aria-controls="settingsDetails" aria-label="Expand match settings"><strong id="settingsSummary"></strong> <span class="edit-link">Edit <span id="settingsArrow" aria-hidden="true">▸</span></span></button>
+<section class="match-settings" id="matchSettings"><div id="settingsDetails" hidden><div id="settingsFields" class="settings"></div><p id="presetSource" class="hint"></p>
+<p class="hint">Each cycle allows one instruction per living warrior. Settings remain editable after selecting a preset.</p></div></section>
+</div>
+<span class="foot-spacer"></span>
+<output id="hoverAddress" aria-label="Hovered memory address">Cell: —</output>
+<div id="cellKeyInline" class="legend cell-key-inline" aria-label="Cell key"></div>
+<div class="menu-wrap key-wrap"><button id="keyBtn" type="button" class="small" aria-haspopup="true" aria-expanded="false" aria-controls="keyMenu">? Cell key</button>
+<div id="keyMenu" class="popover key-menu" hidden><div class="legend"><span><span class="glyph read"></span> Read (top-left)</span>
+<span><span class="glyph write"></span> Write (opposite corners)</span>
+<span><span class="glyph exec"></span> Execute (all four)</span>
+<span><span class="glyph dec"></span> Decrement (top row)</span>
+<span><span class="glyph inc"></span> Increment (left column)</span><span>White outline: last execution</span></div></div></div>
+</div>
+<div class="foot-status"><p id="activeSettings" class="hint" aria-live="polite"></p><p id="changed" class="hint" role="status"></p></div>
+</div>
+<section id="sharedEditor" class="editor-pane" hidden aria-label="Warrior editor"><div class="shared-editor-toolbar"><strong id="editingName"></strong><button id="validateActive" type="button">↻ Validate</button><button id="downloadActive" type="button">Download</button><button id="removeActive" class="danger" type="button" title="Remove this warrior from the roster">Delete</button><span id="editorStatus" class="hint" role="status"></span><span class="foot-spacer"></span><label class="editor-theme-control">Background <select id="editorTheme"><option value="dark">Dark</option><option value="light">Light</option><option value="contrast">High contrast</option></select></label><label class="syntax-theme-control">Syntax colors <select id="editorSyntax"><option value="ocean">Ocean</option><option value="warm">Warm</option><option value="mono">Monochrome</option></select></label><button id="toggleEditors" aria-controls="editorViews">Close editor</button><button id="runFromEditor" class="primary" type="button">▶ Run battle</button></div><div id="editorViews"></div>
+<div class="asm-output"><div class="asm-head"><strong>pMARS assembler output</strong><span id="asmCount" class="hint"></span><button id="clearAsm" type="button" class="small">Clear</button></div><pre id="asmOutput" aria-label="Assembler output">Validate the warrior to see assembly output here.</pre></div></section>
+</section>
+<div id="inspectorSplitter" class="splitter" role="separator" aria-orientation="vertical" aria-controls="inspector" aria-label="Resize inspector panel" title="Drag to resize · double-click to reset" tabindex="0"></div>
+<aside id="inspector" class="inspector" aria-label="Inspector">
+<div id="coreInspector" class="inspector-stack">
+<section id="battleResults" class="card" hidden aria-label="Battle results"><h2 id="battleTotals">Results</h2><div id="scores"></div></section>
+<section class="card analysis-controls" id="chartsCard"><div class="card-head"><h2>Charts</h2><label class="pause-all" title="Pause all charts and execution logs"><input id="pauseViews" type="checkbox"> Pause all</label></div>
+<div class="chart-grid"><section><div class="chart-head"><span>Processes · this round</span><label class="icon-toggle" title="Pause process chart"><input id="pauseProcesses" type="checkbox" aria-label="Pause process chart"><span aria-hidden="true">Ⅱ</span></label></div><canvas id="processChart" aria-label="Process count over cycles"></canvas></section>
+<section><div class="chart-head"><span>Score · cumulative</span><label class="icon-toggle" title="Pause score chart"><input id="pauseScores" type="checkbox" aria-label="Pause score chart"><span aria-hidden="true">Ⅱ</span></label></div><canvas id="scoreChart" aria-label="Cumulative score over completed battles"></canvas></section></div></section>
+<section class="card debugger" id="consolePanel" tabindex="0" aria-label="Core debugger">
+<div class="tabstrip" id="inspectorTabs" role="tablist" aria-label="Consoles"><button id="outputTab" role="tab" type="button">Output</button><button id="addConsole" class="add-console" type="button" aria-label="Add console" title="Add console">+</button></div>
+<div id="cdbHead" class="cdb-head"><label><input id="debugEnabled" type="checkbox"> Stop at breakpoints and debug markers</label><span id="coreViewTitle" class="hint"></span><div class="menu-wrap"><button id="debugHelpBtn" type="button" class="small icon" aria-haspopup="true" aria-expanded="false" aria-controls="debugHelp" aria-label="Native pMARS debugger help" title="Native pMARS debugger help">?</button>
+<div id="debugHelp" class="popover help-pop" hidden>
 <p>The command line uses pMARS cdb, including expressions, command chains (<code>~</code>), loops, conditional commands, and macros. The original <code>pmars.mac</code> and <code>mw.mac</code> are preloaded. Enter <code>help</code> for native command help or <code>macro</code> to list macros.</p>
 <p><code>step</code> executes one instruction; native <code>step 10</code> changes the current program counter to address 10 before executing. To execute ten instructions, use <code>skip 9</code> or <code>step~!10</code>. Enter on an empty field recalls the last native command chain.</p>
 <p><code>trace 100</code> and <code>untrace 100</code> set and clear source-style breakpoints. <code>edit</code>, <code>fill</code>, and paged listings request their next input in the same field. Use the toolbar's Cancel button to interrupt a macro or prompt. Native <code>reset</code> cancels a command chain; the toolbar Reset (or <code>reset battle</code>) reloads the battle.</p>
 <p>Files used by cdb live in this match's temporary browser filesystem. Shell commands are unavailable. Native text-panel macros share this browser output view. F5/F7/F8/F9 and navigation shortcuts invoke the real macros outside editable controls.</p>
-</details>
+</div></div></div>
+<div id="execution" class="console-grid"></div>
+<div id="outputPanel" class="output-panel" hidden><details id="consoleWindow" open><summary><span>pMARS console output</span><button id="clearConsole" type="button">Clear output</button></summary><div id="sourceDiagnostics" aria-label="Source diagnostics"></div><pre id="consoleOutput" aria-label="Native pMARS console output">Validate a warrior or run a battle to see assembly output here.</pre></details></div>
+<div class="command-workspace" id="commandWorkspace"><div id="commandHistory" aria-label="Command history"></div><form id="commandForm"><label for="command" class="prompt">Native cdb command &gt;</label><input id="command" title="Enter a command; press Enter with an empty field to repeat the last command" placeholder="list 0,9 · step · macro f7 · calc 2+3" autocomplete="off"><button>Execute</button></form><pre id="commandOutput" role="status"></pre></div>
 </section>
-<section class="analysis-controls"><label><input id="pauseViews" type="checkbox"> Pause all charts and execution logs</label>
-<div class="chart-grid"><section><label><input id="pauseProcesses" type="checkbox"> Pause process chart</label><canvas id="processChart" aria-label="Process count over cycles"></canvas></section>
-<section><label><input id="pauseScores" type="checkbox"> Pause score chart</label><canvas id="scoreChart" aria-label="Cumulative score over completed battles"></canvas></section></div></section>
-<div class="lower">
-<details id="diagnostics"><summary id="diagnosticsTitle">Show diagnostics</summary><p id="sliceTiming">Peak simulation slice: 0.0 ms</p><pre id="log" aria-label="Assembly diagnostics">Ready.</pre></details></div>
+</div>
+<div id="editorInspector" class="inspector-stack" hidden>
+<section class="card"><h2>Redcode quick reference</h2>
+<p class="ref"><strong>Opcodes</strong> DAT MOV ADD SUB MUL DIV MOD JMP JMZ JMN DJN SPL SLT CMP/SEQ SNE NOP LDP STP</p>
+<p class="ref"><strong>Modes</strong> <code>#</code> immediate · <code>$</code> direct · <code>*</code> A-indirect · <code>@</code> B-indirect · <code>{</code> <code>&lt;</code> pre-decrement · <code>}</code> <code>&gt;</code> post-increment</p>
+<p class="ref"><strong>Modifiers</strong> .A .B .AB .BA .F .X .I</p>
+<p class="ref"><a href="https://corewar.co.uk/icws94.txt" target="_blank" rel="noopener">Full ICWS ’94 reference</a></p></section>
+<section class="card"><h2>Last result</h2><p id="lastResult" class="hint">No battle run yet.</p></section>
+</div>
+</aside>
 </div>
 <section id="tournamentPanel" role="tabpanel" aria-labelledby="tournamentTab" hidden>
+<div id="tournamentSettingsSlot" class="arena-foot tournament-settings"></div>
 <fieldset id="parallelSetup" class="parallel-panel"><legend>Parallel execution</legend>
 <p id="workerLimit" class="hint"></p>
 <div class="worker-controls"><label for="workerSlider">Parallel workers</label><input id="workerSlider" type="range" min="1" max="1" value="1" aria-describedby="workerExplanation"><input id="tournamentWorkers" type="number" min="1" value="1" aria-label="Parallel workers" aria-describedby="workerExplanation"></div>
@@ -104,6 +153,11 @@
 <canvas id="tournamentChart" aria-label="Tournament score progress"></canvas>
 <details><summary>Completed matchups</summary><ol id="matchupResults"></ol></details>
 </section>
-<footer>pMARS 0.9.6-dev · ICWS ’94 extensions · GPL-2.0-or-later · <a href="COPYING">License</a> · <a href="dist/editor-LICENSES.txt">Editor licenses</a> · <a href="pmars-source.zip">Engine source</a> · <a href="app-source.zip">App source</a></footer>
-</main><script type="module" src="app.mjs?v=bd68579c2c000dd9"></script>
+</div>
+<div id="dropOverlay" class="drop-overlay" hidden><div>Drop warrior files to load them</div></div>
+</main>
+<nav id="phoneBar" class="phone-bar" aria-label="Views"><button type="button" data-pane="core" aria-pressed="true">Core</button><button type="button" data-pane="code" aria-pressed="false">Code</button><button type="button" data-pane="debug" aria-pressed="false">Debug</button><button type="button" data-pane="output" aria-pressed="false">Output</button></nav>
+<footer><details id="diagnostics"><summary id="diagnosticsTitle">Show diagnostics</summary><p id="sliceTiming">Peak simulation slice: 0.0 ms</p><pre id="log" aria-label="Assembly diagnostics">Ready.</pre></details>
+<span>pMARS 0.9.6-dev · ICWS ’94 extensions · GPL-2.0-or-later · <a href="COPYING">License</a> · <a href="dist/editor-LICENSES.txt">Editor licenses</a> · <a href="pmars-source.zip">Engine source</a> · <a href="app-source.zip">App source</a></span></footer>
+<script type="module" src="app.mjs?v=bd68579c2c000dd9"></script>
 </body></html>
