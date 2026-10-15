@@ -9,6 +9,10 @@ export function setTheme(value){theme=palettes[value]?value:'modern';document.bo
 export function warriorColor(i) {
  return palettes[theme][i % palettes[theme].length];
 }
+// Battle slot j shows the colour of the roster row it was loaded from, so excluded warriors don't shift colours.
+let battleSlots=[];
+export function setBattleSlots(slots){battleSlots=slots.slice();}
+export function battleColor(j){return warriorColor(battleSlots[j] ?? j);}
 export class CoreDisplay {
   constructor(canvas) {
     this.canvas = canvas;
@@ -144,7 +148,7 @@ export class CoreDisplay {
     for(let q=0;q<4;q++){
       const owner=this.cells[address*4+q];
       if(!owner)continue;
-      c.fillStyle=warriorColor(owner-1);
+      c.fillStyle=battleColor(owner-1);
       c.fillRect(x+pad+(q%2)*half,y+pad+Math.floor(q/2)*half,half,half);
     }
     if(!classic){

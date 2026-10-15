@@ -1,4 +1,4 @@
-import {warriorColor} from './display.mjs?v=bd68579c2c000dd9';
+import {battleColor} from './display.mjs?v=bd68579c2c000dd9';
 export class HistoryChart {
  constructor(canvas,title){this.canvas=canvas;this.title=title;this.samples=[];}
  clear(){this.samples=[];this.draw();}
@@ -20,7 +20,7 @@ export class HistoryChart {
   ctx.fillText(String(first),35,height-6);ctx.fillText(String(last),Math.max(40,width-65),height-6);
   ctx.strokeStyle='#395165';ctx.beginPath();ctx.moveTo(35,24);ctx.lineTo(35,base);ctx.lineTo(width-8,base);ctx.stroke();
   for(let i=0;i<this.samples.at(-1).values.length;i++){
-   ctx.strokeStyle=warriorColor(i);ctx.beginPath();
+   ctx.strokeStyle=battleColor(i);ctx.beginPath();
    this.samples.forEach((p,j)=>{const x=35+(width-48)*(p.x-first)/dx,y=(base-1)-(base-29)*(p.values[i]-minY)/dy;j?ctx.lineTo(x,y):ctx.moveTo(x,y);});
    ctx.stroke();
   }

@@ -4,7 +4,7 @@ import {bundledWarriors} from './demo-warriors.mjs?v=bd68579c2c000dd9';
 import {createEditor} from './dist/editor.mjs?v=bd68579c2c000dd9';
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {Engine, settings} from './engine.mjs?v=bd68579c2c000dd9';
-import {CoreDisplay, warriorColor, setTheme} from './display.mjs?v=bd68579c2c000dd9';
+import {CoreDisplay, warriorColor, battleColor, setBattleSlots, setTheme} from './display.mjs?v=bd68579c2c000dd9';
 import {readSettings,setupSettings} from './settings-ui.mjs?v=bd68579c2c000dd9';
 import {HistoryChart} from './charts.mjs?v=bd68579c2c000dd9';
 const $ = id => document.getElementById(id);
@@ -27,6 +27,7 @@ const display = new CoreDisplay($('core'));
 let engine = null, worker = null, workerTimer = null, generation = 0;
 let state = 'idle', animation = 0, previous = 0, credit = 0, total = 0;
 let fastMode = false;
+let loadedSlots = [];
 let coreView = 'native', inspectionAddress = 0;
 const consoles=[];let consoleSerial=0;const commandHistory=[];
 let nativeBusy=false,nativeResume=false,nativeOutput='',nativeInput=null,nativeCancelled=false;
@@ -140,10 +141,11 @@ function markDirty() {
   $('changed').textContent = dirty ? 'Changes pending: Run or Reset applies them; Resume keeps the loaded battle.' : '';
 }
 function legend() {
-  const names = engine && latest ? latest.warriors.map(w => w.name) : selectedIndices().map(i=>draftName(sources[i],i));
+  const selected=selectedIndices(),loaded=!!(engine && latest);
+  const names = loaded ? latest.warriors.map(w => w.name) : selected.map(i=>draftName(sources[i],i));
   $('legendNames').replaceChildren(...names.map((name,i) => {
     const span = document.createElement('span');
-    span.style.color = warriorColor(i);
+    span.style.color = loaded ? battleColor(i) : warriorColor(selected[i]);
     const swatch=document.createElement('span');swatch.className='warrior-swatch';
     const eliminated=document.createElement('span');eliminated.className='eliminated-marker';eliminated.dataset.eliminated=i;
     swatch.append(eliminated);span.append(swatch,` ${name} `);
@@ -205,6 +207,7 @@ function editors() {
 function removeWarrior(i){
  if(nativeBusy)return;
  sources.splice(i,1);sourceFiles.splice(i,1);excludedWarriors.splice(i,1);collapsedEditors.splice(i,1);originals.splice(i,1);openTabs=openTabs.filter(x=>x!==i).map(x=>x>i?x-1:x);
+ loadedSlots=loadedSlots.map(x=>x>i?x-1:x);setBattleSlots(loadedSlots);
  markDirty(); if(!sources.length)clearBattle(); editors();
 }
 function activeEditor(){return collapsedEditors.findIndex(value=>value===false);}
@@ -386,7 +389,7 @@ function scores(update) {
   const shared=update.warriors.filter(w=>w.score===best).length>1;
   const order=update.warriors.map((w,i)=>({w,i}));
   order.sort((a,b)=>b.w.score-a.w.score);
-  const key=JSON.stringify([update.completed,update.done,order.map(({w,i})=>[w.name,w.wins,w.ties,w.losses,w.score,warriorColor(i)])]);
+  const key=JSON.stringify([update.completed,update.done,order.map(({w,i})=>[w.name,w.wins,w.ties,w.losses,w.score,battleColor(i)])]);
   if(key===scoreViewKey)return;
   scoreViewKey=key;
   const single=update.warriors.length===1;
@@ -398,7 +401,7 @@ function scores(update) {
     const result=single ? (update.completed===1?(w.losses?'Terminated':'Survived'):'')
       :update.completed===1 ? (w.wins?'Won':w.ties?'Tied':'Lost')
       :update.done ? (w.score===best?(shared?'Tied for first':'Won series'):'Lost series') : '';
-    const row=body.insertRow();row.style.color=warriorColor(i);
+    const row=body.insertRow();row.style.color=battleColor(i);
     const name=row.insertCell();const swatch=document.createElement('span');swatch.className='warrior-swatch';name.append(swatch,' '+w.name);
     row.insertCell().textContent=single?`${w.wins} / ${w.losses}`:`${w.wins} / ${w.ties} / ${w.losses}`;
     row.insertCell().textContent=String(w.score);
@@ -419,7 +422,7 @@ function instructionRow(address, instruction, owner = null, suffix = '', listing
   const row=document.createElement('button');row.type='button';
   row.className='instruction-row'+(listing?' listing-line':'');row.dataset.address=String(address);
   markBreakpointRow(row,address,engine?.breakpoint(address) || false);
-  if(owner!==null)row.style.color=warriorColor(owner);
+  if(owner!==null)row.style.color=battleColor(owner);
   row.textContent=addressText(address)+'  '+instruction+suffix+'\n';
   row.onclick=()=>{
     if(nativeBusy || !engine?.started)return;
@@ -553,13 +556,14 @@ async function load() {
   stop(); const token = generation;
   state = 'loading'; controls(); $('log').textContent = ''; consoleText='';$('consoleOutput').textContent='';
   status('Assembling warriors in a background worker…');
-  const config = options(), banks = await work('compile',config);
+  const slots = selectedIndices(), config = options(), banks = await work('compile',config);
   if (token !== generation) return false;
   const next = await Engine.create(config,{log});
   if (token !== generation) return false;
   next.import(banks);
   // Reserve the widest counter for this match so digit changes cannot reflow the toolbar.
   $('timing').style.width = (('Cycle '+config.cycles.toLocaleString()+' / '+config.cycles.toLocaleString()+' · round '+next.config.rounds.toLocaleString()).length)+'ch';
+  loadedSlots = slots; setBattleSlots(slots);
   engine = next; total = 0; maxSlice = 0; credit = 0; history = []; combined = [];
   display.configure(config.coreSize);clearHover(); inspectionAddress=0;
   traceControls(banks.map(b=>b.name));engine.setDebug($('debugEnabled').checked);
