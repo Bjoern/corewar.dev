@@ -996,6 +996,8 @@ addEventListener('hashchange',()=>{referenceFromHash=location.hash.startsWith('#
 addEventListener('resize',()=>{if(!$('referenceView').hidden)placeReference();});
 addEventListener('message',event=>{if(event.origin===location.origin && event.data?.type==='corewar-reference-close')setTimeout(closeReference,50);});
 $('closeReference').onclick=closeReference;
+// A plain click on the wordmark stays in the app instead of reloading it and losing the warriors; modified clicks still open a new tab.
+$('wordmark').onclick=event=>{if(event.button||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();closePopovers();closeReference();};
 // While it is open, section links replace the entry so one Back still returns to the app.
 document.addEventListener('click',event=>{const a=event.target.closest('a[href^="#reference"]');if(a && !$('referenceView').hidden){event.preventDefault();if(a.hash!==location.hash)location.replace(a.hash);}});
 // Escape also stops pending navigations in Chrome, so close after the key event.
