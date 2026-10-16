@@ -1,5 +1,8 @@
 # Future improvements
 
+Ideas worth considering, not commitments. Each one is optional and should be
+weighed against what the app actually needs at the time.
+
 ## Reuse engine instances between matches
 
 Today every match (each tournament matchup, each emulator load) gets a brand-new
@@ -26,3 +29,13 @@ tournament. Only pursue the options below if instantiation is a meaningful share
 - **Share one compiled module across workers.** Compile on the main thread and
   `postMessage` the `WebAssembly.Module` to tournament workers instead of each
   worker fetching/compiling once.
+
+## Show an editor beside the mode view
+
+Warrior editor tabs share the centre tab strip with the mode view (Core in
+Battle, Tournament in Tournaments), so opening an editor hides the core or the
+standings. On wide screens, a "split" toggle on a warrior tab could show the
+editor next to the first tab instead, resizable with the existing splitter
+handles and falling back to plain tabs on narrow screens. Open questions: where
+the inspector goes while split, and whether a running battle should still pause
+when an editor opens (today it pauses because the core is hidden).
