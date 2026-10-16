@@ -16,7 +16,9 @@ try{
  await first.press('Control+z');assert.match(await first.textContent(),/;name Alpha/);
  await first.press('Control+y');assert.match(await first.textContent(),/Edited Alpha/);
  await page.locator('#editorTheme').selectOption('light');
- await page.locator('#tournamentTab').click();assert(await first.isHidden());await page.locator('#emulatorTab').click();assert(await first.isVisible());
+ // The editor is shared by both modes and stays open when switching; only its run button follows the mode.
+ await page.locator('#tournamentTab').click();assert(await first.isVisible());assert.equal(await page.locator('#runFromEditor').textContent(),'▶ Run tournament');
+ await page.locator('#emulatorTab').click();assert(await first.isVisible());assert.equal(await page.locator('#runFromEditor').textContent(),'▶ Run battle');
  await page.locator('#newWarrior').click();assert.equal(await page.locator('.source-editor:visible').count(),1);
  const download=page.waitForEvent('download');await page.locator('.save-warrior').last().click();assert.equal((await download).suggestedFilename(),'Warrior 3.red');
  const uploaded=page.waitForEvent('download');await page.locator('.save-warrior').first().click();assert.equal((await uploaded).suggestedFilename(),'Alpha.red');
