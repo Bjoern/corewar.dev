@@ -777,6 +777,7 @@ $('arenaLayout').onchange=()=>{
 };
 function clearHover(){ $('hoverAddress').textContent='Cell: —'; }
 $('cellSize').onchange = () => {document.querySelector('.arena-viewport').dataset.cells=$('cellSize').value==='0'?'auto':'fixed';clearHover();display.setCellSize(Number($('cellSize').value));};
+$('cellSize').onchange(); // Start from the selected size (Auto), not CoreDisplay's built-in default.
 $('core').onpointermove=event=>{
  const address=display.addressAt(event),text=address===null?'Cell: —':'Cell: '+String(address).padStart(String(display.size-1).length,'0');
  if($('hoverAddress').textContent!==text)$('hoverAddress').textContent=text;

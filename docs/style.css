@@ -463,3 +463,5 @@ button.small{white-space:nowrap}
 .speed-slot:has(>.fast-notice:not([hidden]))>.speed-control{visibility:hidden}
 @media(max-width:700px){.speed-slot{flex:1 1 100%;margin-left:0}.speed-slot>.fast-notice{white-space:normal;justify-self:stretch;justify-content:center}}
 .foot-status{display:flex;flex-wrap:wrap;gap:2px 14px;align-items:baseline}.foot-status:has(>#activeSettings:empty):has(>#changed:empty){display:none}
+/* Phones: a 5:2 box leaves "fill" only ~130px tall; give it most of the screen instead. */
+@media(max-width:700px){.arena-space:has(>.arena-viewport[data-layout=fill][data-cells=auto]){flex:none;aspect-ratio:auto;height:60vh;height:60dvh}}
