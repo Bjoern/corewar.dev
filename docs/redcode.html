@@ -50,6 +50,8 @@ td code{white-space:nowrap}
 .diagram span{border:1px solid var(--border);background:var(--panel);border-radius:4px;padding:6px 8px;text-align:center;min-width:64px}
 .diagram em{display:block;font-style:normal;color:var(--muted);font-size:11px}
 .diagram .hot{border-color:var(--accent);color:var(--accent)}
+.embedded .topbar,.embedded footer{display:none}
+.embedded .layout{padding-top:16px}
 footer{max-width:1180px;margin:auto;padding:20px 32px 40px;border-top:1px solid var(--border);color:#7893a6;font-size:13px}
 @media(max-width:860px){
  .layout{grid-template-columns:1fr;gap:0;padding:8px 16px 40px}
@@ -394,6 +396,14 @@ silk    spl    @0, 2667         ; start a process in the new copy
 </div>
 <footer>corewar.dev · <a href="./">Back to the app</a> · Examples assembled and tested with pMARS 0.9.6.</footer>
 <script>
+// Inside the app the app's own top bar is shown, so drop ours and send app links to the app.
+if(window.top!==window||new URLSearchParams(location.search).has('embed')){
+  document.documentElement.classList.add('embedded');
+  for(const a of document.querySelectorAll('a[href^="./"]'))a.target='_top';
+  // Jump within the page without adding history entries, so the app's Back button closes the reference.
+  document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]'),h=a&&document.getElementById(a.hash.slice(1));if(!h)return;e.preventDefault();h.scrollIntoView();history.replaceState(null,'',a.hash);});
+  if(window.top!==window)addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();parent.postMessage({type:'corewar-reference-close'},location.origin);}});
+}
 // Lightweight Redcode highlighting for the examples on this page.
 const ops='dat|mov|add|sub|mul|div|mod|jmp|jmz|jmn|djn|spl|slt|cmp|seq|sne|nop|ldp|stp|equ|org|end|for|rof|pin';
 const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

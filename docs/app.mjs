@@ -974,6 +974,33 @@ function fitCellKey(){
 new ResizeObserver(fitCellKey).observe(document.querySelector('.core-view .arena-foot'));
 
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closePopovers();});
+// The Redcode reference opens at #reference or #reference/<section>; Back or "Back to the app" closes it.
+let referenceFromHash=false;
+function placeReference(){document.body.style.setProperty('--reference-top',document.querySelector('.topbar').getBoundingClientRect().bottom+'px');}
+function showReference(){
+ const match=location.hash.match(/^#reference(?:\/([\w-]+))?$/), open=!!match;
+ $('referenceView').hidden=!open;document.body.dataset.reference=String(open);
+ if(open)$('referenceLink').setAttribute('aria-current','page');else $('referenceLink').removeAttribute('aria-current');
+ if(!open)return;
+ closePopovers();placeReference();
+ const target='redcode.html?embed'+(match[1]?'#'+match[1]:''), frame=$('referenceFrame');
+ if(!frame.getAttribute('src'))frame.src=target;
+ else if(match[1]){const doc=frame.contentDocument;doc?.getElementById(match[1])?.scrollIntoView();doc?.defaultView.history.replaceState(null,'','#'+match[1]);} // Scroll, not navigate: frame navigations add history entries.
+}
+function closeReference(){
+ if(!location.hash.startsWith('#reference'))return;
+ if(referenceFromHash)window.history.back();
+ else{window.history.replaceState(null,'',location.pathname+location.search);showReference();}
+}
+addEventListener('hashchange',()=>{referenceFromHash=location.hash.startsWith('#reference');showReference();});
+addEventListener('resize',()=>{if(!$('referenceView').hidden)placeReference();});
+addEventListener('message',event=>{if(event.origin===location.origin && event.data?.type==='corewar-reference-close')setTimeout(closeReference,50);});
+$('closeReference').onclick=closeReference;
+// While it is open, section links replace the entry so one Back still returns to the app.
+document.addEventListener('click',event=>{const a=event.target.closest('a[href^="#reference"]');if(a && !$('referenceView').hidden){event.preventDefault();if(a.hash!==location.hash)location.replace(a.hash);}});
+// Escape also stops pending navigations in Chrome, so close after the key event.
+document.addEventListener('keydown',event=>{if(event.key==='Escape' && !$('referenceView').hidden){event.preventDefault();setTimeout(closeReference,50);}});
+showReference();
 
 // Phone bottom bar: Core | Code | Debug | Output.
 function markPane(name){

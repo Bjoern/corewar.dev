@@ -465,3 +465,10 @@ button.small{white-space:nowrap}
 .foot-status{display:flex;flex-wrap:wrap;gap:2px 14px;align-items:baseline}.foot-status:has(>#activeSettings:empty):has(>#changed:empty){display:none}
 /* Phones: a 5:2 box leaves "fill" only ~130px tall; give it most of the screen instead. */
 @media(max-width:700px){.arena-space:has(>.arena-viewport[data-layout=fill][data-cells=auto]){flex:none;aspect-ratio:auto;height:60vh;height:60dvh}}
+/* The Redcode reference opens over the workspace, below the top bar, so the app keeps its state. */
+.reference-view{position:fixed;left:0;right:0;bottom:0;top:var(--reference-top,48px);z-index:30;display:flex;flex-direction:column;background:var(--bg)}
+.reference-view[hidden]{display:none}
+.reference-bar strong{white-space:nowrap}.reference-bar{display:flex;align-items:center;gap:14px;padding:6px var(--gap);background:var(--panel);border-bottom:1px solid var(--border);font-size:13px}
+.reference-view iframe{flex:1;width:100%;border:0;background:var(--bg)}
+body[data-reference=true] #phoneBar{display:none}
+.help-links a[aria-current=page]{color:#e4edf3}
