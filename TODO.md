@@ -39,3 +39,11 @@ editor next to the first tab instead, resizable with the existing splitter
 handles and falling back to plain tabs on narrow screens. Open questions: where
 the inspector goes while split, and whether a running battle should still pause
 when an editor opens (today it pauses because the core is hidden).
+
+## Tutorial (planned soon)
+
+The Tutorial is shown as "coming soon": a "soon" label in the header help links,
+a "Coming soon" note under the welcome card, and plain text in
+`docs/redcode.html` (its nav link and the "further reading" entry). When the
+tutorial exists, turn these back into `#tutorial` links and bring back a
+**Start the tutorial** button in the welcome card's footer.

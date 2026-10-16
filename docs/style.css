@@ -267,8 +267,18 @@ a.button{display:inline-block;padding:10px 16px;border-radius:6px;font-weight:60
 .sidebar .compile-warrior[data-result=ok]{color:#a7e8a3}.sidebar .compile-warrior[data-result=failed]{color:#ffb9b9}
 .sidebar .editor-title .save-warrior,.sidebar .editor-title .remove-warrior,.sidebar .edit-source{padding:3px;border:0;color:var(--muted);background:transparent}
 .sidebar .edit-source:hover,.sidebar .edit-source:focus-visible{color:var(--ink)}
-.sidebar .warrior-import{margin:0}.sidebar #dropZone{margin:0;padding:18px 10px;font-size:13px}
-body:not([data-warriors="0"]) .sidebar .warrior-import{margin-top:10px}body:not([data-warriors="0"]) .sidebar #dropZone{padding:10px;font-size:12px}
+.sidebar .warrior-import{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.import-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;margin:0;padding:14px 8px;border:1px dashed #537c91;border-radius:8px;background:transparent;color:#a9c5d4;font-size:13px;font-weight:400;text-align:center;cursor:pointer}
+.sidebar #dropZone{margin:0;padding:14px 8px;font-size:13px}
+.import-tile:hover,.import-tile:focus-visible{border-color:var(--accent);color:#e4edf3;background:#54d8df0d}
+.import-tile:disabled{opacity:.5;cursor:default;border-color:#537c91;background:transparent}
+.import-tile strong{color:#e4edf3;font-weight:600}.import-tile .tile-hint{font-size:11px;color:var(--muted)}
+.tile-icon{display:flex;align-items:center;justify-content:center;height:22px;font-size:22px;line-height:1;color:var(--accent)}
+body:not([data-warriors="0"]) .sidebar .warrior-import{margin-top:10px}
+body:not([data-warriors="0"]) .import-tile,body:not([data-warriors="0"]) .sidebar #dropZone{flex-direction:row;gap:6px;padding:8px;font-size:12px}
+body:not([data-warriors="0"]) .import-tile .tile-hint{display:none}body:not([data-warriors="0"]) .tile-icon{height:auto;font-size:16px}
+.soon-link{color:var(--muted);cursor:default}.soon-link small,.soon-badge{font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:1px 5px;border:1px solid var(--border);border-radius:999px;color:#f1c96b}
+.welcome-soon{font-size:12px;color:var(--muted);margin-top:12px!important}.welcome-soon .soon-badge{margin-right:4px}
 .sidebar .warrior-swatch{flex-shrink:0}
 /* centre */
 .tabstrip{display:flex;align-items:stretch;gap:2px;background:var(--header);border-bottom:1px solid var(--border);padding:0 6px;overflow-x:auto;flex-shrink:0}
@@ -390,7 +400,7 @@ body[data-mode=tournament] #phoneBar [data-pane=debug],body[data-mode=tournament
  #timing{margin-left:0;width:auto!important;flex:1 1 100%;order:5}
  .demo-cards{flex-direction:column;align-items:stretch}.demo-card{width:auto}
  .welcome{position:static;background:transparent;padding:0}
- body[data-welcome=true] .arena-space{display:none}
+ body[data-welcome=true] .arena-viewport{display:none}body[data-welcome=true] .arena-space{aspect-ratio:auto}
  .chart-grid{grid-template-columns:1fr}
  .phone-bar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--header);border-top:1px solid var(--border)}
  .phone-bar button{flex:1;border:0;border-radius:0;background:transparent;min-height:52px;color:var(--muted)}.phone-bar [aria-pressed=true]{color:var(--accent);box-shadow:inset 0 2px var(--accent)}
@@ -401,6 +411,7 @@ body[data-mode=tournament] #phoneBar [data-pane=debug],body[data-mode=tournament
  body[data-pane=debug] #outputTab,body[data-pane=output] .console-tab{display:none}
  .sidebar{flex-direction:row;flex-wrap:wrap;align-items:center;padding:6px}.sidebar .side-head{flex:1}.sidebar .editors{flex:0 0 100%;flex-wrap:nowrap;overflow-x:auto}.sidebar .roster{display:none}
  .sidebar .editor-title .save-warrior{display:none}
+ .sidebar .warrior-import{flex:0 0 100%}
 }
 .battle-extras button{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;font-size:12px;white-space:nowrap}
 .cdb-head #coreViewTitle{display:none}.cdb-head label{flex:1}

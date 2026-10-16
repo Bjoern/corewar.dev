@@ -206,7 +206,8 @@ function editors() {
   editorVisibility();refreshCompileButtons();
   rosterCount();tournaments?.refresh();
   $('newWarrior').disabled = sources.length >= 36;
-  $('dropZone').textContent=sources.length>=36?'36 warriors loaded, the maximum. Remove some to add more.':'Drop warrior files anywhere, or click to upload';
+  $('newWarriorTile').disabled=$('welcomeNew').disabled=sources.length>=36;
+  $('dropZoneHint').textContent=sources.length>=36?'36 loaded, the maximum':'Drop .red files or click';
 
   controls();
   legend();
@@ -859,6 +860,8 @@ $('newWarrior').onclick=()=>{
  markDirty();editors();
 };
 $('uploadBtn').onclick=()=>$('warriorFiles').click();
+$('newWarriorTile').onclick=$('welcomeNew').onclick=()=>$('newWarrior').click();
+$('welcomeUpload').onclick=()=>$('warriorFiles').click();
 async function startDemo(selected){
  if(sources.length && !(await askUser('Replace the '+sources.length+' loaded warrior'+(sources.length===1?'':'s')+' with this example?','Replace')))return;
  sources=[...selected];originals=[...selected];sourceFiles=selected.map(source=>bundledWarriors.find(w=>w.source===source)?.file||null);excludedWarriors=[];collapsedEditors=[];openTabs=[];welcomeDismissed=true;

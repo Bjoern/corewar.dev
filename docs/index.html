@@ -13,7 +13,7 @@
 <header class="topbar">
 <a class="wordmark" href="./" id="wordmark">corewar.dev</a>
 <nav id="modeTabs" class="mode-nav" role="tablist" aria-label="Mode"></nav>
-<nav class="help-nav" aria-label="Help"><button id="helpBtn" class="phone-only" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Tutorial, reference and about">?</button><div id="helpLinks" class="help-links"><a href="#tutorial">Tutorial</a><a id="referenceLink" href="#reference">Redcode reference</a><a href="#about">About</a></div></nav>
+<nav class="help-nav" aria-label="Help"><button id="helpBtn" class="phone-only" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Tutorial, reference and about">?</button><div id="helpLinks" class="help-links"><span class="soon-link" title="The tutorial is coming soon">Tutorial <small>soon</small></span><a id="referenceLink" href="#reference">Redcode reference</a><a href="#about">About</a></div></nav>
 </header>
 <section id="referenceView" class="reference-view" hidden aria-label="Redcode reference"><div class="reference-bar"><strong>Redcode reference</strong><a href="redcode.html" target="_blank" rel="noopener">Open in new tab</a><span class="foot-spacer"></span><button id="closeReference" type="button" class="small">Back to the app</button></div><iframe id="referenceFrame" title="Redcode reference"></iframe></section>
 <main id="app">
@@ -30,7 +30,7 @@
 <dialog id="workspaceDialog" aria-labelledby="workspaceDialogText"><form method="dialog"><p id="workspaceDialogText"></p><div class="dialog-actions"><button id="workspaceDialogCancel" value="cancel">Cancel</button><button id="workspaceDialogOk" value="ok" class="primary">OK</button></div></form></dialog>
 <div class="roster"><span id="warriorCount">0 warriors loaded - upload or create warriors, then run battles and tournaments</span></div>
 <section id="editors" class="editors" aria-label="Warrior list"></section>
-<div class="warrior-import"><div id="dropZone" tabindex="0" role="button" aria-label="Drop warrior files or open file picker">Drop warrior files anywhere, or click to upload</div></div>
+<div class="warrior-import"><button id="newWarriorTile" type="button" class="import-tile" title="Start a new warrior from a small template"><span class="tile-icon" aria-hidden="true">+</span><strong>New warrior</strong><span class="tile-hint">Start from a template</span></button><div id="dropZone" class="import-tile" tabindex="0" role="button" aria-label="Drop warrior files or open file picker"><span class="tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></span><strong>Upload</strong><span id="dropZoneHint" class="tile-hint">Drop .red files or click</span></div></div>
 <input id="warriorFiles" type="file" multiple accept=".red,.rc,.txt" hidden>
 </aside>
 <div id="sidebarSplitter" class="splitter" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Resize warriors panel" title="Drag to resize · double-click to reset" tabindex="0"></div>
@@ -66,7 +66,8 @@
 <button type="button" class="demo-card" data-demo="randomDemo"><span class="demo-art" aria-hidden="true"><i style="background:#54d8df"></i><i style="background:#b79cff"></i></span><strong>Random duel</strong><span>Two different bundled warriors, chosen at random.</span><em>▶ Watch</em></button>
 <button type="button" class="demo-card" data-demo="multiDemo"><span class="demo-art" aria-hidden="true"><i style="background:#54d8df"></i><i style="background:#f9a567"></i><i style="background:#b79cff"></i><i style="background:#a7e8a3"></i></span><strong>Multiwarrior</strong><span>Every bundled warrior in one free-for-all.</span><em>▶ Watch</em></button>
 </div>
-<div class="welcome-foot"><a class="button primary" href="#tutorial">Start the tutorial</a><span>Already know Redcode? Write a warrior or drop your .red files here.</span></div>
+<div class="welcome-foot"><span>Already know Redcode?</span><button id="welcomeNew" type="button" class="primary">+ Write a new warrior</button><button id="welcomeUpload" type="button">Upload .red files</button></div>
+<p class="welcome-soon"><span class="soon-badge">Coming soon</span> A step-by-step tutorial for your first warrior.</p>
 </section></div>
 <div id="legendNames" class="warrior-chips" aria-label="Warriors"></div>
 </section>
