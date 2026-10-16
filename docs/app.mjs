@@ -238,6 +238,9 @@ function editorVisibility(){
  $('editingName').textContent=active<0?'':draftName(sources[active],active);
  if(active<0 && shownEditor>=0 && mode==='battle'){display.redraw();processChart.draw();scoreChart.draw();}
  shownEditor=active;
+ // Editors also open from the roster and centre tabs; keep the phone bar on the matching pane.
+ if(active>=0 && document.body.dataset.pane!=='code')markPane('code');
+ else if(active<0 && document.body.dataset.pane==='code')markPane('core');
  renderCenterTabs();editorStatus();
  if(active>=0)$('asmOutput').textContent=consoleText||'Validate the warrior to see assembly output here.';
 }
@@ -973,9 +976,12 @@ new ResizeObserver(fitCellKey).observe(document.querySelector('.core-view .arena
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closePopovers();});
 
 // Phone bottom bar: Core | Code | Debug | Output.
-function setPane(name){
+function markPane(name){
  document.body.dataset.pane=name;
  for(const b of document.querySelectorAll('#phoneBar button'))b.setAttribute('aria-pressed',String(b.dataset.pane===name));
+}
+function setPane(name){
+ markPane(name);
  if(name==='code'){if(activeEditor()<0 && sources.length)openWarrior(openTabs[0]??0);}
  else if(activeEditor()>=0)showCore();
  if(name==='debug')activateInspector(consoles.find(p=>p.select.value==='cdb'));
