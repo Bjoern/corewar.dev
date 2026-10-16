@@ -23,7 +23,11 @@
 <div id="examplesMenu" class="popover menu" hidden><button id="demo" type="button" title="Load Dwarf and Imp and start a standard match">Dwarf vs Imp</button><button id="randomDemo" type="button" title="Start a duel between two different bundled warriors">Random duel</button><button id="multiDemo" type="button" title="Start a battle with all bundled warriors except validate.red">Multiwarrior</button></div></div>
 <button id="uploadBtn" type="button" class="small icon" title="Upload warrior files" aria-label="Upload warrior files"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></button>
 <button id="newWarrior" type="button" class="small icon" title="New warrior" aria-label="New warrior">+</button>
+<div class="menu-wrap"><button id="workspaceBtn" type="button" class="small icon" aria-haspopup="true" aria-expanded="false" aria-controls="workspaceMenu" title="Workspace: export, import or start clean" aria-label="Workspace menu">⋯</button>
+<div id="workspaceMenu" class="popover menu workspace-menu" hidden><button id="exportWorkspace" type="button" title="Download warriors and settings as a .json file">Export workspace</button><button id="importWorkspace" type="button" title="Replace the workspace with an exported .json file">Import workspace…</button><button id="startClean" type="button" title="Discard all warriors and settings saved in this browser">Start clean</button></div></div>
 </div></div>
+<input id="workspaceFile" type="file" accept=".json,application/json" hidden>
+<dialog id="workspaceDialog" aria-labelledby="workspaceDialogText"><form method="dialog"><p id="workspaceDialogText"></p><div class="dialog-actions"><button id="workspaceDialogCancel" value="cancel">Cancel</button><button id="workspaceDialogOk" value="ok" class="primary">OK</button></div></form></dialog>
 <div class="roster"><span id="warriorCount">0 warriors loaded - upload or create warriors, then run battles and tournaments</span></div>
 <section id="editors" class="editors" aria-label="Warrior list"></section>
 <div class="warrior-import"><div id="dropZone" tabindex="0" role="button" aria-label="Drop warrior files or open file picker">Drop warrior files anywhere, or click to upload</div></div>

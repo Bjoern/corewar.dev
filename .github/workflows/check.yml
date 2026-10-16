@@ -40,3 +40,4 @@ jobs:
           node docs/test-empty-roster.mjs
           node docs/test-results.mjs
           node docs/test-release-assets.mjs
+          node docs/test-workspace.mjs

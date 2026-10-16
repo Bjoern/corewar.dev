@@ -5,7 +5,8 @@ import {createEditor} from './dist/editor.mjs?v=bd68579c2c000dd9';
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {Engine, settings} from './engine.mjs?v=bd68579c2c000dd9';
 import {CoreDisplay, warriorColor, battleColor, setBattleSlots, setTheme} from './display.mjs?v=bd68579c2c000dd9';
-import {readSettings,setupSettings} from './settings-ui.mjs?v=bd68579c2c000dd9';
+import {readSettings,setupSettings,settingsSnapshot,applySettingsSnapshot} from './settings-ui.mjs?v=bd68579c2c000dd9';
+import {WORKSPACE_KEY,WORKSPACE_FORMAT,WORKSPACE_VERSION,parseWorkspace} from './workspace.mjs?v=bd68579c2c000dd9';
 import {HistoryChart} from './charts.mjs?v=bd68579c2c000dd9';
 const $ = id => document.getElementById(id);
 // One entry per mode; adding a mode is a one-line change.
@@ -37,6 +38,7 @@ let collapsedEditors=[], scoreViewKey=null, openTabs=[], originals=[], welcomeDi
 let sourceEditors=[], compileIssues=[];
 const demoSources = [";redcode-94\n;name Imp\n;author A. K. Dewdney\n;assert 1\nmov.i 0, 1\nend\n", ";redcode-94\n;name Dwarf\n;author A. K. Dewdney\n;assert 1\nadd.ab #4, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat.f #0, #0\nend\n"];
 let tournaments=null;
+let persistTimer=null, persistReady=false, persistWarned=false;
 let sources = [], sourceFiles = [];
 let excludedWarriors = [];
 const selectedIndices = () => sources.map((_,i)=>i).filter(i=>!excludedWarriors[i]);
@@ -139,6 +141,7 @@ function markDirty() {
   revision++;cancelCompileCheck();compileStates=[];refreshCompileButtons();scheduleValidation();
   dirty = !!engine || state === 'loading';
   $('changed').textContent = dirty ? 'Changes pending: Run or Reset applies them; Resume keeps the loaded battle.' : '';
+  schedulePersist();
 }
 function legend() {
   const selected=selectedIndices(),loaded=!!(engine && latest);
@@ -203,6 +206,7 @@ function editors() {
   editorVisibility();refreshCompileButtons();
   rosterCount();tournaments?.refresh();
   $('newWarrior').disabled = sources.length >= 36;
+  $('dropZone').textContent=sources.length>=36?'36 warriors loaded, the maximum. Remove some to add more.':'Drop warrior files anywhere, or click to upload';
 
   controls();
   legend();
@@ -856,7 +860,7 @@ $('newWarrior').onclick=()=>{
 };
 $('uploadBtn').onclick=()=>$('warriorFiles').click();
 async function startDemo(selected){
- if(sources.length && !confirm('Replace the '+sources.length+' loaded warrior'+(sources.length===1?'':'s')+' with this example?'))return;
+ if(sources.length && !(await askUser('Replace the '+sources.length+' loaded warrior'+(sources.length===1?'':'s')+' with this example?','Replace')))return;
  sources=[...selected];originals=[...selected];sourceFiles=selected.map(source=>bundledWarriors.find(w=>w.source===source)?.file||null);excludedWarriors=[];collapsedEditors=[];openTabs=[];welcomeDismissed=true;
  $('preset').value='94';$('preset').onchange();
  $('rounds').value='1';$('debugEnabled').checked=false;
@@ -909,6 +913,44 @@ $('editorTheme').onchange=$('editorSyntax').onchange=()=>{
  sourceEditors.forEach(editor=>editor.setTheme(name,syntax));
  try{localStorage.setItem('pmars-editor-theme',name);localStorage.setItem('pmars-editor-syntax',syntax);}catch{}
 };
+// Workspace autosave: warriors, roster choices and settings survive a reload; battles and results do not.
+function workspaceSnapshot(){
+ return {format:WORKSPACE_FORMAT,version:WORKSPACE_VERSION,saved:new Date().toISOString(),
+  warriors:sources.map((source,i)=>({source,original:originals[i]===undefined || originals[i]===source?null:originals[i],file:sourceFiles[i]??null,excluded:!!excludedWarriors[i]})),
+  openTabs:openTabs.filter(i=>i<sources.length),active:activeEditor(),mode,welcomeDismissed,
+  settings:settingsSnapshot(),battle:{speed:$('speed').value,debugEnabled:$('debugEnabled').checked},
+  tournament:{mode:$('tournamentMode').value,rounds:$('tournamentRounds').value,seed:$('tournamentSeed').value,selfFights:$('selfFights').checked,suite:$('benchmarkSuite').value}};
+}
+function persistNow(){
+ clearTimeout(persistTimer);persistTimer=null;
+ if(!persistReady)return;
+ try{localStorage.setItem(WORKSPACE_KEY,JSON.stringify(workspaceSnapshot()));persistWarned=false;}
+ catch{if(!persistWarned){persistWarned=true;status('This browser did not save the workspace. Use Export workspace to keep a copy.');}}
+}
+function schedulePersist(){if(!persistReady)return;clearTimeout(persistTimer);persistTimer=setTimeout(persistNow,500);}
+// Startup and import share this; tournament fields and the mode tab follow once tournaments are set up.
+function applyWorkspace(w){
+ sources=w.warriors.map(x=>x.source);originals=w.warriors.map(x=>x.original??x.source);sourceFiles=w.warriors.map(x=>x.file);
+ excludedWarriors=w.warriors.map(x=>x.excluded);openTabs=[...w.openTabs];collapsedEditors=sources.map((_,i)=>i!==w.active);
+ welcomeDismissed=w.welcomeDismissed || sources.length>0;
+ applySettingsSnapshot(w.settings);
+ if(w.battle.speed!==undefined){$('speed').value=w.battle.speed;$('speed').oninput();}
+ if(w.battle.debugEnabled!==undefined)$('debugEnabled').checked=w.battle.debugEnabled;
+}
+function applyTournamentWorkspace(w){
+ const t=w.tournament;
+ if(t.suite!==undefined && [...$('benchmarkSuite').options].some(o=>o.value===t.suite))$('benchmarkSuite').value=t.suite;
+ if(t.mode)$('tournamentMode').value=t.mode;
+ if(t.rounds!==undefined)$('tournamentRounds').value=t.rounds;
+ if(t.seed!==undefined)$('tournamentSeed').value=t.seed;
+ if(t.selfFights!==undefined)$('selfFights').checked=t.selfFights;
+ tournaments.refresh();
+ if(w.mode!==mode)$(w.mode==='tournament'?'tournamentTab':'emulatorTab').click();
+}
+let restoredWorkspace=null;
+try{const saved=localStorage.getItem(WORKSPACE_KEY);if(saved!==null)restoredWorkspace=parseWorkspace(saved);}
+catch{restoredWorkspace=null;try{localStorage.removeItem(WORKSPACE_KEY);}catch{}}
+if(restoredWorkspace)applyWorkspace(restoredWorkspace);
 editors(); clearBattle();
 function columnSplitter(id,panelId,name,min,max,viewportShare,direction){
  const bar=$(id),panel=$(panelId),key='pmars-'+name,prop='--'+name;
@@ -951,7 +993,7 @@ activateInspector(consoles[0]);
 renderCenterTabs();
 
 // Popovers: one open at a time, closed by outside click or Escape.
-const popovers=[['examplesBtn','examplesMenu'],['viewBtn','viewMenu'],['keyBtn','keyMenu'],['debugHelpBtn','debugHelp']];
+const popovers=[['examplesBtn','examplesMenu'],['workspaceBtn','workspaceMenu'],['viewBtn','viewMenu'],['keyBtn','keyMenu'],['debugHelpBtn','debugHelp']];
 function closePopovers(except){
  for(const [b,m] of popovers){if(m===except)continue;$(m).hidden=true;$(b).setAttribute('aria-expanded','false');}
  $('helpLinks').classList.remove('open');$('helpBtn').setAttribute('aria-expanded','false');
@@ -1024,3 +1066,44 @@ tournaments=setupTournaments({
  readConfig:()=>readSettings({warriors:2}),
  onTab:index=>{if(index===1)$('tournamentSettingsSlot').append($('settingsDock'));else $('settingsDock').closest('#tournamentSettingsSlot')&&document.querySelector('.core-view .arena-foot').prepend($('settingsDock'));for(const [i,id] of ['emulatorTab','tournamentTab'].entries()){if(i===index)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');}if(index===1 && state==='running')pause();mode=index===1?'tournament':'battle';document.body.dataset.mode=mode;$('phoneBar').querySelector('[data-pane=core]').textContent=index===1?'Tournament':'Core';if(index===1 && ['debug','output'].includes(document.body.dataset.pane))setPane('core');editorVisibility();if(index===0 && activeEditor()<0){display.redraw();processChart.draw();scoreChart.draw();}}
 });
+if(restoredWorkspace){
+ applyTournamentWorkspace(restoredWorkspace);
+ if(sources.length)status('Restored '+sources.length+' warrior'+(sources.length===1?'':'s')+' saved in this browser. Run or Reset to load them.');
+}
+persistReady=true;
+for(const type of ['input','change','click'])document.addEventListener(type,schedulePersist,true);
+// Flush a pending save so a quick reload or tab close keeps the last edit.
+addEventListener('pagehide',()=>{if(persistTimer)persistNow();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden && persistTimer)persistNow();});
+// Another tab saving wins until this tab changes something; say so instead of overwriting silently.
+addEventListener('storage',event=>{if(event.key===WORKSPACE_KEY && event.newValue!==null)$('changed').textContent='Another tab saved its workspace. Your next change here replaces it; reload to use that version instead.';});
+function exportWorkspace(){
+ const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify(workspaceSnapshot(),null,2)+'\n'],{type:'application/json'}));
+ a.href=url;a.download='corewar-workspace.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function importWorkspace(file){
+ if(file.size>8*1024*1024)throw new Error('Workspace files must be at most 8 MiB.');
+ const w=parseWorkspace(await file.text());
+ if(sources.length && !(await askUser('Replace the '+sources.length+' loaded warrior'+(sources.length===1?'':'s')+' and the settings with “'+file.name+'”?','Replace')))return;
+ if(nativeBusy)throw new Error('Cancel the running debugger command before importing a workspace.');
+ clearBattle();applyWorkspace(w);markDirty();editors();applyTournamentWorkspace(w);persistNow();
+ status('Imported workspace with '+sources.length+' warrior'+(sources.length===1?'':'s')+'. Run or Reset to load them.');
+}
+// An in-page dialog: some embedded browsers answer confirm() and alert() with false without showing anything.
+function askUser(message,ok,cancel=true){
+ const dialog=$('workspaceDialog');
+ $('workspaceDialogText').textContent=message;$('workspaceDialogOk').textContent=ok;$('workspaceDialogCancel').hidden=!cancel;
+ dialog.returnValue='';dialog.showModal();
+ return new Promise(resolve=>dialog.addEventListener('close',()=>resolve(dialog.returnValue==='ok'),{once:true}));
+}
+$('exportWorkspace').onclick=exportWorkspace;
+$('importWorkspace').onclick=()=>$('workspaceFile').click();
+$('workspaceFile').onchange=()=>{const file=$('workspaceFile').files[0];$('workspaceFile').value='';if(file)importWorkspace(file).catch(error=>{status(error.message);askUser(error.message,'OK',false);});};
+// Reloading after removing the saved copy is the most complete reset: battles, consoles and results go too.
+$('startClean').onclick=async()=>{
+ const count=sources.length?' all '+sources.length+' warrior'+(sources.length===1?'':'s')+',':'';
+ if(!(await askUser('Start clean? This discards'+count+' your edits and the settings saved in this browser. Use Export workspace first to keep a copy.','Start clean')))return;
+ persistReady=false;clearTimeout(persistTimer);
+ try{localStorage.removeItem(WORKSPACE_KEY);}catch{}
+ location.reload();
+};
