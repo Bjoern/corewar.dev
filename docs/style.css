@@ -355,7 +355,10 @@ body[data-welcome=true] .center{flex-basis:100%}
 .drop-overlay{position:fixed;inset:0;z-index:100;background:#09131dcc;border:3px dashed var(--accent);display:flex;align-items:center;justify-content:center;font-size:22px;color:#e4edf3;pointer-events:none}
 footer{max-width:none;width:100%;margin:0;padding:8px var(--gap);border-top:1px solid var(--border);background:var(--header);display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center;font-size:12px}
 footer details{margin:0}footer summary{margin:0;font-size:12px;color:var(--muted)}footer pre{max-height:140px}
-#tournamentPanel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto}
+#tournamentPanel{padding:12px;overflow:auto;flex:1;min-height:0}
+/* The tournament view uses the full width; the inspector returns with the core or an editor. */
+body[data-view=tournament] .inspector,body[data-view=tournament] #inspectorSplitter{display:none}
+body[data-mode=tournament] #phoneBar [data-pane=debug],body[data-mode=tournament] #phoneBar [data-pane=output]{display:none}
 .phone-bar{display:none}
 /* desktop: app fills the viewport, panels scroll internally */
 @media(min-width:1100px){
@@ -363,7 +366,6 @@ footer details{margin:0}footer summary{margin:0;font-size:12px;color:var(--muted
  main#app{overflow:hidden}
  .sidebar,.mode-area,.battle-view,.center,.inspector{max-height:100%}
  .mode-area{overflow:hidden}
- #tournamentPanel{flex:1}
  .inspector{overflow:auto}
 }
 /* narrower: inspector wraps below the centre; page scrolls */

@@ -215,6 +215,8 @@ function removeWarrior(i){
 }
 function activeEditor(){return collapsedEditors.findIndex(value=>value===false);}
 let shownEditor=-1;
+// The first centre tab shows the current mode's view; warrior editor tabs are shared by all modes.
+let mode='battle';
 function editorVisibility(){
  const active=activeEditor();
  openTabs=openTabs.filter(i=>i<sources.length);
@@ -228,11 +230,13 @@ function editorVisibility(){
   label.parentElement.parentElement.classList.toggle('editing',!area.hidden);
   if(!area.hidden)sourceEditors[i].view.requestMeasure();
  });
- $('sharedEditor').hidden=active<0;$('coreView').hidden=active>=0;
- $('coreInspector').hidden=active>=0;$('editorInspector').hidden=active<0;
- document.body.dataset.view=active<0?'core':'editor';
+ const view=active>=0?'editor':mode==='tournament'?'tournament':'core';
+ $('sharedEditor').hidden=active<0;$('coreView').hidden=view!=='core';$('tournamentPanel').hidden=view!=='tournament';
+ $('coreInspector').hidden=view!=='core';$('editorInspector').hidden=active<0;
+ document.body.dataset.view=view;
+ $('runFromEditor').textContent=mode==='tournament'?'▶ Run tournament':'▶ Run battle';
  $('editingName').textContent=active<0?'':draftName(sources[active],active);
- if(active<0 && shownEditor>=0){display.redraw();processChart.draw();scoreChart.draw();}
+ if(active<0 && shownEditor>=0 && mode==='battle'){display.redraw();processChart.draw();scoreChart.draw();}
  shownEditor=active;
  renderCenterTabs();editorStatus();
  if(active>=0)$('asmOutput').textContent=consoleText||'Validate the warrior to see assembly output here.';
@@ -244,16 +248,18 @@ function openWarrior(i){
 }
 function showCore(skipResume=false){
  collapsedEditors=sources.map(()=>true);editorVisibility();
- if(!skipResume && pausedByEditor && state==='paused' && engine)resume();
+ if(!skipResume && mode==='battle' && pausedByEditor && state==='paused' && engine)resume();
  pausedByEditor=false;
 }
 function renderCenterTabs(){
  const active=activeEditor(),tabs=[];
- const core=document.createElement('button');core.type='button';core.setAttribute('role','tab');core.className='tab core-tab';core.dataset.tab='core';
+ const core=document.createElement('button');core.type='button';core.setAttribute('role','tab');core.className='tab core-tab';core.dataset.tab=mode==='tournament'?'tournament':'core';
  core.setAttribute('aria-selected',String(active<0));
- core.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg> ';
- const coreLabel=document.createElement('span');coreLabel.textContent='Core';core.append(coreLabel);
- if(active>=0 && engine && total>0 && state!=='done'){const paused=document.createElement('span');paused.className='tab-note';paused.textContent=' · paused';core.append(paused);}
+ core.innerHTML=mode==='tournament'
+  ? '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h4v4H4zM4 15h4v4H4zM8 7h4v10H8M12 12h8"/></svg> '
+  : '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg> ';
+ const coreLabel=document.createElement('span');coreLabel.textContent=mode==='tournament'?'Tournament':'Core';core.append(coreLabel);
+ if(mode==='battle' && active>=0 && engine && total>0 && state!=='done'){const paused=document.createElement('span');paused.className='tab-note';paused.textContent=' · paused';core.append(paused);}
  core.onclick=()=>showCore();tabs.push(core);
  for(const i of openTabs){
   if(i>=sources.length)continue;
@@ -276,6 +282,7 @@ $('downloadActive').onclick=()=>{const i=activeEditor();if(i>=0)saveWarrior(i);}
 $('removeActive').onclick=()=>{const i=activeEditor();if(i>=0)removeWarrior(i);};
 $('clearAsm').onclick=()=>{consoleText='';$('consoleOutput').textContent='';$('asmOutput').textContent='';compileIssues=[];refreshDiagnostics();};
 $('runFromEditor').onclick=safe(async()=>{
+ if(mode==='tournament'){showCore();$('tournamentStart').click();return;}
  showCore(true);pausedByEditor=false;
  if(state==='running' || state==='series')return;
  await run();
@@ -979,5 +986,5 @@ for(const b of document.querySelectorAll('#phoneBar button'))b.onclick=()=>setPa
 tournaments=setupTournaments({
  roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),
  readConfig:()=>readSettings({warriors:2}),
- onTab:index=>{if(index===1)$('tournamentSettingsSlot').append($('settingsDock'));else $('settingsDock').closest('#tournamentSettingsSlot')&&document.querySelector('.core-view .arena-foot').prepend($('settingsDock'));for(const [i,id] of ['emulatorTab','tournamentTab'].entries()){if(i===index)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');}if(index===1 && state==='running')pause();if(index===0){display.redraw();processChart.draw();scoreChart.draw();}}
+ onTab:index=>{if(index===1)$('tournamentSettingsSlot').append($('settingsDock'));else $('settingsDock').closest('#tournamentSettingsSlot')&&document.querySelector('.core-view .arena-foot').prepend($('settingsDock'));for(const [i,id] of ['emulatorTab','tournamentTab'].entries()){if(i===index)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');}if(index===1 && state==='running')pause();mode=index===1?'tournament':'battle';document.body.dataset.mode=mode;$('phoneBar').querySelector('[data-pane=core]').textContent=index===1?'Tournament':'Core';if(index===1 && ['debug','output'].includes(document.body.dataset.pane))setPane('core');editorVisibility();if(index===0 && activeEditor()<0){display.redraw();processChart.draw();scoreChart.draw();}}
 });

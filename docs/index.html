@@ -30,10 +30,10 @@
 </aside>
 <div id="sidebarSplitter" class="splitter" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Resize warriors panel" title="Drag to resize · double-click to reset" tabindex="0"></div>
 <div id="modeArea" class="mode-area">
-<div id="emulatorPanel" class="battle-view" role="tabpanel" aria-labelledby="emulatorTab">
+<div id="emulatorPanel" class="battle-view">
 <section id="center" class="center" aria-label="Workspace">
 <div id="centerTabs" class="tabstrip" role="tablist" aria-label="Workspace"></div>
-<div id="coreView" class="core-view">
+<div id="coreView" class="core-view" role="tabpanel" aria-labelledby="emulatorTab">
 <p id="status" class="sr-only" role="status" aria-atomic="true">Ready to assemble.</p>
 <progress id="progress" value="0" max="100" aria-label="Series progress" hidden></progress>
 <div class="arena-controls">
@@ -84,40 +84,6 @@
 </div>
 <div class="foot-status"><p id="activeSettings" class="hint" aria-live="polite"></p><p id="changed" class="hint" role="status"></p></div>
 </div>
-<section id="sharedEditor" class="editor-pane" hidden aria-label="Warrior editor"><div class="shared-editor-toolbar"><strong id="editingName"></strong><button id="validateActive" type="button">↻ Validate</button><button id="downloadActive" type="button">Download</button><button id="removeActive" class="danger" type="button" title="Remove this warrior from the roster">Delete</button><span id="editorStatus" class="hint" role="status"></span><span class="foot-spacer"></span><label class="editor-theme-control">Background <select id="editorTheme"><option value="dark">Dark</option><option value="light">Light</option><option value="contrast">High contrast</option></select></label><label class="syntax-theme-control">Syntax colors <select id="editorSyntax"><option value="ocean">Ocean</option><option value="warm">Warm</option><option value="mono">Monochrome</option></select></label><button id="toggleEditors" aria-controls="editorViews">Close editor</button><button id="runFromEditor" class="primary" type="button">▶ Run battle</button></div><div id="editorViews"></div>
-<div class="asm-output"><div class="asm-head"><strong>pMARS assembler output</strong><span id="asmCount" class="hint"></span><button id="clearAsm" type="button" class="small">Clear</button></div><pre id="asmOutput" aria-label="Assembler output">Validate the warrior to see assembly output here.</pre></div></section>
-</section>
-<div id="inspectorSplitter" class="splitter" role="separator" aria-orientation="vertical" aria-controls="inspector" aria-label="Resize inspector panel" title="Drag to resize · double-click to reset" tabindex="0"></div>
-<aside id="inspector" class="inspector" aria-label="Inspector">
-<div id="coreInspector" class="inspector-stack">
-<section id="battleResults" class="card" hidden aria-label="Battle results"><h2 id="battleTotals">Results</h2><div id="scores"></div></section>
-<section class="card analysis-controls" id="chartsCard"><div class="card-head"><h2>Charts</h2><label class="pause-all" title="Pause all charts and execution logs"><input id="pauseViews" type="checkbox"> Pause all</label></div>
-<div class="chart-grid"><section><div class="chart-head"><span>Processes · this round</span><label class="icon-toggle" title="Pause process chart"><input id="pauseProcesses" type="checkbox" aria-label="Pause process chart"><span aria-hidden="true">Ⅱ</span></label></div><canvas id="processChart" aria-label="Process count over cycles"></canvas></section>
-<section><div class="chart-head"><span>Score · cumulative</span><label class="icon-toggle" title="Pause score chart"><input id="pauseScores" type="checkbox" aria-label="Pause score chart"><span aria-hidden="true">Ⅱ</span></label></div><canvas id="scoreChart" aria-label="Cumulative score over completed battles"></canvas></section></div></section>
-<section class="card debugger" id="consolePanel" tabindex="0" aria-label="Core debugger">
-<div class="tabstrip" id="inspectorTabs" role="tablist" aria-label="Consoles"><button id="outputTab" role="tab" type="button">Output</button><button id="addConsole" class="add-console" type="button" aria-label="Add console" title="Add console">+</button></div>
-<div id="cdbHead" class="cdb-head"><label><input id="debugEnabled" type="checkbox"> Stop at breakpoints and debug markers</label><span id="coreViewTitle" class="hint"></span><div class="menu-wrap"><button id="debugHelpBtn" type="button" class="small icon" aria-haspopup="true" aria-expanded="false" aria-controls="debugHelp" aria-label="Native pMARS debugger help" title="Native pMARS debugger help">?</button>
-<div id="debugHelp" class="popover help-pop" hidden>
-<p>The command line uses pMARS cdb, including expressions, command chains (<code>~</code>), loops, conditional commands, and macros. The original <code>pmars.mac</code> and <code>mw.mac</code> are preloaded. Enter <code>help</code> for native command help or <code>macro</code> to list macros.</p>
-<p><code>step</code> executes one instruction; native <code>step 10</code> changes the current program counter to address 10 before executing. To execute ten instructions, use <code>skip 9</code> or <code>step~!10</code>. Enter on an empty field recalls the last native command chain.</p>
-<p><code>trace 100</code> and <code>untrace 100</code> set and clear source-style breakpoints. <code>edit</code>, <code>fill</code>, and paged listings request their next input in the same field. Use the toolbar's Cancel button to interrupt a macro or prompt. Native <code>reset</code> cancels a command chain; the toolbar Reset (or <code>reset battle</code>) reloads the battle.</p>
-<p>Files used by cdb live in this match's temporary browser filesystem. Shell commands are unavailable. Native text-panel macros share this browser output view. F5/F7/F8/F9 and navigation shortcuts invoke the real macros outside editable controls.</p>
-</div></div></div>
-<div id="execution" class="console-grid"></div>
-<div id="outputPanel" class="output-panel" hidden><details id="consoleWindow" open><summary><span>pMARS console output</span><button id="clearConsole" type="button">Clear output</button></summary><div id="sourceDiagnostics" aria-label="Source diagnostics"></div><pre id="consoleOutput" aria-label="Native pMARS console output">Validate a warrior or run a battle to see assembly output here.</pre></details></div>
-<div class="command-workspace" id="commandWorkspace"><div id="commandHistory" aria-label="Command history"></div><form id="commandForm"><label for="command" class="prompt">Native cdb command &gt;</label><input id="command" title="Enter a command; press Enter with an empty field to repeat the last command" placeholder="list 0,9 · step · macro f7 · calc 2+3" autocomplete="off"><button>Execute</button></form><pre id="commandOutput" role="status"></pre></div>
-</section>
-</div>
-<div id="editorInspector" class="inspector-stack" hidden>
-<section class="card"><h2>Redcode quick reference</h2>
-<p class="ref"><strong>Opcodes</strong> DAT MOV ADD SUB MUL DIV MOD JMP JMZ JMN DJN SPL SLT CMP/SEQ SNE NOP LDP STP</p>
-<p class="ref"><strong>Modes</strong> <code>#</code> immediate · <code>$</code> direct · <code>*</code> A-indirect · <code>@</code> B-indirect · <code>{</code> <code>&lt;</code> pre-decrement · <code>}</code> <code>&gt;</code> post-increment</p>
-<p class="ref"><strong>Modifiers</strong> .A .B .AB .BA .F .X .I</p>
-<p class="ref"><a href="https://corewar.co.uk/icws94.txt" target="_blank" rel="noopener">Full ICWS ’94 reference</a></p></section>
-<section class="card"><h2>Last result</h2><p id="lastResult" class="hint">No battle run yet.</p></section>
-</div>
-</aside>
-</div>
 <section id="tournamentPanel" role="tabpanel" aria-labelledby="tournamentTab" hidden>
 <div id="tournamentSettingsSlot" class="arena-foot tournament-settings"></div>
 <fieldset id="parallelSetup" class="parallel-panel"><legend>Parallel execution</legend>
@@ -153,6 +119,40 @@
 <canvas id="tournamentChart" aria-label="Tournament score progress"></canvas>
 <details><summary>Completed matchups</summary><ol id="matchupResults"></ol></details>
 </section>
+<section id="sharedEditor" class="editor-pane" hidden aria-label="Warrior editor"><div class="shared-editor-toolbar"><strong id="editingName"></strong><button id="validateActive" type="button">↻ Validate</button><button id="downloadActive" type="button">Download</button><button id="removeActive" class="danger" type="button" title="Remove this warrior from the roster">Delete</button><span id="editorStatus" class="hint" role="status"></span><span class="foot-spacer"></span><label class="editor-theme-control">Background <select id="editorTheme"><option value="dark">Dark</option><option value="light">Light</option><option value="contrast">High contrast</option></select></label><label class="syntax-theme-control">Syntax colors <select id="editorSyntax"><option value="ocean">Ocean</option><option value="warm">Warm</option><option value="mono">Monochrome</option></select></label><button id="toggleEditors" aria-controls="editorViews">Close editor</button><button id="runFromEditor" class="primary" type="button">▶ Run battle</button></div><div id="editorViews"></div>
+<div class="asm-output"><div class="asm-head"><strong>pMARS assembler output</strong><span id="asmCount" class="hint"></span><button id="clearAsm" type="button" class="small">Clear</button></div><pre id="asmOutput" aria-label="Assembler output">Validate the warrior to see assembly output here.</pre></div></section>
+</section>
+<div id="inspectorSplitter" class="splitter" role="separator" aria-orientation="vertical" aria-controls="inspector" aria-label="Resize inspector panel" title="Drag to resize · double-click to reset" tabindex="0"></div>
+<aside id="inspector" class="inspector" aria-label="Inspector">
+<div id="coreInspector" class="inspector-stack">
+<section id="battleResults" class="card" hidden aria-label="Battle results"><h2 id="battleTotals">Results</h2><div id="scores"></div></section>
+<section class="card analysis-controls" id="chartsCard"><div class="card-head"><h2>Charts</h2><label class="pause-all" title="Pause all charts and execution logs"><input id="pauseViews" type="checkbox"> Pause all</label></div>
+<div class="chart-grid"><section><div class="chart-head"><span>Processes · this round</span><label class="icon-toggle" title="Pause process chart"><input id="pauseProcesses" type="checkbox" aria-label="Pause process chart"><span aria-hidden="true">Ⅱ</span></label></div><canvas id="processChart" aria-label="Process count over cycles"></canvas></section>
+<section><div class="chart-head"><span>Score · cumulative</span><label class="icon-toggle" title="Pause score chart"><input id="pauseScores" type="checkbox" aria-label="Pause score chart"><span aria-hidden="true">Ⅱ</span></label></div><canvas id="scoreChart" aria-label="Cumulative score over completed battles"></canvas></section></div></section>
+<section class="card debugger" id="consolePanel" tabindex="0" aria-label="Core debugger">
+<div class="tabstrip" id="inspectorTabs" role="tablist" aria-label="Consoles"><button id="outputTab" role="tab" type="button">Output</button><button id="addConsole" class="add-console" type="button" aria-label="Add console" title="Add console">+</button></div>
+<div id="cdbHead" class="cdb-head"><label><input id="debugEnabled" type="checkbox"> Stop at breakpoints and debug markers</label><span id="coreViewTitle" class="hint"></span><div class="menu-wrap"><button id="debugHelpBtn" type="button" class="small icon" aria-haspopup="true" aria-expanded="false" aria-controls="debugHelp" aria-label="Native pMARS debugger help" title="Native pMARS debugger help">?</button>
+<div id="debugHelp" class="popover help-pop" hidden>
+<p>The command line uses pMARS cdb, including expressions, command chains (<code>~</code>), loops, conditional commands, and macros. The original <code>pmars.mac</code> and <code>mw.mac</code> are preloaded. Enter <code>help</code> for native command help or <code>macro</code> to list macros.</p>
+<p><code>step</code> executes one instruction; native <code>step 10</code> changes the current program counter to address 10 before executing. To execute ten instructions, use <code>skip 9</code> or <code>step~!10</code>. Enter on an empty field recalls the last native command chain.</p>
+<p><code>trace 100</code> and <code>untrace 100</code> set and clear source-style breakpoints. <code>edit</code>, <code>fill</code>, and paged listings request their next input in the same field. Use the toolbar's Cancel button to interrupt a macro or prompt. Native <code>reset</code> cancels a command chain; the toolbar Reset (or <code>reset battle</code>) reloads the battle.</p>
+<p>Files used by cdb live in this match's temporary browser filesystem. Shell commands are unavailable. Native text-panel macros share this browser output view. F5/F7/F8/F9 and navigation shortcuts invoke the real macros outside editable controls.</p>
+</div></div></div>
+<div id="execution" class="console-grid"></div>
+<div id="outputPanel" class="output-panel" hidden><details id="consoleWindow" open><summary><span>pMARS console output</span><button id="clearConsole" type="button">Clear output</button></summary><div id="sourceDiagnostics" aria-label="Source diagnostics"></div><pre id="consoleOutput" aria-label="Native pMARS console output">Validate a warrior or run a battle to see assembly output here.</pre></details></div>
+<div class="command-workspace" id="commandWorkspace"><div id="commandHistory" aria-label="Command history"></div><form id="commandForm"><label for="command" class="prompt">Native cdb command &gt;</label><input id="command" title="Enter a command; press Enter with an empty field to repeat the last command" placeholder="list 0,9 · step · macro f7 · calc 2+3" autocomplete="off"><button>Execute</button></form><pre id="commandOutput" role="status"></pre></div>
+</section>
+</div>
+<div id="editorInspector" class="inspector-stack" hidden>
+<section class="card"><h2>Redcode quick reference</h2>
+<p class="ref"><strong>Opcodes</strong> DAT MOV ADD SUB MUL DIV MOD JMP JMZ JMN DJN SPL SLT CMP/SEQ SNE NOP LDP STP</p>
+<p class="ref"><strong>Modes</strong> <code>#</code> immediate · <code>$</code> direct · <code>*</code> A-indirect · <code>@</code> B-indirect · <code>{</code> <code>&lt;</code> pre-decrement · <code>}</code> <code>&gt;</code> post-increment</p>
+<p class="ref"><strong>Modifiers</strong> .A .B .AB .BA .F .X .I</p>
+<p class="ref"><a href="https://corewar.co.uk/icws94.txt" target="_blank" rel="noopener">Full ICWS ’94 reference</a></p></section>
+<section class="card"><h2>Last result</h2><p id="lastResult" class="hint">No battle run yet.</p></section>
+</div>
+</aside>
+</div>
 </div>
 <div id="dropOverlay" class="drop-overlay" hidden><div>Drop warrior files to load them</div></div>
 </main>
