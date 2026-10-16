@@ -53,10 +53,10 @@
 <span id="timing">Cycle —</span>
 <div class="menu-wrap"><button id="viewBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View ▾</button>
 <div id="viewMenu" class="popover view-menu" hidden>
-<label>Layout <select id="arenaLayout"><option value="vertical">Scroll vertically</option><option value="horizontal">Scroll horizontally</option><option value="fill" selected>Fill vertically</option><option value="fill-horizontal">Fill horizontally</option></select></label><label>Cell size <select id="cellSize"><option value="0" selected>Auto · whole pixels</option><option value="4">Classic · 2×2 mark</option><option value="6">Compact · 4×4 mark</option><option value="8">8 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="24">24 px</option></select></label><label class="arena-theme">Theme <select id="theme"><option value="modern">Modern</option><option value="classic">pMARS classic</option><option value="accessible">pMARS accessible</option></select></label></div></div>
+<label>Layout <select id="arenaLayout"><option value="vertical">Scroll vertically</option><option value="horizontal">Scroll horizontally</option><option value="fill" selected>Fill vertically</option><option value="fill-horizontal">Fill horizontally</option></select></label><label>Cell size <select id="cellSize"><option value="0">Auto · whole pixels</option><option value="4">Classic · 2×2 mark</option><option value="6">Compact · 4×4 mark</option><option value="8" selected>8 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="24">24 px</option></select></label><label class="arena-theme">Theme <select id="theme"><option value="modern">Modern</option><option value="classic">pMARS classic</option><option value="accessible">pMARS accessible</option></select></label></div></div>
 </div>
 <section class="arena" aria-label="Core arena">
-<div class="arena-space"><div class="arena-viewport" data-layout="fill" data-cells="auto" tabindex="0" role="region" aria-label="Core arena filling vertically">
+<div class="arena-space"><div class="arena-viewport" data-layout="fill" data-cells="fixed" tabindex="0" role="region" aria-label="Core arena filling vertically">
 <canvas id="core" aria-label="Core memory activity; click a cell to inspect it in the debugger"></canvas></div>
 <section id="demos" class="welcome" aria-label="Welcome">
 <p class="eyebrow">New to Core War?</p><h2>Watch programs fight for control of a shared memory</h2>
@@ -71,6 +71,7 @@
 </section></div>
 <div id="legendNames" class="warrior-chips" aria-label="Warriors"></div>
 </section>
+<section id="trackers" class="tracker-strip" aria-label="Instruction trackers"><button id="addConsole" class="add-tracker" type="button" title="Follow another warrior's executed instructions"><span aria-hidden="true">+</span> Tracker</button></section>
 <div class="arena-foot">
 <div id="settingsDock" class="settings-dock">
 <label class="preset-control">Preset <select id="preset"></select></label>
@@ -136,7 +137,7 @@
 <div class="chart-grid"><section><div class="chart-head"><span>Processes · this round</span><label class="icon-toggle" title="Pause process chart"><input id="pauseProcesses" type="checkbox" aria-label="Pause process chart"><span aria-hidden="true">Ⅱ</span></label></div><canvas id="processChart" aria-label="Process count over cycles"></canvas></section>
 <section><div class="chart-head"><span>Score · cumulative</span><label class="icon-toggle" title="Pause score chart"><input id="pauseScores" type="checkbox" aria-label="Pause score chart"><span aria-hidden="true">Ⅱ</span></label></div><canvas id="scoreChart" aria-label="Cumulative score over completed battles"></canvas></section></div></section>
 <section class="card debugger" id="consolePanel" tabindex="0" aria-label="Core debugger">
-<div class="tabstrip" id="inspectorTabs" role="tablist" aria-label="Consoles"><button id="outputTab" role="tab" type="button">Output</button><button id="addConsole" class="add-console" type="button" aria-label="Add console" title="Add console">+</button></div>
+<div class="tabstrip" id="inspectorTabs" role="tablist" aria-label="Consoles"><button id="outputTab" role="tab" type="button">Output</button></div>
 <div id="cdbHead" class="cdb-head"><label><input id="debugEnabled" type="checkbox"> Stop at breakpoints and debug markers</label><span id="coreViewTitle" class="hint"></span><div class="menu-wrap"><button id="debugHelpBtn" type="button" class="small icon" aria-haspopup="true" aria-expanded="false" aria-controls="debugHelp" aria-label="Native pMARS debugger help" title="Native pMARS debugger help">?</button>
 <div id="debugHelp" class="popover help-pop" hidden>
 <p>The command line uses pMARS cdb, including expressions, command chains (<code>~</code>), loops, conditional commands, and macros. The original <code>pmars.mac</code> and <code>mw.mac</code> are preloaded. Enter <code>help</code> for native command help or <code>macro</code> to list macros.</p>

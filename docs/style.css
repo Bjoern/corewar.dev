@@ -364,7 +364,6 @@ body[data-welcome=true] .center{flex-basis:100%}
 #command{flex:1;min-width:0;font:13px Consolas,monospace;background:var(--code)}
 #commandOutput{margin:0;font-size:11px;color:var(--muted);max-height:48px}
 .ref{font-size:12px;margin:8px 0;color:#c6d4de}
-.add-console{height:auto;border:0;background:transparent;color:var(--muted);padding:9px 10px;align-self:auto}
 /* misc */
 .drop-overlay{position:fixed;inset:0;z-index:100;background:#09131dcc;border:3px dashed var(--accent);display:flex;align-items:center;justify-content:center;font-size:22px;color:#e4edf3;pointer-events:none}
 footer{max-width:none;width:100%;margin:0;padding:8px var(--gap);border-top:1px solid var(--border);background:var(--header);display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center;font-size:12px}
@@ -489,3 +488,16 @@ body[data-reference=true] #phoneBar{display:none}
 .help-links a[aria-current=page]{color:#e4edf3}
 .workspace-menu #startClean{border-top:1px solid var(--border);border-radius:0;margin-top:4px;padding-top:8px}
 #workspaceDialog p{margin:0 0 14px;line-height:1.45}.dialog-actions{display:flex;justify-content:flex-end;gap:8px}#workspaceDialogOk{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+/* Trackers sit side by side below the arena. A fixed cell size leaves the arena its natural height and the trackers take the rest; Auto fills, so they keep a fixed strip. */
+.arena:has(.arena-viewport:not([data-layout=fill][data-cells=auto])){flex:none}
+.tracker-strip{display:flex;gap:8px;flex:1 1 0;min-height:200px;overflow-x:auto;overflow-y:hidden}
+.arena:has(.arena-viewport[data-layout=fill][data-cells=auto])~.tracker-strip{flex:0 0 220px}
+body[data-welcome=true] .tracker-strip{display:none}
+.tracker{display:flex;flex-direction:column;flex:1 1 260px;min-width:220px;min-height:0}
+.tracker .console-toolbar{margin-bottom:4px}
+.tracker .console-output{flex:1;height:auto;min-height:0;background:var(--code);font-size:12px}
+.tracker .console-toolbar button[aria-pressed=true]{background:var(--accent);color:var(--bg)}
+.add-tracker{flex:0 0 auto;align-self:stretch;border-style:dashed;background:transparent;color:var(--muted);font-size:12px;white-space:nowrap}
+.add-tracker:hover{color:#e4edf3;border-color:var(--accent)}
+.tracker-strip:not(:has(.tracker))>.add-tracker{flex:1}
+@media(max-width:1099px){.tracker-strip{flex:none;height:240px;min-height:0}.arena:has(.arena-viewport[data-layout=fill][data-cells=auto])~.tracker-strip{flex:none}}

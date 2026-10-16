@@ -48,7 +48,7 @@ try{
  await page.locator('#first').press('Control+f');assert(await page.locator('.cm-search').isVisible());await page.locator('.cm-search input').first().press('Escape');
  await page.locator('#reset').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Paused before'));
  const before=await page.locator('#legendNames .process-count').boundingBox();await page.locator('#step').click();const after=await page.locator('#legendNames .process-count').boundingBox();assert.equal(before.width,after.width);
- assert.equal(await page.locator('#addConsole').evaluate(el=>el.parentElement.id),'execution');
+ assert.equal(await page.locator('#addConsole').evaluate(el=>el.parentElement.id),'trackers');
  await page.screenshot({path:'docs/test-output/editor-desktop.png',fullPage:true});
  await page.setViewportSize({width:390,height:900});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  await page.screenshot({path:'docs/test-output/editor-mobile.png',fullPage:true});

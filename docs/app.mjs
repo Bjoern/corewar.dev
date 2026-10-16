@@ -29,7 +29,7 @@ let engine = null, worker = null, workerTimer = null, generation = 0;
 let state = 'idle', animation = 0, previous = 0, credit = 0, total = 0;
 let fastMode = false;
 let loadedSlots = [];
-let coreView = 'native', inspectionAddress = 0;
+let coreView = 'native', inspectionAddress = 0, listedLines = 0;
 const consoles=[];let consoleSerial=0;const commandHistory=[];
 let nativeBusy=false,nativeResume=false,nativeOutput='',nativeInput=null,nativeCancelled=false;
 let maxSlice = 0, pendingReject = null, latest = null, history = [], combined = [];
@@ -430,7 +430,13 @@ function scores(update) {
   $('lastResult').textContent=summary||(update.completed?'Battle in progress.':'No battle completed yet.');
 }
 function wrap(n) { const size = engine?.config.coreSize || 8000; return ((n % size) + size) % size; }
-function lineCount() { return 10; }
+// A core listing fills the cdb console's height, with at least ten lines.
+function lineCount() {
+  const host=$('instruction');if(!host?.clientHeight)return 10;
+  const style=getComputedStyle(host),row=host.querySelector('.instruction-row');
+  const height=row?.offsetHeight || parseFloat(style.fontSize)*1.6;
+  return Math.max(10,Math.floor((host.clientHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom))/height));
+}
 function markBreakpointRow(row,address,active){
   row.setAttribute('aria-pressed',String(active));
   row.title=(active?'Remove':'Set')+' breakpoint at '+addressText(address)+' (click pauses execution)';
@@ -461,8 +467,8 @@ function traceRow(entry) {
 function renderListing(host) {
   if(!host){for(const panel of consoles.filter(p=>p.select.value==='cdb'))renderListing(panel.output);return;}
   if (!engine) {host.textContent='Load a battle to inspect its core.';return;}
-  const start = inspectionAddress;
-  host.replaceChildren(...Array.from({length:lineCount()},(_,i) => {
+  const start = inspectionAddress;listedLines=lineCount();
+  host.replaceChildren(...Array.from({length:listedLines},(_,i) => {
     const addr=wrap(start+i),owners=latest.warriors.flatMap((w,j)=>w.pc===addr?[j]:[]);
     return instructionRow(addr,engine.inspect(addr),owners[0]??null,
       owners.length?'  ← next: '+owners.map(j=>latest.warriors[j].name).join(', '):'',true);
@@ -474,22 +480,17 @@ function renderCoreView() {
   if(coreView==='native')renderNativeOutput();
 }
 function showAddress(n) { inspectionAddress=wrap(n); inspect();renderCoreView(); }
+// The right pane holds one fixed cdb console; trackers of executed instructions sit side by side below the arena.
 function consoleOptions(panel) {
-  const selected=panel.select.value || 'cdb';
+  if(panel.select.value==='cdb')return;
+  const selected=panel.select.value || 'all';
   const names=latest?.warriors.map(w=>w.name) || sources.map((source,i)=>draftName(source,i));
-  panel.select.replaceChildren(new Option('cdb','cdb'),new Option('All warriors','all'),...names.map((name,i)=>new Option(name,'warrior:'+i)));
-  panel.select.value=[...panel.select.options].some(o=>o.value===selected)?selected:'cdb';
-  renderInspectorTabs();
-}
-function consoleLabel(panel){
-  const v=panel.select.value;
-  if(v==='cdb')return 'cdb';
-  if(v==='all')return 'Trace';
-  return 'Trace · '+(panel.select.selectedOptions[0]?.textContent||'');
+  panel.select.replaceChildren(new Option('All warriors','all'),...names.map((name,i)=>new Option(name,'warrior:'+i)));
+  panel.select.value=[...panel.select.options].some(o=>o.value===selected)?selected:'all';
 }
 function renderInspectorTabs(){
- const tabs=[...consoles].sort((a,b)=>(a.select.value==='cdb')-(b.select.value==='cdb')).map(panel=>{
-  const b=document.createElement('button');b.type='button';b.setAttribute('role','tab');b.className='console-tab';b.textContent=consoleLabel(panel);
+ const tabs=consoles.filter(p=>p.select.value==='cdb').map(panel=>{
+  const b=document.createElement('button');b.type='button';b.setAttribute('role','tab');b.className='console-tab';b.textContent='cdb';
   b.setAttribute('aria-selected',String(inspectorActive===panel));b.onclick=()=>activateInspector(panel);return b;
  });
  for(const old of $('inspectorTabs').querySelectorAll('.console-tab'))old.remove();
@@ -497,32 +498,46 @@ function renderInspectorTabs(){
  $('outputTab').setAttribute('aria-selected',String(inspectorActive==='output'));
 }
 function activateInspector(target){
- if(target!=='output' && !consoles.includes(target))target=consoles.find(p=>p.select.value==='cdb')||consoles[0]||'output';
+ if(target!=='output' && target?.select?.value!=='cdb')target=consoles.find(p=>p.select.value==='cdb')||'output';
  inspectorActive=target;
- for(const panel of consoles)panel.element.classList.toggle('active',panel===target);
+ for(const panel of consoles)if(panel.select.value==='cdb')panel.element.classList.toggle('active',panel===target);
  $('outputPanel').hidden=target!=='output';
- const cdb=target!=='output' && target.select.value==='cdb';
- $('commandWorkspace').hidden=!(cdb || !consoles.some(p=>p.select.value==='cdb'));$('cdbHead').hidden=target==='output';
- $('consolePanel').dataset.tab=target==='output'?'output':cdb?'cdb':'trace';
+ $('commandWorkspace').hidden=target==='output';$('cdbHead').hidden=target==='output';
+ $('consolePanel').dataset.tab=target==='output'?'output':'cdb';
  renderInspectorTabs();
- if(target!=='output'){renderTrace();if(cdb)renderCoreView();}
+ if(target!=='output')renderCoreView();
 }
 $('outputTab').onclick=()=>activateInspector('output');
-function addConsole(kind='cdb') {
-  const id=++consoleSerial,panel={paused:false};
-  panel.element=document.createElement('section');panel.element.className='output-console';
+function addConsole(kind='all') {
+  const panel={paused:false},cdb=kind==='cdb';
+  panel.element=document.createElement('section');
+  panel.select=document.createElement('select');
+  panel.output=document.createElement('pre');panel.output.className='console-output';
+  if(cdb){
+    panel.element.className='output-console';panel.select.append(new Option('cdb','cdb'));
+    panel.output.id='instruction';panel.output.setAttribute('aria-label','cdb console output');
+    panel.element.append(panel.output);consoles.push(panel);$('execution').append(panel.element);
+    renderCoreView();renderInspectorTabs();return panel;
+  }
+  const id=++consoleSerial;
+  panel.element.className='tracker';panel.element.setAttribute('aria-label','Tracker '+id);
   const header=document.createElement('div');header.className='console-toolbar';
-  panel.select=document.createElement('select');panel.select.setAttribute('aria-label','Console '+id+' content');
-  const pauseButton=document.createElement('button');pauseButton.textContent='Ⅱ';pauseButton.title='Pause console';pauseButton.setAttribute('aria-label','Pause console '+id);pauseButton.setAttribute('aria-pressed','false');
-  pauseButton.onclick=()=>{panel.paused=!panel.paused;pauseButton.setAttribute('aria-pressed',String(panel.paused));syncTrace();renderCoreView();renderTrace();};
-  const close=document.createElement('button');close.textContent='×';close.setAttribute('aria-label','Remove console '+id);
-  close.onclick=()=>{consoles.splice(consoles.indexOf(panel),1);panel.element.remove();syncTrace();activateInspector(inspectorActive===panel?'':inspectorActive);};
-  panel.output=document.createElement('pre');panel.output.className='console-output';panel.output.setAttribute('aria-label','Console '+id+' output');
-  if(id===1)panel.output.id='instruction';
-  header.append(panel.select,pauseButton,close);panel.element.append(header,panel.output);consoles.push(panel);$('execution').append(panel.element);
+  panel.select.setAttribute('aria-label','Tracker '+id+' warrior');
+  const pauseButton=document.createElement('button');pauseButton.type='button';pauseButton.textContent='Ⅱ';pauseButton.title='Pause tracker';pauseButton.setAttribute('aria-label','Pause tracker '+id);pauseButton.setAttribute('aria-pressed','false');
+  pauseButton.onclick=()=>{panel.paused=!panel.paused;pauseButton.setAttribute('aria-pressed',String(panel.paused));syncTrace();renderTrace();};
+  const close=document.createElement('button');close.type='button';close.textContent='×';close.title='Close tracker';close.setAttribute('aria-label','Close tracker '+id);
+  close.onclick=()=>{consoles.splice(consoles.indexOf(panel),1);panel.element.remove();syncTrace();};
+  panel.output.setAttribute('aria-label','Tracker '+id+' executed instructions');
+  header.append(panel.select,pauseButton,close);panel.element.append(header,panel.output);consoles.push(panel);$('addConsole').before(panel.element);
   consoleOptions(panel);panel.select.value=kind;
-  panel.select.onchange=()=>{syncTrace();renderCoreView();renderTrace();activateInspector(panel);};
-  syncTrace();renderCoreView();renderTrace();renderInspectorTabs();return panel;
+  panel.select.onchange=()=>{syncTrace();renderTrace();};
+  syncTrace();renderTrace();return panel;
+}
+// A new tracker follows the first warrior that no tracker follows yet.
+function nextTrackerKind(){
+ const count=latest?.warriors.length ?? sources.length,tracked=new Set(consoles.map(p=>p.select.value));
+ for(let i=0;i<count;i++)if(!tracked.has('warrior:'+i))return 'warrior:'+i;
+ return 'all';
 }
 function ensureCdbConsole(){if(!consoles.some(p=>p.select.value==='cdb'))addConsole('cdb');if(inspectorActive==='output' || inspectorActive?.select?.value!=='cdb')activateInspector(consoles.find(p=>p.select.value==='cdb'));}
 function renderTrace() {
@@ -775,7 +790,7 @@ $('speed').oninput = () => {
  $('speed').setAttribute('aria-valuetext',unlimited?'Unlimited, with graphics':label+' instructions per second');
  credit=0;
 };
-$('addConsole').onclick=()=>activateInspector(addConsole(latest?.warriors.length?'warrior:0':'cdb'));
+$('addConsole').onclick=()=>addConsole(nextTrackerKind());
 $('arenaLayout').onchange=()=>{
  const layout=$('arenaLayout').value,viewport=document.querySelector('.arena-viewport');
  viewport.dataset.layout=layout;
@@ -785,7 +800,7 @@ $('arenaLayout').onchange=()=>{
 };
 function clearHover(){ $('hoverAddress').textContent='Cell: —'; }
 $('cellSize').onchange = () => {document.querySelector('.arena-viewport').dataset.cells=$('cellSize').value==='0'?'auto':'fixed';clearHover();display.setCellSize(Number($('cellSize').value));};
-$('cellSize').onchange(); // Start from the selected size (Auto), not CoreDisplay's built-in default.
+$('cellSize').onchange(); // Start from the selected size (8 px), not CoreDisplay's built-in default.
 $('core').onpointermove=event=>{
  const address=display.addressAt(event),text=address===null?'Cell: —':'Cell: '+String(address).padStart(String(display.size-1).length,'0');
  if($('hoverAddress').textContent!==text)$('hoverAddress').textContent=text;
@@ -992,6 +1007,8 @@ columnSplitter('sidebarSplitter','sidebar','sidebar-w',180,560,.3,1);
 columnSplitter('inspectorSplitter','inspector','inspector-w',260,900,.4,-1);
 
 addConsole('cdb');addConsole('all');
+// Resizing the window or the inspector re-lists the core so the listing keeps filling the console.
+new ResizeObserver(()=>{if(coreView!=='inspect' || !engine || nativeBusy)return;const lines=lineCount();if(lines!==listedLines)renderListing();}).observe($('instruction'));
 activateInspector(consoles[0]);
 renderCenterTabs();
 

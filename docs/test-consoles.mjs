@@ -12,27 +12,26 @@ const send=async text=>{await page.locator('#command').fill(text);await page.loc
 try{
  await page.goto(process.env.PMARS_URL || 'http://127.0.0.1:8765/docs/');await loadTestWarriors(page);
  await page.locator('#reset').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Paused before'));
- assert.equal(await page.locator('.output-console').count(),2);
+ assert.equal(await page.locator('.output-console').count(),1);assert.equal(await page.locator('.tracker').count(),1);
  await send('step');await send('');
  assert.deepEqual(await page.locator('#commandHistory button').allTextContents(),['step','step']);
  assert(!(await page.locator('#instruction').textContent()).includes('(cdb)'));
  await page.locator('#commandHistory button').first().click();await idle();assert.equal(await page.locator('#timing').getAttribute('data-instructions'),'3');
  await send('calc 6*7');await send(' calc 2+3');await send('');
  assert.equal(await page.locator('#commandHistory button').last().textContent(),'calc 6*7','Native leading-space recall semantics preserved');
- await page.locator('#addConsole').click();assert.equal(await page.locator('.output-console').count(),3);
- const panels=page.locator('.output-console');
- await sel(panels.nth(1),'warrior:0');await sel(panels.nth(2),'warrior:1');
+ await page.locator('#addConsole').click();await page.locator('#addConsole').click();assert.equal(await page.locator('.tracker').count(),3);
+ const panels=page.locator('.tracker');
+ assert.deepEqual(await page.locator('.tracker select').evaluateAll(nodes=>nodes.map(n=>n.value)),['all','warrior:0','warrior:1'],'Each new tracker follows the next untracked warrior');
  assert.equal(await panels.nth(1).locator('select option:checked').textContent(),'Imp');
  await page.locator('#step').click();
  assert(await panels.nth(1).locator('.instruction-row').count()>0);assert(await panels.nth(2).locator('.instruction-row').count()>0);
- await press(panels.nth(1),'Pause console 2');
+ await press(panels.nth(1),'Pause tracker 2');
  const snapshot=await panels.nth(1).locator('pre').textContent();await page.locator('.console-tab',{hasText:/^cdb$/}).first().click();await send('step~!4');assert.equal(await panels.nth(1).locator('pre').textContent(),snapshot);
- await press(panels.nth(1),'Pause console 2');
- await sel(panels.nth(2),'cdb');assert.equal(await panels.nth(2).locator('pre').textContent(),await page.locator('#instruction').textContent());
+ await press(panels.nth(1),'Pause tracker 2');
+ await sel(panels.nth(0),'warrior:1');assert.equal(await panels.nth(0).locator('select option:checked').textContent(),'Dwarf');
  await page.screenshot({path:'docs/test-output/consoles-desktop.png',fullPage:true});
- await press(panels.nth(0),'Remove console 1');
- await press(panels.nth(1),'Remove console 3');
- await send('list 0,2');assert.equal(await panels.count(),2,'A debugger command restores a missing cdb console');
+ await press(panels.nth(2),'Close tracker 3');assert.equal(await panels.count(),2);
+ assert.equal(await page.locator('#execution .output-console').count(),1,'The cdb console stays in the right pane');
  const core=await page.locator('#core').boundingBox();await page.mouse.click(core.x+5,core.y+5);
  const listed=page.locator('.listing-line').nth(3),at=await listed.getAttribute('data-address');
  await listed.click();assert.equal(await page.locator('.listing-line[data-address="'+at+'"]').getAttribute('aria-pressed'),'true','Clicking a core listing line shows its breakpoint at once');
@@ -40,5 +39,5 @@ try{
  await page.setViewportSize({width:390,height:900});
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'No mobile page overflow');
  await page.screenshot({path:'docs/test-output/consoles-mobile.png',fullPage:true});
- assert.deepEqual(errors,[]);console.log('PASS: command recall/replay, native leading-space semantics, configurable duplicate consoles, individual pause, console removal/recovery, breakpoint toggling in the core listing, and mobile layout.');
+ assert.deepEqual(errors,[]);console.log('PASS: command recall/replay, native leading-space semantics, trackers below the arena that follow the next warrior, individual pause, tracker removal, breakpoint toggling in the core listing, and mobile layout.');
 }finally{await browser.close();}

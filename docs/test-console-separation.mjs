@@ -8,10 +8,10 @@ page.on('pageerror',e=>errors.push(e.message));
 const ready=()=>page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Paused before'));
 try{
  await page.goto(process.env.PMARS_URL || 'http://127.0.0.1:8765/docs/');await loadTestWarriors(page);await page.locator('#reset').click();await ready();
- assert.deepEqual(await page.locator('.console-toolbar select').evaluateAll(nodes=>nodes.map(n=>n.value)),['cdb','all']);
+ assert.deepEqual(await page.locator('.tracker select').evaluateAll(nodes=>nodes.map(n=>n.value)),['all']);
  await page.locator('#command').fill('calc 42');await page.locator('#command').press('Enter');await page.waitForFunction(()=>document.querySelector('#commandOutput').textContent==='Ready.');
  const output=await page.locator('#instruction').textContent();assert(output.includes('42'));
- await page.locator('#step').click();assert.equal(await page.locator('#instruction').textContent(),output);assert(await page.locator('.output-console').nth(1).locator('.instruction-row').count()>0);
+ await page.locator('#step').click();assert.equal(await page.locator('#instruction').textContent(),output);assert(await page.locator('.tracker').first().locator('.instruction-row').count()>0);
  await page.locator('#run').click();await page.waitForTimeout(150);await page.locator('#run').click();assert.equal(await page.locator('#instruction').textContent(),output);
  await page.locator('#toggleEditors').click();await page.locator('#first').fill(';redcode\n;name Doomed\n;assert 1\ndat 0,0\n');await page.locator('#reset').click();await ready();
  const marker=page.locator('[data-eliminated="0"]'),before=await marker.boundingBox();assert.equal(await marker.textContent(),'');
