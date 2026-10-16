@@ -265,7 +265,8 @@ a.button{display:inline-block;padding:10px 16px;border-radius:6px;font-weight:60
 .sidebar .warrior-name-group{flex:1;min-width:0}
 .sidebar .editor-title .compile-warrior{font-size:11px;color:var(--muted);padding:2px 4px;background:transparent;border:0;white-space:nowrap;flex-shrink:0}
 .sidebar .compile-warrior[data-result=ok]{color:#a7e8a3}.sidebar .compile-warrior[data-result=failed]{color:#ffb9b9}
-.sidebar .editor-title .save-warrior,.sidebar .editor-title .remove-warrior{padding:3px;border:0;color:var(--muted);background:transparent}
+.sidebar .editor-title .save-warrior,.sidebar .editor-title .remove-warrior,.sidebar .edit-source{padding:3px;border:0;color:var(--muted);background:transparent}
+.sidebar .edit-source:hover,.sidebar .edit-source:focus-visible{color:var(--ink)}
 .sidebar .warrior-import{margin:0}.sidebar #dropZone{margin:0;padding:18px 10px;font-size:13px}
 body:not([data-warriors="0"]) .warrior-import{display:none}
 .sidebar .warrior-swatch{flex-shrink:0}

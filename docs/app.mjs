@@ -174,7 +174,10 @@ function editors() {
     const compile=document.createElement('button');compile.className='compile-warrior';
     compile.title='Revalidate warrior and show assembly output';compile.setAttribute('aria-label','Validate warrior '+(i+1));compile.onclick=()=>checkWarrior(i);
     label.onclick=()=>openWarrior(i);
-    const nameGroup=document.createElement('div');nameGroup.className='warrior-name-group';nameGroup.append(label);
+    const pencil=document.createElement('button');pencil.className='edit-source';pencil.title='Edit warrior';pencil.setAttribute('aria-label','Edit warrior '+(i+1));pencil.setAttribute('aria-controls',label.htmlFor);
+    pencil.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 15z"/></svg>';
+    pencil.onclick=()=>openWarrior(i);
+    const nameGroup=document.createElement('div');nameGroup.className='warrior-name-group';nameGroup.append(label,pencil);
     const include=document.createElement('input');include.type='checkbox';include.className='include-warrior';
     include.checked=!excludedWarriors[i];include.title='Include in next run';include.setAttribute('aria-label','Include warrior '+(i+1)+' in next run');
     include.onchange=safe(async()=>{
