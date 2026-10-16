@@ -207,7 +207,7 @@ function editors() {
   rosterCount();tournaments?.refresh();
   $('newWarrior').disabled = sources.length >= 36;
   $('newWarriorTile').disabled=$('welcomeNew').disabled=sources.length>=36;
-  $('dropZoneHint').textContent=sources.length>=36?'36 loaded, the maximum':'Drop .red files or click';
+  $('dropZoneHint').textContent=sources.length>=36?'36 warriors loaded, the maximum':'or click to browse';
 
   controls();
   legend();

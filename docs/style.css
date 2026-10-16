@@ -267,16 +267,20 @@ a.button{display:inline-block;padding:10px 16px;border-radius:6px;font-weight:60
 .sidebar .compile-warrior[data-result=ok]{color:#a7e8a3}.sidebar .compile-warrior[data-result=failed]{color:#ffb9b9}
 .sidebar .editor-title .save-warrior,.sidebar .editor-title .remove-warrior,.sidebar .edit-source{padding:3px;border:0;color:var(--muted);background:transparent}
 .sidebar .edit-source:hover,.sidebar .edit-source:focus-visible{color:var(--ink)}
-.sidebar .warrior-import{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.import-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;margin:0;padding:14px 8px;border:1px dashed #537c91;border-radius:8px;background:transparent;color:#a9c5d4;font-size:13px;font-weight:400;text-align:center;cursor:pointer}
-.sidebar #dropZone{margin:0;padding:14px 8px;font-size:13px}
+.sidebar .warrior-import{margin:0;display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.new-warrior-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 12px;font-size:13px}.new-warrior-btn .tile-icon{height:auto;font-size:18px}
+.import-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;margin:0;padding:14px 8px;border:1px dashed #537c91;border-radius:8px;background:transparent;color:#a9c5d4;font-size:13px;font-weight:400;text-align:center;cursor:pointer}
+.sidebar #dropZone{flex:none;margin:0;padding:32px 12px;font-size:13px;border-width:2px}
+.import-tile.dragging{border-color:var(--accent);border-style:solid}
+.tap-text{display:none}@media(hover:none) and (pointer:coarse){.import-tile .drag-text{display:none}.import-tile .tap-text{display:inline}}
 .import-tile:hover,.import-tile:focus-visible{border-color:var(--accent);color:#e4edf3;background:#54d8df0d}
 .import-tile:disabled{opacity:.5;cursor:default;border-color:#537c91;background:transparent}
 .import-tile strong{color:#e4edf3;font-weight:600}.import-tile .tile-hint{font-size:11px;color:var(--muted)}
 .tile-icon{display:flex;align-items:center;justify-content:center;height:22px;font-size:22px;line-height:1;color:var(--accent)}
 body:not([data-warriors="0"]) .sidebar .warrior-import{margin-top:10px}
-body:not([data-warriors="0"]) .import-tile,body:not([data-warriors="0"]) .sidebar #dropZone{flex-direction:row;gap:6px;padding:8px;font-size:12px}
-body:not([data-warriors="0"]) .import-tile .tile-hint{display:none}body:not([data-warriors="0"]) .tile-icon{height:auto;font-size:16px}
+body:not([data-warriors="0"]) .sidebar #dropZone{flex-flow:row wrap;column-gap:6px;row-gap:0;padding:10px 8px;font-size:12px;border-width:1px}
+body:not([data-warriors="0"]) #dropZone .tile-icon{height:auto}body:not([data-warriors="0"]) #dropZone svg{width:16px;height:16px}
+body:not([data-warriors="0"]) .new-warrior-btn{padding:6px 10px;font-size:12px}
 .soon-link{color:var(--muted);cursor:default}.soon-link small,.soon-badge{font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:1px 5px;border:1px solid var(--border);border-radius:999px;color:#f1c96b}
 .welcome-soon{font-size:12px;color:var(--muted);margin-top:12px!important}.welcome-soon .soon-badge{margin-right:4px}
 .sidebar .warrior-swatch{flex-shrink:0}
