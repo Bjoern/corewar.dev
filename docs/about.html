@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>About - corewar.dev</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta name="description" content="About corewar.dev: Core War in the browser, built on pMARS compiled to WebAssembly. What Core War is, what the app does, privacy, credits and source code.">
+<script defer src="https://cloud.umami.is/script.js" data-website-id="e78560ba-d8d1-44de-a5f3-4048690fef79"></script>
+<style>
+:root{color-scheme:dark;--bg:#09131d;--panel:#101d29;--code:#0b1620;--border:#2a3d4d;--text:#e4edf3;--muted:#aec0ce;--soft:#9db0bf;--accent:#54d8df;--warm:#f9a567;--good:#a7e8a3;font-family:system-ui,sans-serif;color:var(--text);background:var(--bg)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);line-height:1.6}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.topbar{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;max-width:880px;margin:auto;padding:20px 32px 8px}
+.wordmark{font-weight:700;font-size:18px;text-decoration:none;color:var(--text)}
+.topbar nav{display:flex;gap:16px;font-size:14px;margin-left:auto}
+article{max-width:880px;margin:auto;padding:8px 32px 48px}
+h1{font-size:clamp(28px,4.5vw,42px);letter-spacing:-.03em;line-height:1.15;margin:12px 0 8px}
+.lede{font-size:18px;color:var(--soft);margin:0 0 24px;max-width:62ch}
+h2{font-size:22px;letter-spacing:-.01em;margin:40px 0 8px;padding-top:16px;border-top:1px solid var(--border)}
+p,li{color:#c6d4de;max-width:70ch}
+code{font:14px Consolas,"Cascadia Mono",monospace;background:var(--code);border:1px solid var(--border);border-radius:4px;padding:0 4px;color:var(--text)}
+.core-strip{display:grid;grid-template-columns:repeat(40,1fr);gap:2px;margin:20px 0 8px;max-width:640px}
+.core-strip i{aspect-ratio:1;border-radius:2px;background:#16283a}
+.core-strip .a{background:var(--accent)}.core-strip .b{background:var(--warm)}.core-strip .a.dim{opacity:.45}.core-strip .b.dim{opacity:.45}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;margin:16px 0}
+.cards div{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.cards strong{display:block;color:var(--text);margin-bottom:2px}
+.cards span{font-size:14px;color:var(--soft)}
+.callout{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--good);border-radius:8px;padding:12px 16px;margin:16px 0}
+.callout p{margin:4px 0}
+.timeline{list-style:none;padding:0;margin:12px 0}
+.timeline li{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:6px 0;border-bottom:1px solid #1a2c3b}
+.timeline b{color:var(--accent);font-variant-numeric:tabular-nums}
+.embedded .topbar,.embedded footer{display:none}
+.embedded article{padding-top:16px}
+footer{max-width:880px;margin:auto;padding:20px 32px 40px;border-top:1px solid var(--border);color:#7893a6;font-size:13px}
+@media(max-width:700px){
+ .topbar{padding:16px 16px 4px}article{padding:8px 16px 40px}footer{padding:20px 16px 32px}
+ .core-strip{grid-template-columns:repeat(20,1fr)}.core-strip i:nth-child(n+41){display:none}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+<a class="wordmark" href="./">corewar.dev</a>
+<nav aria-label="Site"><a href="./">Open the app</a><a href="redcode.html">Redcode reference</a></nav>
+</header>
+<article>
+<h1>About corewar.dev</h1>
+<p class="lede">corewar.dev lets you write, run and debug Core War programs in your browser. It runs the real pMARS simulator, so battles behave exactly as on the classic hills, and nothing needs to be installed.</p>
+<div class="core-strip" aria-hidden="true" id="strip"></div>
+
+<h2 id="corewar">What is Core War?</h2>
+<p>Core War is a programming game. Two or more programs, called <em>warriors</em>, are loaded into a shared circular memory called the <em>core</em>. They take turns executing one instruction at a time. A warrior loses when all of its processes have executed an illegal instruction, usually a <code>DAT</code>. The last one running wins.</p>
+<p>Warriors are written in Redcode, a small assembly language. Some bomb the core blindly, some copy themselves to safety, some scan for their opponent first. There is no single best strategy, only a rock-paper-scissors of styles. That is what has kept people writing warriors for forty years.</p>
+<ul class="timeline">
+<li><b>1984</b><span>A. K. Dewdney introduces Core War in his <em>Computer Recreations</em> column in Scientific American.</span></li>
+<li><b>1986</b><span>The International Core War Society (ICWS) publishes its first Redcode standard. The ’88 standard follows.</span></li>
+<li><b>1994</b><span>A draft ’94 standard adds instruction modifiers, more addressing modes and P-space. pMARS, written alongside it, becomes the simulator the hills use.</span></li>
+<li><b>Today</b><span>King-of-the-hill servers still rank warriors, and new players keep finding fresh strategies.</span></li>
+</ul>
+
+<h2 id="app">What you can do here</h2>
+<div class="cards">
+<div><strong>Battle</strong><span>Watch warriors fight in a live view of the core, step through instructions, and see process counts and scores as charts.</span></div>
+<div><strong>Debug</strong><span>Use the original pMARS <code>cdb</code> debugger with breakpoints, macros and a native command line.</span></div>
+<div><strong>Edit</strong><span>Write warriors in an editor with Redcode highlighting and check them with the real pMARS assembler.</span></div>
+<div><strong>Tournaments</strong><span>Run round robins, melees, challenges and benchmarks against well-known warrior suites, with several workers in parallel.</span></div>
+</div>
+<p>Match settings come from the presets of the classic hills (’94 standard, ’88, tiny, nano, limited process and more), and every value stays editable.</p>
+
+<h2 id="privacy">Your warriors stay with you</h2>
+<div class="callout">
+<p>All assembly and simulation happens on your device, in WebAssembly. There is no server that runs your code.</p>
+<p>Your warriors and settings are saved in this browser only. Use <strong>Export workspace</strong> in the warriors menu to keep a copy or move to another device.</p>
+</div>
+<p>The site counts page views with <a href="https://umami.is/" target="_blank" rel="noopener">Umami</a>, a privacy-friendly analytics tool that uses no cookies and collects no personal data. Your warriors are never sent anywhere.</p>
+
+<h2 id="credits">Built on pMARS</h2>
+<p>The engine is <strong>pMARS 0.9.6</strong>, the portable Memory Array Redcode Simulator, by Albert Ma, Nandor Sieben, Stefan Strack and Mintardjo Wangsaw, with contributions from Alex Macaulay, Martin Maierhofer, Nathan Summers, Ken Espiritu, Ilmari Karonen, Joonas Pihlaja and others. corewar.dev compiles its simulator, assembler and debugger to WebAssembly, so battles play out as they do in the native program.</p>
+<p>The editor is built with <a href="https://codemirror.net/" target="_blank" rel="noopener">CodeMirror</a>. The demo warriors and benchmark suites were written by the Core War community over many years.</p>
+
+<h2 id="source">Free software</h2>
+<p>corewar.dev is licensed under the <a href="COPYING">GNU General Public License, version 2 or later</a>, like pMARS itself. You can download the <a href="pmars-source.zip">engine source</a> and the <a href="app-source.zip">app source</a> that this site was built from, or browse the code on <a href="https://github.com/Bjoern/corewar.dev" target="_blank" rel="noopener">GitHub</a>. Bug reports and ideas are welcome there.</p>
+
+<h2 id="learn">Learn more</h2>
+<ul>
+<li><a href="./#reference">Redcode reference</a>: the instructions, modes and modifiers you need to write warriors.</li>
+<li><a href="https://vyznev.net/corewar/guide.html" target="_blank" rel="noopener">The beginners’ guide to Redcode</a>: a longer introduction with more examples.</li>
+<li><a href="https://corewar.co.uk/" target="_blank" rel="noopener">corewar.co.uk</a>: history, strategy articles and archives of warriors.</li>
+</ul>
+</article>
+<footer>corewar.dev · <a href="./">Back to the app</a></footer>
+<script>
+// A decorative core: two warriors' cells scattered over empty memory.
+{const strip=document.getElementById('strip');let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+for(let i=0;i<120;i++){const c=document.createElement('i'),r=rnd();if(i>=8&&i<14)c.className='a';else if(i>=70&&i<74)c.className='b';else if(r<.08)c.className='a dim';else if(r<.13)c.className='b dim';strip.append(c);}}
+// Inside the app the app's own top bar is shown, so drop ours and let app links open over the running app instead of reloading it.
+if(window.top!==window||new URLSearchParams(location.search).has('embed')){
+  document.documentElement.classList.add('embedded');
+  for(const a of document.querySelectorAll('a[href^="./"]'))a.target='_top';
+  if(window.top!==window){
+    document.addEventListener('click',e=>{const a=e.target.closest('a[href^="./#"]');if(!a)return;e.preventDefault();parent.postMessage({type:'corewar-open',hash:a.hash},location.origin);});
+    addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();parent.postMessage({type:'corewar-reference-close'},location.origin);}});
+  }
+}
+</script>
+</body>
+</html>

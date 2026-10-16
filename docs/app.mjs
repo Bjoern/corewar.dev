@@ -1019,32 +1019,40 @@ function fitCellKey(){
 new ResizeObserver(fitCellKey).observe(document.querySelector('.core-view .arena-foot'));
 
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closePopovers();});
-// The Redcode reference opens at #reference or #reference/<section>; Back or "Back to the app" closes it.
+// The Redcode reference (#reference or #reference/<section>) and the About page (#about) open over the app; Back or "Back to the app" closes them.
+const PAGES={reference:{file:'redcode.html',title:'Redcode reference',link:'referenceLink'},about:{file:'about.html',title:'About corewar.dev',link:'aboutLink'}};
 let referenceFromHash=false;
 function placeReference(){document.body.style.setProperty('--reference-top',document.querySelector('.topbar').getBoundingClientRect().bottom+'px');}
 function showReference(){
- const match=location.hash.match(/^#reference(?:\/([\w-]+))?$/), open=!!match;
+ const match=location.hash.match(/^#(reference|about)(?:\/([\w-]+))?$/), open=!!match, page=open&&PAGES[match[1]];
  $('referenceView').hidden=!open;document.body.dataset.reference=String(open);
- if(open)$('referenceLink').setAttribute('aria-current','page');else $('referenceLink').removeAttribute('aria-current');
+ for(const [name,p] of Object.entries(PAGES)){if(page===p)$(p.link).setAttribute('aria-current','page');else $(p.link).removeAttribute('aria-current');}
  if(!open)return;
  closePopovers();placeReference();
- const target='redcode.html?embed'+(match[1]?'#'+match[1]:''), frame=$('referenceFrame');
- if(!frame.getAttribute('src'))frame.src=target;
- else if(match[1]){const doc=frame.contentDocument;doc?.getElementById(match[1])?.scrollIntoView();doc?.defaultView.history.replaceState(null,'','#'+match[1]);} // Scroll, not navigate: frame navigations add history entries.
+ $('referenceTitle').textContent=page.title;$('referenceFrame').title=page.title;$('referenceNewTab').href=page.file;$('referenceView').setAttribute('aria-label',page.title);
+ const target=page.file+'?embed'+(match[2]?'#'+match[2]:''), frame=$('referenceFrame');
+ if(frame.dataset.page!==match[1]){const first=!frame.dataset.page;frame.dataset.page=match[1];if(first)frame.src=target;else frame.contentWindow.location.replace(target);} // Replace, not navigate: switching pages must not add a history entry.
+ else if(match[2]){const doc=frame.contentDocument;doc?.getElementById(match[2])?.scrollIntoView();doc?.defaultView.history.replaceState(null,'','#'+match[2]);} // Scroll, not navigate: frame navigations add history entries.
 }
+const pageOpen=()=>/^#(reference|about)/.test(location.hash);
 function closeReference(){
- if(!location.hash.startsWith('#reference'))return;
+ if(!pageOpen())return;
  if(referenceFromHash)window.history.back();
  else{window.history.replaceState(null,'',location.pathname+location.search);showReference();}
 }
-addEventListener('hashchange',()=>{referenceFromHash=location.hash.startsWith('#reference');showReference();});
+addEventListener('hashchange',()=>{referenceFromHash=pageOpen();showReference();});
 addEventListener('resize',()=>{if(!$('referenceView').hidden)placeReference();});
-addEventListener('message',event=>{if(event.origin===location.origin && event.data?.type==='corewar-reference-close')setTimeout(closeReference,50);});
+addEventListener('message',event=>{
+ if(event.origin!==location.origin)return;
+ if(event.data?.type==='corewar-reference-close')setTimeout(closeReference,50);
+ // A link from one page to another (About to the reference) swaps the page without adding a history entry.
+ if(event.data?.type==='corewar-open' && /^#(reference|about)(\/[\w-]+)?$/.test(event.data.hash))location.replace(event.data.hash);
+});
 $('closeReference').onclick=closeReference;
 // A plain click on the wordmark stays in the app instead of reloading it and losing the warriors; modified clicks still open a new tab.
 $('wordmark').onclick=event=>{if(event.button||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();closePopovers();closeReference();};
 // While it is open, section links replace the entry so one Back still returns to the app.
-document.addEventListener('click',event=>{const a=event.target.closest('a[href^="#reference"]');if(a && !$('referenceView').hidden){event.preventDefault();if(a.hash!==location.hash)location.replace(a.hash);}});
+document.addEventListener('click',event=>{const a=event.target.closest('a[href^="#reference"],a[href="#about"]');if(a && !$('referenceView').hidden){event.preventDefault();if(a.hash!==location.hash)location.replace(a.hash);}});
 // Escape also stops pending navigations in Chrome, so close after the key event.
 document.addEventListener('keydown',event=>{if(event.key==='Escape' && !$('referenceView').hidden){event.preventDefault();setTimeout(closeReference,50);}});
 showReference();
@@ -1064,6 +1072,12 @@ function setPane(name){
 }
 for(const b of document.querySelectorAll('#phoneBar button'))b.onclick=()=>setPane(b.dataset.pane);
 
+// Choosing a mode always shows that mode's view: it leaves the reference or About page and steps out of an open editor (its tab stays open).
+$('modeTabs').addEventListener('click',event=>{
+ if(!event.target.closest('button[role=tab]:not(:disabled)'))return;
+ closeReference();
+ if(activeEditor()>=0)showCore();
+});
 tournaments=setupTournaments({
  roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),
  readConfig:()=>readSettings({warriors:2}),
