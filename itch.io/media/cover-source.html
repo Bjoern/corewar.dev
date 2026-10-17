@@ -1,0 +1,53 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Corewar cover</title>
+<style>
+  html,body{margin:0;background:#09131d}
+  #c{position:relative;width:630px;height:500px;overflow:hidden;background:#09131d;font-family:"Segoe UI",system-ui,sans-serif;color:#c6e3ed}
+  canvas{position:absolute;inset:0}
+  .shade{position:absolute;inset:0;background:
+    radial-gradient(ellipse 62% 44% at 50% 50%, rgba(9,19,29,.97) 0%, rgba(9,19,29,.88) 45%, rgba(9,19,29,.25) 80%, rgba(9,19,29,0) 100%)}
+  .title{position:absolute;left:0;right:0;top:150px;text-align:center}
+  .kicker{font:600 13px/1 Consolas,monospace;letter-spacing:.32em;color:#54d8df;text-transform:uppercase}
+  h1{margin:14px 0 0;font-weight:800;font-size:92px;line-height:1;letter-spacing:.04em;color:#eaf6fa;
+     text-shadow:0 0 28px rgba(84,216,223,.35)}
+  h1 span{color:#54d8df}
+  .tag{margin-top:18px;font-size:19px;font-weight:500;color:#aec0ce}
+  .code{display:inline-block;margin-top:20px;padding:7px 14px;border:1px solid #2a3d4d;border-radius:6px;background:#0b1620;
+        font:15px/1 Consolas,monospace;color:#c6e3ed}
+  .code b{color:#f9a567;font-weight:400}.code i{color:#54d8df;font-style:normal}
+</style></head><body>
+<div id="c">
+  <canvas id="g" width="630" height="500"></canvas>
+  <div class="shade"></div>
+  <div class="title">
+    <div class="kicker">Programs at war</div>
+    <h1>CORE<span>WAR</span></h1>
+    <div class="tag">Write Redcode warriors. Watch them fight in memory.</div>
+    <div class="code"><b>MOV</b> <i>0</i>, <i>1</i> &nbsp;<span style="color:#6f8796">; the imp</span></div>
+  </div>
+</div>
+<script>
+const cv=document.getElementById('g'),x=cv.getContext('2d');
+const S=+new URLSearchParams(location.search).get('s')||1;
+cv.width=630*S;cv.height=500*S;cv.style.width='630px';cv.style.height='500px';x.scale(S,S);
+let seed=7;const r=()=>(seed=(seed*1103515245+12345)%2147483648)/2147483648;
+const P=8,cols=Math.ceil(630/P),rows=Math.ceil(500/P);
+const grid=new Array(cols*rows).fill(-1);
+const C=['#54d8df','#f9a567','#b79cff','#8fd18a','#f47fa7'];
+// imp trails: long horizontal runs
+for(let k=0;k<26;k++){const w=k%5;let p=Math.floor(r()*grid.length);const L=8+Math.floor(r()*40);for(let i=0;i<L;i++)grid[(p+i)%grid.length]=w;}
+// stone bombs: regular stride
+for(let w=0;w<5;w++){let p=Math.floor(r()*grid.length);const st=7+Math.floor(r()*40);for(let i=0;i<110;i++){p=(p+st)%grid.length;grid[p]=w;}}
+// paper copies: small blocks
+for(let k=0;k<70;k++){const w=Math.floor(r()*5),p=Math.floor(r()*grid.length),L=3+Math.floor(r()*7);for(let i=0;i<L;i++)if(r()<.8)grid[(p+i)%grid.length]=w;}
+for(let y=0;y<rows;y++)for(let c=0;c<cols;c++){
+  const v=grid[y*cols+c];
+  x.fillStyle=v<0?'#14222e':C[v];
+  x.globalAlpha=v<0?1:.85;
+  x.fillRect(c*P+1,y*P+1,P-2,P-2);
+}
+x.globalAlpha=1;
+// a few "last executed" highlights
+for(let k=0;k<9;k++){const c=Math.floor(r()*cols),y=Math.floor(r()*rows);x.strokeStyle='#fff';x.lineWidth=1;x.strokeRect(c*P+.5,y*P+.5,P-1,P-1);}
+</script>
+</body></html>
