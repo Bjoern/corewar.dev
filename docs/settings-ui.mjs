@@ -17,6 +17,24 @@ export function readSettings(extra={}) {
  }
  return settings(result);
 }
+// Raw field values for the saved workspace; readSettings still validates them before a run.
+export function settingsSnapshot() {
+ const values={};
+ for(const key of keys) values[key]=$(key).type==='checkbox'?$(key).checked:$(key).value;
+ return {preset:$('preset').value,values};
+}
+export function applySettingsSnapshot(snapshot) {
+ if(presets.some(p=>p.id===snapshot.preset)){$('preset').value=snapshot.preset;$('preset').onchange();}
+ let changed=false;
+ for(const key of keys) {
+  const value=snapshot.values[key],el=$(key);
+  if(el.type==='checkbox'?typeof value!=='boolean':typeof value!=='string' && typeof value!=='number')continue;
+  if(el.type==='checkbox'){changed||=el.checked!==value;el.checked=value;}
+  else {changed||=el.value!==String(value);el.value=String(value);}
+ }
+ if(changed || !presets.some(p=>p.id===snapshot.preset)){$('preset').value='custom';$('presetSource').replaceChildren();}
+ refreshSummary();
+}
 export function refreshSummary() {
  $('settingsSummary').textContent = `Core ${$('coreSize').value} · cycles ${$('cycles').value} · processes ${$('tasks').value} · length ${$('maxLength').value} · ${$('rules88').checked?'ICWS ’88':'ICWS ’94'}`;
 }

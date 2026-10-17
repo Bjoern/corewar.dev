@@ -220,3 +220,284 @@ header h1,header p{margin:0}header p{white-space:nowrap;font-size:14px}
 
 .fast-notice{display:flex;align-items:center;gap:8px;font-size:13px;color:#f1c96b;margin:0 auto 0 0;max-width:100%}
 .fast-notice-icon{width:20px;height:20px;flex-shrink:0;color:#ff6b6b}
+
+/* ===== Workspace layout: header, sidebar | centre | inspector ===== */
+:root{--bg:#09131d;--header:#0c1823;--panel:#101d29;--raised:#13283a;--button:#182b3b;--border:#2a3d4d;--code:#0b1620;--muted:#aec0ce;--accent:#54d8df;--gap:12px}
+body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg)}
+.topbar{max-width:none;width:100%;margin:0;display:flex;align-items:center;gap:20px;padding:0 var(--gap);height:48px;background:var(--header);border-bottom:1px solid var(--border);position:relative;z-index:20}
+.wordmark{font-weight:750;font-size:18px;letter-spacing:-.02em;color:#e4edf3;text-decoration:none}
+.mode-nav{display:flex;align-self:stretch;gap:4px}
+.mode-nav button{background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;padding:0 12px;color:var(--muted);font-weight:600;display:inline-flex;align-items:center;gap:4px}
+.mode-nav button[aria-selected=true]{color:#e4edf3;border-bottom-color:var(--accent)}
+.mode-nav button:disabled{opacity:.6;cursor:default}
+.soon-pill{font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;background:var(--raised);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.help-nav{margin-left:auto;position:relative}.help-links{display:flex;gap:16px;font-size:13px}.help-links a{color:var(--muted);text-decoration:none}.help-links a:hover{color:#e4edf3}
+.phone-only{display:none}
+main#app{max-width:none;width:100%;margin:0;padding:var(--gap);display:flex;flex-wrap:wrap;gap:var(--gap);align-items:stretch;flex:1;min-height:0}
+#changed{margin:0;font-size:11px;color:#f1c96b}
+.sidebar{flex:1 1 240px;max-width:320px;min-width:0;display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px}
+.mode-area{flex:999 1 560px;min-width:0;display:flex;flex-direction:column}
+.battle-view{display:flex;flex-wrap:wrap;gap:var(--gap);align-items:stretch;flex:1;min-height:0}
+.center{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.inspector{flex:1 1 340px;max-width:520px;min-width:0;display:flex;flex-direction:column}
+.inspector-stack{display:flex;flex-direction:column;gap:var(--gap);flex:1;min-height:0}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-width:0}
+.card h2,.sidebar h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.card-head,.chart-head,.side-head,.asm-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+button.small{padding:4px 9px;font-size:12px}button.icon{padding:4px 8px;display:inline-flex;align-items:center;justify-content:center;min-width:30px}
+a.button{display:inline-block;padding:10px 16px;border-radius:6px;font-weight:600;text-decoration:none}a.button.primary{background:var(--accent);color:var(--bg)}
+.menu-wrap{position:relative;display:inline-block}
+.popover{position:absolute;z-index:30;top:calc(100% + 4px);right:0;background:var(--raised);border:1px solid var(--border);border-radius:8px;padding:10px;box-shadow:0 8px 24px #0008;min-width:180px}
+.popover.menu{padding:4px;display:flex;flex-direction:column}.popover.menu button{background:transparent;border:0;text-align:left;white-space:nowrap}.popover.menu button:hover{background:var(--button)}
+.view-menu{display:flex;flex-direction:column;gap:10px;min-width:230px}.view-menu label{display:flex;justify-content:space-between;align-items:center;gap:10px}.view-menu .arena-theme{margin-left:0}
+.key-menu,.help-pop{top:auto;bottom:calc(100% + 4px)}.key-menu .legend{flex-direction:column;gap:6px;margin:0;white-space:nowrap}
+.help-pop{width:min(420px,80vw);font-size:12px;max-height:60vh;overflow:auto}.help-pop p{margin:0 0 8px;color:#c6d4de}
+.cdb-head .help-pop{top:calc(100% + 4px);bottom:auto}
+.popover[hidden]{display:none}
+/* sidebar */
+.side-head h2{flex:1}.side-actions{display:flex;gap:6px;align-items:center}
+.sidebar .roster{margin:0;font-size:12px;color:var(--muted)}
+.sidebar .editors{display:flex;flex-direction:column;gap:2px;overflow:auto;min-height:0;align-items:stretch}
+.sidebar .editors>div{min-width:0}
+.sidebar .editor-title{display:flex;align-items:center;gap:6px;margin:0;padding:3px 4px;border-radius:6px;outline:0;flex-wrap:nowrap}
+.sidebar .editor-title.editing,.sidebar .editor-title:hover{background:var(--raised)}
+.sidebar .editor-title .warrior{color:inherit;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%}
+.sidebar .warrior-name-group{flex:1;min-width:0}
+.sidebar .editor-title .compile-warrior{font-size:11px;color:var(--muted);padding:2px 4px;background:transparent;border:0;white-space:nowrap;flex-shrink:0}
+.sidebar .compile-warrior[data-result=ok]{color:#a7e8a3}.sidebar .compile-warrior[data-result=failed]{color:#ffb9b9}
+.sidebar .editor-title .save-warrior,.sidebar .editor-title .remove-warrior,.sidebar .edit-source{padding:3px;border:0;color:var(--muted);background:transparent}
+.sidebar .edit-source:hover,.sidebar .edit-source:focus-visible{color:var(--ink)}
+.sidebar .warrior-import{margin:0;display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.new-warrior-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 12px;font-size:13px}.new-warrior-btn .tile-icon{height:auto;font-size:18px}
+.import-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;margin:0;padding:14px 8px;border:1px dashed #537c91;border-radius:8px;background:transparent;color:#a9c5d4;font-size:13px;font-weight:400;text-align:center;cursor:pointer}
+.sidebar #dropZone{flex:none;margin:0;padding:32px 12px;font-size:13px;border-width:2px}
+.import-tile.dragging{border-color:var(--accent);border-style:solid}
+.tap-text{display:none}@media(hover:none) and (pointer:coarse){.import-tile .drag-text{display:none}.import-tile .tap-text{display:inline}}
+.import-tile:hover,.import-tile:focus-visible{border-color:var(--accent);color:#e4edf3;background:#54d8df0d}
+.import-tile:disabled{opacity:.5;cursor:default;border-color:#537c91;background:transparent}
+.import-tile strong{color:#e4edf3;font-weight:600}.import-tile .tile-hint{font-size:11px;color:var(--muted)}
+.tile-icon{display:flex;align-items:center;justify-content:center;height:22px;font-size:22px;line-height:1;color:var(--accent)}
+body:not([data-warriors="0"]) .sidebar .warrior-import{margin-top:10px}
+body:not([data-warriors="0"]) .sidebar #dropZone{flex-flow:row wrap;column-gap:6px;row-gap:0;padding:10px 8px;font-size:12px;border-width:1px}
+body:not([data-warriors="0"]) #dropZone .tile-icon{height:auto}body:not([data-warriors="0"]) #dropZone svg{width:16px;height:16px}
+body:not([data-warriors="0"]) .new-warrior-btn{padding:6px 10px;font-size:12px}
+.soon-link{color:var(--muted);cursor:default}.soon-link small,.soon-badge{font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:1px 5px;border:1px solid var(--border);border-radius:999px;color:#f1c96b}
+.welcome-soon{font-size:12px;color:var(--muted);margin-top:12px!important}.welcome-soon .soon-badge{margin-right:4px}
+.sidebar .warrior-swatch{flex-shrink:0}
+/* centre */
+.tabstrip{display:flex;align-items:stretch;gap:2px;background:var(--header);border-bottom:1px solid var(--border);padding:0 6px;overflow-x:auto;flex-shrink:0}
+.tabstrip>button,.tabstrip .tab>button{background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;padding:9px 12px;color:var(--muted);font-size:13px;white-space:nowrap}
+.tabstrip [aria-selected=true]{color:#e4edf3;border-bottom-color:var(--accent)}
+.tab{display:inline-flex;align-items:stretch}
+.tab>button{border-bottom:2px solid transparent}
+.core-tab{display:inline-flex;align-items:center;gap:6px}
+.tab-note{color:#f1c96b;font-size:11px}.tab-dot{color:#f1c96b}.tab .tab-close{padding:9px 6px 9px 0;opacity:.7}
+.warrior-tab>button:first-child{color:inherit}.warrior-tab [aria-selected=true]{color:#e4edf3}
+.core-view{display:flex;flex-direction:column;flex:1;min-height:0;padding:10px;gap:8px}
+.core-view[hidden]{display:none}
+.arena-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0}
+.battle-extras{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#timing{margin-left:auto;font:12px Consolas,monospace;color:var(--muted)}
+.speed-control{margin-left:0}.speed-unit{color:var(--muted);font-size:11px}.speed-control[data-unlimited=true] .speed-unit{display:none}
+.speed-control output{min-width:6ch;text-align:right}
+.arena{padding:0;background:transparent;border:0;flex:1;min-height:0;display:flex;flex-direction:column}
+.arena-space{position:relative;flex:1;min-height:200px;width:100%}
+.arena-space:has(>.arena-viewport[data-layout=fill]) .arena-viewport{position:absolute;inset:0;width:auto;height:auto}
+.arena-viewport{background:var(--code);border:1px solid var(--border);border-radius:6px}
+.arena-viewport[data-layout=fill]{max-height:none;overflow:hidden}
+.warrior-chips{display:flex;flex-wrap:wrap;gap:4px 6px;padding:6px 0 0;max-height:62px;overflow-y:auto}.warrior-chips:empty{display:none}
+.warrior-chips>span{display:inline-flex;align-items:center;gap:4px;font-size:12px;background:#0b1620d9;border:1px solid var(--border);border-radius:99px;padding:2px 10px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.warrior-chips .process-count{width:auto;margin:0 0 0 4px;font-size:11px;color:#e4edf3}
+.arena-foot{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:12px;color:var(--muted)}
+.arena-foot label{display:inline-flex;align-items:center;gap:6px;font-size:12px}
+.arena-foot select{font-size:12px;padding:3px}
+.arena-foot .settings-disclosure{padding:0;gap:6px;color:var(--muted)}.arena-foot #settingsSummary{font:12px Consolas,monospace;font-weight:400}
+.edit-link{color:var(--accent);font-size:12px}
+.foot-spacer{flex:1}
+#hoverAddress{min-width:0}
+.match-settings{background:var(--raised);padding:8px 12px;margin:0}
+#matchSettings:has(#settingsDetails[hidden]){display:none}
+#activeSettings{margin:0;font-size:11px}#activeSettings:empty{display:none}
+.fast-notice{margin:0}
+/* welcome */
+.welcome{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:16px;background:#09131dd9;overflow:auto}
+body[data-welcome=true] .welcome{display:flex}
+body[data-welcome=true] #inspector{display:none}
+body[data-welcome=true] .center{flex-basis:100%}
+.welcome .eyebrow{margin:0}.welcome h2{font-size:clamp(18px,2.4vw,26px);margin:6px 0;color:#e4edf3;text-transform:none;letter-spacing:-.01em}
+.welcome p{max-width:60ch;margin:4px 0}
+.demo-cards{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:16px 0}
+.demo-card{width:200px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;padding:12px;background:var(--panel);border:1px solid var(--border);border-radius:8px;font-weight:400;color:var(--muted)}
+.demo-card:hover{border-color:var(--accent)}.demo-card strong{color:#e4edf3}.demo-card em{font-style:normal;color:var(--accent);font-weight:600}
+.demo-art{display:flex;gap:2px;height:22px;width:100%}.demo-art i{flex:1;border-radius:2px;opacity:.85}
+.welcome-foot{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center;font-size:13px;color:var(--muted)}
+/* editor pane */
+.editor-pane{display:flex;flex-direction:column;flex:1;min-height:0;padding:10px;gap:8px}
+.editor-pane[hidden]{display:none}
+.shared-editor-toolbar{margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#editorStatus[data-result=ok]{color:#a7e8a3}#editorStatus[data-result=failed]{color:#ffb9b9}
+#sharedEditor{margin:0}#sharedEditor .source-editor,.editor-pane .source-editor{height:auto;flex:1;min-height:260px;resize:none}
+#editorViews{flex:1;min-height:0;display:flex;flex-direction:column}#editorViews .source-editor:not([hidden]){display:block}
+.asm-output{background:var(--code);border:1px solid var(--border);border-radius:6px;padding:8px}.asm-head{margin-bottom:4px}.asm-head strong{flex:0 0 auto;font-size:12px}.asm-head .hint{flex:1;margin:0}
+#asmOutput{margin:0;max-height:140px;min-height:48px;white-space:pre-wrap}
+/* inspector */
+.results-table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}.results-table th{text-align:right;color:var(--muted);font-weight:600;padding:3px 4px;border-bottom:1px solid var(--border)}.results-table td{text-align:right;padding:4px;border-bottom:1px solid #213342}.results-table th:first-child,.results-table td:first-child,.results-table td:last-child,.results-table th:last-child{text-align:left}
+#battleResults{margin:0;padding:10px 12px;border:1px solid var(--border)}#battleResults h2{margin-bottom:6px}
+.analysis-controls{margin:0}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 0}.chart-grid canvas{height:120px;margin-top:4px;border:1px solid var(--border);border-radius:4px}
+.chart-head{font-size:11px;color:var(--muted)}
+.pause-all{font-size:11px;color:var(--muted);display:inline-flex;gap:4px;align-items:center}
+.icon-toggle{display:inline-flex;cursor:pointer;position:relative}.icon-toggle input{position:absolute;opacity:0;width:1px;height:1px}.icon-toggle span{padding:0 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;line-height:16px}
+.icon-toggle:has(:checked) span{background:var(--accent);color:var(--bg)}.icon-toggle:has(:focus-visible) span{outline:2px solid var(--accent)}
+.debugger{margin:0;flex:1;min-height:260px;display:flex;flex-direction:column;padding:0;overflow:hidden}
+.cdb-head{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:12px;border-bottom:1px solid var(--border)}.cdb-head label{display:inline-flex;gap:6px;align-items:center;font-size:12px}.cdb-head .hint{margin:0;flex:1;text-align:right}
+.console-grid{display:flex;flex-direction:column;flex:1;min-height:0;margin:0;gap:0}
+.output-console{display:none;flex-direction:column;flex:1;min-height:0;padding:8px 10px 0}.output-console.active{display:flex}
+.console-output,#instruction{flex:1;height:auto;min-height:120px;background:var(--code)}
+.console-toolbar select{font-size:12px;padding:3px}
+.output-panel{flex:1;min-height:0;overflow:auto;padding:8px 10px}
+#consoleWindow{margin:0;padding:0;border:0}#consoleWindow summary{cursor:default;margin-bottom:6px;font-size:12px}#consoleWindow summary::before{content:''}#consoleOutput{background:var(--code);max-height:none;min-height:140px}
+.command-workspace{display:flex;flex-direction:column;gap:6px;margin:0;padding:8px 10px;border-top:1px solid var(--border)}
+.command-workspace #commandHistory{max-height:60px;border:0}
+#commandForm{display:flex;flex-wrap:nowrap;gap:6px;margin:0;align-items:center}#commandForm::before{content:'>';font:13px Consolas,monospace;color:var(--accent)}
+#commandForm .prompt{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+#command{flex:1;min-width:0;font:13px Consolas,monospace;background:var(--code)}
+#commandOutput{margin:0;font-size:11px;color:var(--muted);max-height:48px}
+.ref{font-size:12px;margin:8px 0;color:#c6d4de}
+/* misc */
+.drop-overlay{position:fixed;inset:0;z-index:100;background:#09131dcc;border:3px dashed var(--accent);display:flex;align-items:center;justify-content:center;font-size:22px;color:#e4edf3;pointer-events:none}
+footer{max-width:none;width:100%;margin:0;padding:8px var(--gap);border-top:1px solid var(--border);background:var(--header);display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center;font-size:12px}
+footer details{margin:0}footer summary{margin:0;font-size:12px;color:var(--muted)}footer pre{max-height:140px}
+#tournamentPanel{padding:12px;overflow:auto;flex:1;min-height:0}
+/* The tournament view uses the full width; the inspector returns with the core or an editor. */
+body[data-view=tournament] .inspector,body[data-view=tournament] #inspectorSplitter{display:none}
+body[data-mode=tournament] #phoneBar [data-pane=debug],body[data-mode=tournament] #phoneBar [data-pane=output]{display:none}
+.phone-bar{display:none}
+/* desktop: app fills the viewport, panels scroll internally */
+@media(min-width:1100px){
+ body{height:100vh;height:100dvh}
+ main#app{overflow:hidden}
+ .sidebar,.mode-area,.battle-view,.center,.inspector{max-height:100%}
+ .mode-area{overflow:hidden}
+ .inspector{overflow:auto}
+}
+/* narrower: inspector wraps below the centre; page scrolls */
+@media(max-width:1099px){
+ .sidebar{flex:1 1 100%;max-width:none}
+ .sidebar .editors{flex-direction:row;flex-wrap:wrap}.sidebar .editors>div{flex:0 1 auto}
+ .arena-space{min-height:0;aspect-ratio:5/2}
+ .inspector{flex:1 1 100%;max-width:none}.debugger{min-height:340px}
+}
+/* phone */
+@media(max-width:700px){
+ .topbar{gap:8px;height:auto;min-height:48px;flex-wrap:wrap;padding:6px var(--gap)}
+ .mode-nav{order:3;flex:0 0 100%;overflow-x:auto}.mode-nav button{padding:8px 12px}
+ .phone-only{display:inline-flex}
+ .help-links{display:none;position:absolute;right:0;top:calc(100% + 4px);flex-direction:column;background:var(--raised);border:1px solid var(--border);border-radius:8px;padding:10px 14px;gap:10px;white-space:nowrap}
+ .help-links.open{display:flex}
+ main#app{padding:8px;padding-bottom:64px}
+ .battle-toolbar button{min-height:44px;padding:0 12px}.battle-toolbar{flex:1}.battle-toolbar #run{flex:1}.battle-toolbar button.icon{min-width:44px}
+ .battle-extras{display:flex;flex:1 1 100%;flex-wrap:wrap;align-items:center;gap:8px}
+ .battle-extras>button{min-height:44px;flex:1 1 0}.battle-extras .rounds-control{flex:0 0 auto}.battle-extras .speed-control{flex:1 1 100%}.battle-extras .speed-control input{flex:1}
+
+ #timing{margin-left:0;width:auto!important;flex:1 1 100%;order:5}
+ .demo-cards{flex-direction:column;align-items:stretch}.demo-card{width:auto}
+ .welcome{position:static;background:transparent;padding:0}
+ body[data-welcome=true] .arena-viewport{display:none}body[data-welcome=true] .arena-space{aspect-ratio:auto}
+ .chart-grid{grid-template-columns:1fr}
+ .phone-bar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--header);border-top:1px solid var(--border)}
+ .phone-bar button{flex:1;border:0;border-radius:0;background:transparent;min-height:52px;color:var(--muted)}.phone-bar [aria-pressed=true]{color:var(--accent);box-shadow:inset 0 2px var(--accent)}
+ footer{padding-bottom:64px}
+ body[data-pane=core] #consolePanel,body[data-pane=code] #consolePanel,body[data-pane=core] #chartsCard{display:none}
+ body[data-pane=debug] .center,body[data-pane=output] .center,body[data-pane=debug] #battleResults,body[data-pane=output] #battleResults,body[data-pane=debug] #chartsCard,body[data-pane=output] #chartsCard{display:none}
+ body[data-pane=code] .inspector,body[data-pane=code] .sidebar,body[data-pane=debug] .sidebar,body[data-pane=output] .sidebar{display:none}
+ body[data-pane=debug] #outputTab,body[data-pane=output] .console-tab{display:none}
+ .sidebar{flex-direction:row;flex-wrap:wrap;align-items:center;padding:6px}.sidebar .side-head{flex:1}.sidebar .editors{flex:0 0 100%;flex-wrap:nowrap;overflow-x:auto}.sidebar .roster{display:none}
+ .sidebar .editor-title .save-warrior{display:none}
+ .sidebar .warrior-import{flex:0 0 100%}
+}
+.battle-extras button{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;font-size:12px;white-space:nowrap}
+.cdb-head #coreViewTitle{display:none}.cdb-head label{flex:1}
+.sidebar .editors{overflow-x:hidden}
+.chart-grid canvas{height:130px}
+#timing{width:auto!important;flex:none;white-space:nowrap}
+.console-grid{align-items:stretch}
+.shared-editor-toolbar button,#commandForm button,.console-toolbar button{padding:4px 10px;font-size:12px}
+button.small{white-space:nowrap}
+.console-toolbar{display:flex;align-items:center;gap:6px}
+#sharedEditor .shared-editor-toolbar #editingName{font-size:13px}
+.help-nav button{padding:4px 10px;min-width:32px}
+@media(max-width:700px){
+ .battle-toolbar{flex:1 1 100%}
+ .sidebar .editors{flex-wrap:wrap!important;overflow-x:visible}.sidebar .editors>div{flex:1 1 150px}
+ .arena-controls>.menu-wrap{margin-left:auto}
+}
+.arena-foot>.settings-dock{display:contents}
+.tournament-settings{margin-bottom:12px}.tournament-settings>.settings-dock{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;width:100%}
+#matchSettings{flex:0 0 100%;order:10}.arena-foot>.foot-spacer{order:1}.arena-foot>.menu-wrap,.arena-foot>output{order:2}
+.tournament-settings>.settings-dock>#matchSettings{order:0}
+.arena-space:has(>.arena-viewport[data-layout=fill]:not([data-cells=auto])){flex:none;min-height:0}
+.arena-space:has(>.arena-viewport[data-layout=fill]:not([data-cells=auto])) .arena-viewport{position:static;height:auto}
+.arena-space:has(>.arena-viewport:not([data-layout=fill])){flex:none;min-height:0}
+.arena-space:has(>.arena-viewport:not([data-layout=fill])) .arena-viewport{position:static}
+.core-view{overflow:auto}
+
+.arena-space:has(>.arena-viewport:not([data-layout=fill])),.arena-space:has(>.arena-viewport[data-layout=fill]:not([data-cells=auto])){aspect-ratio:auto}
+.phone-only{display:none!important}
+@media(max-width:700px){.phone-only{display:inline-flex!important}}
+.sidebar .editor-title .remove-warrior:hover:not(:disabled),.editor-title .remove-warrior:focus-visible{color:#ff6b6b}
+.shared-editor-toolbar button.danger{color:#ff8a8a;border-color:#6b2f35}
+.shared-editor-toolbar button.danger:hover:not(:disabled){background:#3a1b20;color:#ffb3b3}
+/* user-resizable columns (desktop only) */
+.splitter{display:none}
+@media(min-width:1100px){
+ .sidebar{flex:0 0 min(var(--sidebar-w,320px),30vw);max-width:none}
+ .inspector{flex:0 0 min(var(--inspector-w,340px),40vw);max-width:none}
+ .splitter{display:block;flex:0 0 4px;margin:0 -8px;position:relative;z-index:5;cursor:col-resize;border-radius:2px;touch-action:none}
+ .splitter::before{content:"";position:absolute;inset:0 -4px}
+ .splitter:hover,.splitter:focus-visible,.splitter.dragging{background:var(--accent);outline:0}
+ body[data-welcome=true] #inspectorSplitter{display:none}
+ body.resizing{cursor:col-resize;user-select:none}
+ body.resizing iframe,body.resizing canvas{pointer-events:none}
+}
+
+.cell-key-inline{flex:0 0 100%;order:3;display:flex;flex-wrap:nowrap;gap:14px;margin:0;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden}
+.cell-key-inline[hidden]{display:none}.key-wrap[hidden]{display:none}
+.edit-link{white-space:nowrap}
+@media(max-width:700px){
+ .arena-controls>.menu-wrap{order:6}
+ .sidebar .editors>div{flex:1 1 100%!important}.sidebar .editors{max-height:30vh;overflow-y:auto!important}
+}
+#legendNames.warrior-chips{gap:4px 6px;align-content:flex-start;max-height:68px}
+/* Fast disables the speed slider, so its notice shares the slider's slot; the slot keeps the wider size so the toolbar never reflows */
+.speed-slot{display:grid;align-items:center;margin-left:auto}.speed-slot>*{grid-area:1/1;margin:0}
+.speed-slot>.fast-notice{font-size:12px;gap:6px;padding:2px 8px;border-radius:99px;border:1px solid #5a4a22;background:#2a2412;white-space:nowrap;justify-self:start}
+.speed-slot>.fast-notice .fast-notice-icon{width:14px;height:14px}
+.speed-slot>.fast-notice[hidden]{display:flex;visibility:hidden}
+.speed-slot:has(>.fast-notice:not([hidden]))>.speed-control{visibility:hidden}
+@media(max-width:700px){.speed-slot{flex:1 1 100%;margin-left:0}.speed-slot>.fast-notice{white-space:normal;justify-self:stretch;justify-content:center}}
+.foot-status{display:flex;flex-wrap:wrap;gap:2px 14px;align-items:baseline}.foot-status:has(>#activeSettings:empty):has(>#changed:empty){display:none}
+/* Phones: a 5:2 box leaves "fill" only ~130px tall; give it most of the screen instead. */
+@media(max-width:700px){.arena-space:has(>.arena-viewport[data-layout=fill][data-cells=auto]){flex:none;aspect-ratio:auto;height:60vh;height:60dvh}}
+/* The Redcode reference opens over the workspace, below the top bar, so the app keeps its state. */
+.reference-view{position:fixed;left:0;right:0;bottom:0;top:var(--reference-top,48px);z-index:30;display:flex;flex-direction:column;background:var(--bg)}
+.reference-view[hidden]{display:none}
+.reference-bar strong{white-space:nowrap}.reference-bar{display:flex;align-items:center;gap:14px;padding:6px var(--gap);background:var(--panel);border-bottom:1px solid var(--border);font-size:13px}
+.reference-view iframe{flex:1;width:100%;border:0;background:var(--bg)}
+body[data-reference=true] #phoneBar{display:none}
+.help-links a[aria-current=page]{color:#e4edf3}
+.workspace-menu #startClean{border-top:1px solid var(--border);border-radius:0;margin-top:4px;padding-top:8px}
+#workspaceDialog p{margin:0 0 14px;line-height:1.45}.dialog-actions{display:flex;justify-content:flex-end;gap:8px}#workspaceDialogOk{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+/* Trackers sit side by side below the arena. A fixed cell size leaves the arena its natural height and the trackers take the rest; Auto fills, so they keep a fixed strip. */
+.arena:has(.arena-viewport:not([data-layout=fill][data-cells=auto])){flex:none}
+.tracker-strip{display:flex;gap:8px;flex:1 1 0;min-height:200px;overflow-x:auto;overflow-y:hidden}
+.arena:has(.arena-viewport[data-layout=fill][data-cells=auto])~.tracker-strip{flex:0 0 220px}
+body[data-welcome=true] .tracker-strip{display:none}
+.tracker{display:flex;flex-direction:column;flex:1 1 260px;min-width:220px;min-height:0}
+.tracker .console-toolbar{margin-bottom:4px}
+.tracker .console-output{flex:1;height:auto;min-height:0;background:var(--code);font-size:12px}
+.tracker .console-toolbar button[aria-pressed=true]{background:var(--accent);color:var(--bg)}
+.add-tracker{flex:0 0 auto;align-self:stretch;border-style:dashed;background:transparent;color:var(--muted);font-size:12px;white-space:nowrap}
+.add-tracker:hover{color:#e4edf3;border-color:var(--accent)}
+.tracker-strip:not(:has(.tracker))>.add-tracker{flex:1}
+@media(max-width:1099px){.tracker-strip{flex:none;height:240px;min-height:0}.arena:has(.arena-viewport[data-layout=fill][data-cells=auto])~.tracker-strip{flex:none}}

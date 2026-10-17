@@ -8,7 +8,7 @@ try {
   const page=await browser.newPage({viewport:{width:1280,height:900},deviceScaleFactor:scale});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(process.env.PMARS_URL || 'http://127.0.0.1:8765/docs/');
- await loadTestWarriors(page);
+ await loadTestWarriors(page);await page.locator('#viewBtn').click();
   for(const width of [1280,390]){
    await page.setViewportSize({width,height:900});
    for(const layout of ['vertical','horizontal','fill','fill-horizontal']){

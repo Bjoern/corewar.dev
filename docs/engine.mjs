@@ -7,15 +7,40 @@ function check(code) {
   if (code) throw new Error(`pMARS returned error ${code}; see assembly diagnostics.`);
 }
 
+// Carry this release's URL version into the Wasm fetch, including in workers.
+const browser = typeof window !== 'undefined' || typeof WorkerGlobalScope !== 'undefined';
+const distUrl = path => new URL('./dist/'+path+new URL(import.meta.url).search,import.meta.url).href;
+// The compiled Wasm module is stateless, so fetch and compile it once per page or worker.
+let compiled = null;
+function compiledWasm() {
+  compiled ??= (async () => {
+    const response = await fetch(distUrl('pmars.wasm'));
+    if (!response.ok) throw new Error(`Failed to load pmars.wasm (HTTP ${response.status}).`);
+    // compileStreaming requires application/wasm; fall back for hosts that serve another type.
+    try { return await WebAssembly.compileStreaming(response.clone()); }
+    catch { return WebAssembly.compile(await response.arrayBuffer()); }
+  })().catch(error => { compiled = null; throw error; });
+  return compiled;
+}
+
 // A fresh instance per match isolates pMARS's legacy global state.
 // User source compilation belongs in worker.mjs; the main thread imports banks.
 export class Engine {
   static async create(options, {visual = true, log = () => {}} = {}) {
     const config = settings(options);
-    // Carry this release's URL version into the Wasm fetch, including in workers.
-    const browserFiles = typeof window !== 'undefined' || typeof WorkerGlobalScope !== 'undefined'
-      ? {locateFile: path => new URL('./dist/'+path+new URL(import.meta.url).search,import.meta.url).href} : {};
-    const module = await createModule({...browserFiles,noInitialRun: true, print: line => log(line,'stdout'), printErr: line => log(line,'stderr')});
+    let browserFiles = {}, instantiationFailed = null;
+    if (browser) {
+      const wasm = await compiledWasm();
+      // Emscripten's instantiateWasm hook reports only success, so surface failures separately.
+      instantiationFailed = new Promise((_, reject) => {
+        browserFiles = {locateFile: distUrl, instantiateWasm: (imports, done) => {
+          WebAssembly.instantiate(wasm, imports).then(instance => done(instance, wasm), reject);
+          return {};
+        }};
+      });
+    }
+    const loading = createModule({...browserFiles,noInitialRun: true, print: line => log(line,'stdout'), printErr: line => log(line,'stderr')});
+    const module = await (instantiationFailed ? Promise.race([loading, instantiationFailed]) : loading);
     check(module.ccall('web_configure','number',['string','number','number'],[argumentsFor(config).join('\n'),+visual,config.warriors]));
     config.rounds = module._web_round_limit();
     return new Engine(module, config);

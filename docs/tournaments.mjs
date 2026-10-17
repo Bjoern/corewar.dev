@@ -40,7 +40,6 @@ export function setupTournaments({roster,readConfig,onTab}) {
  const tabs=[$('emulatorTab'),$('tournamentTab')];
  function selectTab(index){
   tabs.forEach((tab,i)=>{tab.setAttribute('aria-selected',String(i===index));tab.tabIndex=i===index?0:-1;});
-  $('emulatorPanel').hidden=index!==0;$('tournamentPanel').hidden=index!==1;
   $('changed').hidden=index===1;
   onTab(index);if(index===1){refresh();chart.draw();}
  }

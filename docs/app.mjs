@@ -4,23 +4,41 @@ import {bundledWarriors} from './demo-warriors.mjs?v=bd68579c2c000dd9';
 import {createEditor} from './dist/editor.mjs?v=bd68579c2c000dd9';
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {Engine, settings} from './engine.mjs?v=bd68579c2c000dd9';
-import {CoreDisplay, warriorColor, setTheme} from './display.mjs?v=bd68579c2c000dd9';
-import {readSettings,setupSettings} from './settings-ui.mjs?v=bd68579c2c000dd9';
+import {CoreDisplay, warriorColor, battleColor, setBattleSlots, setTheme} from './display.mjs?v=bd68579c2c000dd9';
+import {readSettings,setupSettings,settingsSnapshot,applySettingsSnapshot} from './settings-ui.mjs?v=bd68579c2c000dd9';
+import {WORKSPACE_KEY,WORKSPACE_FORMAT,WORKSPACE_VERSION,parseWorkspace} from './workspace.mjs?v=bd68579c2c000dd9';
 import {HistoryChart} from './charts.mjs?v=bd68579c2c000dd9';
 const $ = id => document.getElementById(id);
+// One entry per mode; adding a mode is a one-line change.
+const MODES=[
+ {id:'emulatorTab',label:'Battle',panel:'emulatorPanel'},
+ {id:'tournamentTab',label:'Tournaments',panel:'tournamentPanel'},
+ {id:'toolsTab',label:'Tools',hidden:true},
+ {id:'trialsTab',label:'Trials',soon:true}
+];
+$('modeTabs').replaceChildren(...MODES.filter(m=>!m.hidden).map((m,i)=>{
+ const b=document.createElement('button');b.id=m.id;b.type='button';b.setAttribute('role','tab');b.textContent=m.label;
+ b.setAttribute('aria-selected',String(i===0));b.tabIndex=i===0?0:-1;
+ if(m.panel)b.setAttribute('aria-controls',m.panel);
+ if(i===0)b.setAttribute('aria-current','page');
+ if(m.soon){b.disabled=true;b.tabIndex=-1;const pill=document.createElement('span');pill.className='soon-pill';pill.textContent='Soon';b.append(' ',pill);}
+ return b;
+}));
 const display = new CoreDisplay($('core'));
 let engine = null, worker = null, workerTimer = null, generation = 0;
 let state = 'idle', animation = 0, previous = 0, credit = 0, total = 0;
 let fastMode = false;
-let coreView = 'native', inspectionAddress = 0;
+let loadedSlots = [];
+let coreView = 'native', inspectionAddress = 0, listedLines = 0;
 const consoles=[];let consoleSerial=0;const commandHistory=[];
 let nativeBusy=false,nativeResume=false,nativeOutput='',nativeInput=null,nativeCancelled=false;
 let maxSlice = 0, pendingReject = null, latest = null, history = [], combined = [];
 let lastText = 0, dirty = false, stepping = false, stepEpoch = 0;
-let collapsedEditors=[], scoreViewKey=null;
+let collapsedEditors=[], scoreViewKey=null, openTabs=[], originals=[], welcomeDismissed=false, pausedByEditor=false, inspectorActive=null;
 let sourceEditors=[], compileIssues=[];
 const demoSources = [";redcode-94\n;name Imp\n;author A. K. Dewdney\n;assert 1\nmov.i 0, 1\nend\n", ";redcode-94\n;name Dwarf\n;author A. K. Dewdney\n;assert 1\nadd.ab #4, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat.f #0, #0\nend\n"];
 let tournaments=null;
+let persistTimer=null, persistReady=false, persistWarned=false;
 let sources = [], sourceFiles = [];
 let excludedWarriors = [];
 const selectedIndices = () => sources.map((_,i)=>i).filter(i=>!excludedWarriors[i]);
@@ -43,6 +61,7 @@ function scheduleValidation(){
 function showConsole() {
  $('consoleWindow').open=true;
  $('consoleOutput').textContent=consoleText || 'Validate a warrior or run a battle to see assembly output here.';
+ if(activeEditor()<0)activateInspector('output');
 }
 function refreshCompileButtons() {
  document.querySelectorAll('.compile-warrior').forEach((button,i)=>{
@@ -50,6 +69,16 @@ function refreshCompileButtons() {
   button.textContent='↻ '+(result==='busy'?'Validating…':result==='ok'?'Valid ✓':result==='failed'?'Invalid — retry':'Validate');
   button.dataset.result=result;button.disabled=result==='busy';
  });
+ editorStatus();
+}
+function editorStatus() {
+ const i=activeEditor(),status=$('editorStatus');
+ if(i<0){status.textContent='';return;}
+ const errors=compileIssues.filter(x=>x.index===i && x.severity==='error').length,warnings=compileIssues.filter(x=>x.index===i && x.severity==='warning').length;
+ const result=compileStates[i]||'';
+ status.textContent=result==='busy'?'Validating…':result==='ok'?'✓ Assembles'+(warnings?' · '+warnings+' warning'+(warnings===1?'':'s'):''):result==='failed'?(errors||1)+' error'+((errors||1)===1?'':'s'):'';
+ status.dataset.result=result;
+ $('asmCount').textContent=errors||warnings?errors+' error'+(errors===1?'':'s')+' · '+warnings+' warning'+(warnings===1?'':'s'):'';
 }
 function cancelCompileCheck() {
  if(compileWorker)compileWorker.terminate();
@@ -86,13 +115,14 @@ function checkWarrior(index,automatic=false) {
  };
  w.postMessage({type:'check',index,settings:config,sources:[...sources]});
 }
-const processChart=new HistoryChart($('processChart'),'Processes / cycle in current round');
-const scoreChart=new HistoryChart($('scoreChart'),'Cumulative score / completed battles');
+const processChart=new HistoryChart($('processChart'),'');
+const scoreChart=new HistoryChart($('scoreChart'),'');
 const addressText = n => String(n).padStart(String((engine?.config.coreSize || 8000) - 1).length, '0');
 function status(text) {
   $('status').textContent = text;
 }
 function log(text,channel='stderr',index=null) {
+ setTimeout(()=>{if(activeEditor()>=0)$('asmOutput').textContent=consoleText||'Validate the warrior to see assembly output here.';},0);
  if(Number.isInteger(index)){
   for(const match of text.matchAll(/(Error|Warning) in line (\d+):[^\n]*(?:\n[ \t]+[^\n]*)?/g))compileIssues.push({index,line:Number(match[2]),severity:match[1].toLowerCase(),message:match[0]});
   compileIssues=compileIssues.slice(-100);refreshDiagnostics();
@@ -110,13 +140,15 @@ function markDirty() {
  compileIssues=[];refreshDiagnostics();
   revision++;cancelCompileCheck();compileStates=[];refreshCompileButtons();scheduleValidation();
   dirty = !!engine || state === 'loading';
-  $('changed').textContent = dirty ? 'Sources, selection or settings changed. Run applies them before instruction 1; otherwise Reset applies them and Resume keeps the loaded battle.' : '';
+  $('changed').textContent = dirty ? 'Changes pending: Run or Reset applies them; Resume keeps the loaded battle.' : '';
+  schedulePersist();
 }
 function legend() {
-  const names = engine && latest ? latest.warriors.map(w => w.name) : selectedIndices().map(i=>draftName(sources[i],i));
+  const selected=selectedIndices(),loaded=!!(engine && latest);
+  const names = loaded ? latest.warriors.map(w => w.name) : selected.map(i=>draftName(sources[i],i));
   $('legendNames').replaceChildren(...names.map((name,i) => {
     const span = document.createElement('span');
-    span.style.color = warriorColor(i);
+    span.style.color = loaded ? battleColor(i) : warriorColor(selected[i]);
     const swatch=document.createElement('span');swatch.className='warrior-swatch';
     const eliminated=document.createElement('span');eliminated.className='eliminated-marker';eliminated.dataset.eliminated=i;
     swatch.append(eliminated);span.append(swatch,` ${name} `);
@@ -130,24 +162,24 @@ function editors() {
  $('editorViews').replaceChildren();
   $('editors').replaceChildren(...sources.map((source, i) => {
     const box = document.createElement('div'), top = document.createElement('div');
-    top.className = 'editor-title';
+    top.className = 'editor-title'; top.style.color = warriorColor(i);
+    const swatch=document.createElement('span');swatch.className='warrior-swatch';swatch.setAttribute('aria-hidden','true');
     const label = document.createElement('button');
     label.htmlFor = i === 0 ? 'first' : i === 1 ? 'second' : `warrior-${i}`;
-    label.className = 'warrior'; label.style.color = warriorColor(i);
+    label.className = 'warrior';
     label.textContent = `${String(i+1).padStart(2,'0')} / ${draftName(source,i)}`;
+    label.title='Open in the editor';label.setAttribute('aria-controls',label.htmlFor);
     const remove = document.createElement('button');
-    remove.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';remove.title='Remove warrior'; remove.className = 'remove-warrior';
+    remove.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';remove.title='Remove warrior'; remove.className = 'remove-warrior';
     remove.setAttribute('aria-label', `Remove warrior ${i+1}`);
-    remove.onclick = () => { if(nativeBusy)return; sources.splice(i,1);sourceFiles.splice(i,1);excludedWarriors.splice(i,1);collapsedEditors.splice(i,1); markDirty(); if(!sources.length)clearBattle(); editors(); };
-    const save=document.createElement('button');save.textContent='Download';save.className='save-warrior';save.setAttribute('aria-label','Download warrior '+(i+1));save.onclick=()=>saveWarrior(i);
+    remove.onclick = () => removeWarrior(i);
+    const save=document.createElement('button');save.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>';save.title='Download warrior';save.className='save-warrior';save.setAttribute('aria-label','Download warrior '+(i+1));save.onclick=()=>saveWarrior(i);
     const compile=document.createElement('button');compile.className='compile-warrior';
     compile.title='Revalidate warrior and show assembly output';compile.setAttribute('aria-label','Validate warrior '+(i+1));compile.onclick=()=>checkWarrior(i);
-    const edit=document.createElement('button');edit.className='edit-warrior';
-    edit.setAttribute('aria-controls',label.htmlFor);edit.setAttribute('aria-label','Edit or collapse warrior '+(i+1));
-    edit.onclick=()=>{const closing=collapsedEditors[i]===false;collapsedEditors=sources.map(()=>true);collapsedEditors[i]=closing;editorVisibility();if(!collapsedEditors[i])sourceEditors[i].focus();};
-    const pencil=document.createElement('button');pencil.className='edit-source';pencil.title='Edit warrior';pencil.setAttribute('aria-label','Edit warrior '+(i+1));
+    label.onclick=()=>openWarrior(i);
+    const pencil=document.createElement('button');pencil.className='edit-source';pencil.title='Edit warrior';pencil.setAttribute('aria-label','Edit warrior '+(i+1));pencil.setAttribute('aria-controls',label.htmlFor);
     pencil.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 15z"/></svg>';
-    label.onclick=edit.onclick;pencil.onclick=edit.onclick;pencil.setAttribute('aria-controls',label.htmlFor);
+    pencil.onclick=()=>openWarrior(i);
     const nameGroup=document.createElement('div');nameGroup.className='warrior-name-group';nameGroup.append(label,pencil);
     const include=document.createElement('input');include.type='checkbox';include.className='include-warrior';
     include.checked=!excludedWarriors[i];include.title='Include in next run';include.setAttribute('aria-label','Include warrior '+(i+1)+' in next run');
@@ -158,40 +190,111 @@ function editors() {
       if(selectedIndices().length)await load();
       else {clearBattle();status('Select at least one warrior for the next run.');}
     });
-    top.append(include,edit,nameGroup,compile,save,remove);
+    top.append(include,swatch,nameGroup,compile,save,remove);
     const area=document.createElement('div');area.className='source-editor';
     const editor=createEditor(area,{theme:$('editorTheme').value,syntax:$('editorSyntax').value,value:source,id:label.htmlFor,label:`Warrior ${i+1} source`,onChange:value=>{
       sources[i]=value;
       if(collapsedEditors[i]===false)$('editingName').textContent=draftName(value,i);
       label.textContent=`${String(i+1).padStart(2,'0')} / ${draftName(value,i)}`;
-      legend();markDirty();
+      legend();markDirty();renderCenterTabs();
     }});sourceEditors.push(editor);
     box.append(top);$('editorViews').append(area); return box;
   }));
+  if(sources.length)welcomeDismissed=true;
+  document.body.dataset.warriors=String(sources.length);
+  document.body.dataset.welcome=String(!welcomeDismissed && sources.length===0);
   editorVisibility();refreshCompileButtons();
   rosterCount();tournaments?.refresh();
   $('newWarrior').disabled = sources.length >= 36;
-  $('demos').hidden = sources.length !== 0;
+  $('newWarriorTile').disabled=$('welcomeNew').disabled=sources.length>=36;
+  $('dropZoneHint').textContent=sources.length>=36?'36 warriors loaded, the maximum':'or click to browse';
 
   controls();
   legend();
 }
+function removeWarrior(i){
+ if(nativeBusy)return;
+ sources.splice(i,1);sourceFiles.splice(i,1);excludedWarriors.splice(i,1);collapsedEditors.splice(i,1);originals.splice(i,1);openTabs=openTabs.filter(x=>x!==i).map(x=>x>i?x-1:x);
+ loadedSlots=loadedSlots.map(x=>x>i?x-1:x);setBattleSlots(loadedSlots);
+ markDirty(); if(!sources.length)clearBattle(); editors();
+}
+function activeEditor(){return collapsedEditors.findIndex(value=>value===false);}
+let shownEditor=-1;
+// The first centre tab shows the current mode's view; warrior editor tabs are shared by all modes.
+let mode='battle';
 function editorVisibility(){
- const active=collapsedEditors.findIndex(value=>value===false);
+ const active=activeEditor();
+ openTabs=openTabs.filter(i=>i<sources.length);
+ if(active>=0 && !openTabs.includes(active))openTabs.push(active);
+ if(active>=0 && shownEditor<0 && state==='running'){pausedByEditor=true;pause();}
  document.querySelectorAll('#editorViews .source-editor').forEach((area,i)=>{
   area.hidden=i!==active;
-  const button=document.querySelectorAll('.edit-warrior')[i];
-  button.textContent=area.hidden?'▸':'▾';
-  button.title=area.hidden?'Edit warrior':'Close editor';
-  button.setAttribute('aria-expanded',String(!area.hidden));
-  const row=button.parentElement;row.classList.toggle('editing',!area.hidden);
-  row.querySelector('.edit-source').setAttribute('aria-expanded',String(!area.hidden));
+  const label=document.querySelectorAll('#editors .warrior')[i];
+  if(!label)return;
+  label.setAttribute('aria-expanded',String(!area.hidden));
+  label.parentElement.parentElement.classList.toggle('editing',!area.hidden);
   if(!area.hidden)sourceEditors[i].view.requestMeasure();
  });
- $('sharedEditor').hidden=active<0;
+ const view=active>=0?'editor':mode==='tournament'?'tournament':'core';
+ $('sharedEditor').hidden=active<0;$('coreView').hidden=view!=='core';$('tournamentPanel').hidden=view!=='tournament';
+ $('coreInspector').hidden=view!=='core';$('editorInspector').hidden=active<0;
+ document.body.dataset.view=view;
+ $('runFromEditor').textContent=mode==='tournament'?'▶ Run tournament':'▶ Run battle';
  $('editingName').textContent=active<0?'':draftName(sources[active],active);
+ if(active<0 && shownEditor>=0 && mode==='battle'){display.redraw();processChart.draw();scoreChart.draw();}
+ shownEditor=active;
+ // Editors also open from the roster and centre tabs; keep the phone bar on the matching pane.
+ if(active>=0 && document.body.dataset.pane!=='code')markPane('code');
+ else if(active<0 && document.body.dataset.pane==='code')markPane('core');
+ renderCenterTabs();editorStatus();
+ if(active>=0)$('asmOutput').textContent=consoleText||'Validate the warrior to see assembly output here.';
 }
-$('toggleEditors').onclick=()=>{collapsedEditors=sources.map(()=>true);editorVisibility();};
+function openWarrior(i){
+ collapsedEditors=sources.map(()=>true);collapsedEditors[i]=false;
+ editorVisibility();
+ if(!collapsedEditors[i])sourceEditors[i].focus();
+}
+function showCore(skipResume=false){
+ collapsedEditors=sources.map(()=>true);editorVisibility();
+ if(!skipResume && mode==='battle' && pausedByEditor && state==='paused' && engine)resume();
+ pausedByEditor=false;
+}
+function renderCenterTabs(){
+ const active=activeEditor(),tabs=[];
+ const core=document.createElement('button');core.type='button';core.setAttribute('role','tab');core.className='tab core-tab';core.dataset.tab=mode==='tournament'?'tournament':'core';
+ core.setAttribute('aria-selected',String(active<0));
+ core.innerHTML=mode==='tournament'
+  ? '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h4v4H4zM4 15h4v4H4zM8 7h4v10H8M12 12h8"/></svg> '
+  : '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg> ';
+ const coreLabel=document.createElement('span');coreLabel.textContent=mode==='tournament'?'Tournament':'Core';core.append(coreLabel);
+ if(mode==='battle' && active>=0 && engine && total>0 && state!=='done'){const paused=document.createElement('span');paused.className='tab-note';paused.textContent=' · paused';core.append(paused);}
+ core.onclick=()=>showCore();tabs.push(core);
+ for(const i of openTabs){
+  if(i>=sources.length)continue;
+  const tab=document.createElement('span');tab.className='tab warrior-tab';tab.style.color=warriorColor(i);tab.dataset.tab=String(i);tab.setAttribute('role','presentation');
+  const open=document.createElement('button');open.type='button';open.setAttribute('role','tab');open.setAttribute('aria-selected',String(i===active));
+  const swatch=document.createElement('span');swatch.className='warrior-swatch';
+  const name=document.createElement('span');name.className='tab-name';name.textContent=(sourceFiles[i]||warriorFilename(draftName(sources[i],i)));
+  open.append(swatch,' ',name);
+  if(originals[i]!==undefined && originals[i]!==sources[i]){const dot=document.createElement('span');dot.className='tab-dot';dot.title='Edited';dot.textContent=' ●';open.append(dot);}
+  open.onclick=()=>openWarrior(i);
+  const close=document.createElement('button');close.type='button';close.className='tab-close';close.setAttribute('aria-label','Close '+name.textContent);close.textContent='×';
+  close.onclick=()=>{openTabs=openTabs.filter(x=>x!==i);if(i===active)showCore();else renderCenterTabs();};
+  tab.append(open,close);tabs.push(tab);
+ }
+ $('centerTabs').replaceChildren(...tabs);
+}
+$('toggleEditors').onclick=()=>showCore();
+$('validateActive').onclick=()=>{const i=activeEditor();if(i>=0)checkWarrior(i);};
+$('downloadActive').onclick=()=>{const i=activeEditor();if(i>=0)saveWarrior(i);};
+$('removeActive').onclick=()=>{const i=activeEditor();if(i>=0)removeWarrior(i);};
+$('clearAsm').onclick=()=>{consoleText='';$('consoleOutput').textContent='';$('asmOutput').textContent='';compileIssues=[];refreshDiagnostics();};
+$('runFromEditor').onclick=safe(async()=>{
+ if(mode==='tournament'){showCore();$('tournamentStart').click();return;}
+ showCore(true);pausedByEditor=false;
+ if(state==='running' || state==='series')return;
+ await run();
+});
 function processIndicators(update){
  update.warriors.forEach((w,i)=>{
   const marker=$('legendNames').querySelector('[data-eliminated="'+i+'"]');
@@ -213,8 +316,9 @@ function refreshDiagnostics(){
  $('sourceDiagnostics').replaceChildren(...compileIssues.map(issue=>{
   const button=document.createElement('button');button.type='button';button.className='source-diagnostic';
   button.textContent=draftName(sources[issue.index]||'',issue.index)+' · line '+issue.line+' · '+issue.message;
-  button.onclick=()=>{collapsedEditors=sources.map(()=>true);collapsedEditors[issue.index]=false;editorVisibility();sourceEditors[issue.index]?.jump(issue.line);document.querySelectorAll('.source-editor')[issue.index]?.scrollIntoView({block:'center'});};return button;
+  button.onclick=()=>{collapsedEditors=sources.map(()=>true);collapsedEditors[issue.index]=false;editorVisibility();sourceEditors[issue.index]?.jump(issue.line);};return button;
  }));
+ editorStatus();
 }
 function seriesActive() { return state.startsWith("series"); }
 function controls() {
@@ -228,7 +332,8 @@ function controls() {
   $('fast').disabled=empty || busy || state==='done';
   $('step').disabled = empty || busy || state === 'running' || state === 'done';
   $('reset').disabled = nativeBusy || noSelection || state === 'loading';
-  document.querySelectorAll('.remove-warrior,.include-warrior').forEach(b=>b.disabled=nativeBusy);
+  document.querySelectorAll('.remove-warrior,.include-warrior,#removeActive').forEach(b=>b.disabled=nativeBusy);
+  renderCenterTabs();
 }
 function stop() {
   nativeResume=false;nativeOutput='';engine?.setDebugEvents(false);
@@ -241,7 +346,7 @@ function stop() {
   pendingReject = null; engine = null; latest = null;
   history = []; combined = []; coreView='native'; renderTrace(); countedCompleted=0;lastScoreSample=-1;
   processChart.clear();scoreChart.clear();
-  state = 'idle'; $('battleResults').hidden=true; dirty = false; $('changed').textContent = ''; $('activeSettings').textContent = ''; legend();
+  state = 'idle'; pausedByEditor=false; $('battleResults').hidden=true;$('lastResult').textContent='No battle run yet.'; dirty = false; $('changed').textContent = ''; $('activeSettings').textContent = ''; legend();
   $('progress').hidden = true; status('Stopped. Ready for another battle.'); controls();
 }
 function clearBattle() {
@@ -301,32 +406,47 @@ function scores(update) {
   const best=Math.max(...update.warriors.map(w=>w.score));
   const shared=update.warriors.filter(w=>w.score===best).length>1;
   const order=update.warriors.map((w,i)=>({w,i}));
-  if($('sort').checked)order.sort((a,b)=>b.w.score-a.w.score);
-  const key=JSON.stringify([update.completed,update.done,order.map(({w,i})=>[w.name,w.wins,w.ties,w.losses,w.score,warriorColor(i)])]);
+  order.sort((a,b)=>b.w.score-a.w.score);
+  const key=JSON.stringify([update.completed,update.done,order.map(({w,i})=>[w.name,w.wins,w.ties,w.losses,w.score,battleColor(i)])]);
   if(key===scoreViewKey)return;
   scoreViewKey=key;
-  $('scores').replaceChildren(...order.map(({w,i}) => {
-    const row = document.createElement('div'); row.className = 'score'; row.style.color = warriorColor(i);
-    const outcome = update.warriors.length === 1
-      ? `${w.wins} survived / ${w.losses} terminated · score ${w.score}`
-      : `${w.wins} wins / ${w.ties} ties / ${w.losses} losses · score ${w.score}`;
-    const result=update.warriors.length===1 ? (update.completed===1?(w.losses?'Terminated':'Survived'):'')
+  const single=update.warriors.length===1;
+  const table=document.createElement('table');table.className='results-table';
+  const head=table.createTHead().insertRow();
+  for(const text of ['Warrior',single?'Surv. / Term.':'W / T / L','Score','Result']){const th=document.createElement('th');th.textContent=text;head.append(th);}
+  const body=table.createTBody();let summary='';
+  for(const {w,i} of order){
+    const result=single ? (update.completed===1?(w.losses?'Terminated':'Survived'):'')
       :update.completed===1 ? (w.wins?'Won':w.ties?'Tied':'Lost')
       :update.done ? (w.score===best?(shared?'Tied for first':'Won series'):'Lost series') : '';
-    row.textContent = `${w.name}${result?' · '+result:''} · ${outcome}`;
-    return row;
-  }));
+    const row=body.insertRow();row.style.color=battleColor(i);
+    const name=row.insertCell();const swatch=document.createElement('span');swatch.className='warrior-swatch';name.append(swatch,' '+w.name);
+    row.insertCell().textContent=single?`${w.wins} / ${w.losses}`:`${w.wins} / ${w.ties} / ${w.losses}`;
+    row.insertCell().textContent=String(w.score);
+    row.insertCell().textContent=result;
+    if(!summary && result)summary=`${w.name}: ${result.toLowerCase()} · score ${w.score}`;
+  }
+  $('scores').replaceChildren(table);
+  $('lastResult').textContent=summary||(update.completed?'Battle in progress.':'No battle completed yet.');
 }
 function wrap(n) { const size = engine?.config.coreSize || 8000; return ((n % size) + size) % size; }
-function lineCount() { return 10; }
-function instructionRow(address, instruction, owner = null, suffix = '', listing = false) {
-  const row=document.createElement('button');row.type='button';
-  row.className='instruction-row'+(listing?' listing-line':'');row.dataset.address=String(address);
-  const active=engine?.breakpoint(address) || false;
+// A core listing fills the cdb console's height, with at least ten lines.
+function lineCount() {
+  const host=$('instruction');if(!host?.clientHeight)return 10;
+  const style=getComputedStyle(host),row=host.querySelector('.instruction-row');
+  const height=row?.offsetHeight || parseFloat(style.fontSize)*1.6;
+  return Math.max(10,Math.floor((host.clientHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom))/height));
+}
+function markBreakpointRow(row,address,active){
   row.setAttribute('aria-pressed',String(active));
   row.title=(active?'Remove':'Set')+' breakpoint at '+addressText(address)+' (click pauses execution)';
   row.setAttribute('aria-label',row.title);
-  if(owner!==null)row.style.color=warriorColor(owner);
+}
+function instructionRow(address, instruction, owner = null, suffix = '', listing = false) {
+  const row=document.createElement('button');row.type='button';
+  row.className='instruction-row'+(listing?' listing-line':'');row.dataset.address=String(address);
+  markBreakpointRow(row,address,engine?.breakpoint(address) || false);
+  if(owner!==null)row.style.color=battleColor(owner);
   row.textContent=addressText(address)+'  '+instruction+suffix+'\n';
   row.onclick=()=>{
     if(nativeBusy || !engine?.started)return;
@@ -335,6 +455,8 @@ function instructionRow(address, instruction, owner = null, suffix = '', listing
     const enabled=!engine.breakpoint(address);engine.setBreakpoint(address,enabled);
     if(enabled){$('debugEnabled').checked=true;engine.setDebug(true);}
     textViews();
+    // Listings are only rebuilt on explicit inspection, so mark every row already shown for this address.
+    document.querySelectorAll('.instruction-row[data-address="'+address+'"]').forEach(other=>markBreakpointRow(other,address,enabled));
     host?.querySelector('[data-address="'+address+'"]')?.focus({preventScroll:true});
   };
   return row;
@@ -345,8 +467,8 @@ function traceRow(entry) {
 function renderListing(host) {
   if(!host){for(const panel of consoles.filter(p=>p.select.value==='cdb'))renderListing(panel.output);return;}
   if (!engine) {host.textContent='Load a battle to inspect its core.';return;}
-  const start = inspectionAddress;
-  host.replaceChildren(...Array.from({length:lineCount()},(_,i) => {
+  const start = inspectionAddress;listedLines=lineCount();
+  host.replaceChildren(...Array.from({length:listedLines},(_,i) => {
     const addr=wrap(start+i),owners=latest.warriors.flatMap((w,j)=>w.pc===addr?[j]:[]);
     return instructionRow(addr,engine.inspect(addr),owners[0]??null,
       owners.length?'  ← next: '+owners.map(j=>latest.warriors[j].name).join(', '):'',true);
@@ -358,29 +480,66 @@ function renderCoreView() {
   if(coreView==='native')renderNativeOutput();
 }
 function showAddress(n) { inspectionAddress=wrap(n); inspect();renderCoreView(); }
+// The right pane holds one fixed cdb console; trackers of executed instructions sit side by side below the arena.
 function consoleOptions(panel) {
-  const selected=panel.select.value || 'cdb';
+  if(panel.select.value==='cdb')return;
+  const selected=panel.select.value || 'all';
   const names=latest?.warriors.map(w=>w.name) || sources.map((source,i)=>draftName(source,i));
-  panel.select.replaceChildren(new Option('cdb','cdb'),new Option('All warriors','all'),...names.map((name,i)=>new Option(name,'warrior:'+i)));
-  panel.select.value=[...panel.select.options].some(o=>o.value===selected)?selected:'cdb';
+  panel.select.replaceChildren(new Option('All warriors','all'),...names.map((name,i)=>new Option(name,'warrior:'+i)));
+  panel.select.value=[...panel.select.options].some(o=>o.value===selected)?selected:'all';
 }
-function addConsole(kind='cdb') {
-  const id=++consoleSerial,panel={paused:false};
-  panel.element=document.createElement('section');panel.element.className='output-console';
+function renderInspectorTabs(){
+ const tabs=consoles.filter(p=>p.select.value==='cdb').map(panel=>{
+  const b=document.createElement('button');b.type='button';b.setAttribute('role','tab');b.className='console-tab';b.textContent='cdb';
+  b.setAttribute('aria-selected',String(inspectorActive===panel));b.onclick=()=>activateInspector(panel);return b;
+ });
+ for(const old of $('inspectorTabs').querySelectorAll('.console-tab'))old.remove();
+ $('inspectorTabs').prepend(...tabs);
+ $('outputTab').setAttribute('aria-selected',String(inspectorActive==='output'));
+}
+function activateInspector(target){
+ if(target!=='output' && target?.select?.value!=='cdb')target=consoles.find(p=>p.select.value==='cdb')||'output';
+ inspectorActive=target;
+ for(const panel of consoles)if(panel.select.value==='cdb')panel.element.classList.toggle('active',panel===target);
+ $('outputPanel').hidden=target!=='output';
+ $('commandWorkspace').hidden=target==='output';$('cdbHead').hidden=target==='output';
+ $('consolePanel').dataset.tab=target==='output'?'output':'cdb';
+ renderInspectorTabs();
+ if(target!=='output')renderCoreView();
+}
+$('outputTab').onclick=()=>activateInspector('output');
+function addConsole(kind='all') {
+  const panel={paused:false},cdb=kind==='cdb';
+  panel.element=document.createElement('section');
+  panel.select=document.createElement('select');
+  panel.output=document.createElement('pre');panel.output.className='console-output';
+  if(cdb){
+    panel.element.className='output-console';panel.select.append(new Option('cdb','cdb'));
+    panel.output.id='instruction';panel.output.setAttribute('aria-label','cdb console output');
+    panel.element.append(panel.output);consoles.push(panel);$('execution').append(panel.element);
+    renderCoreView();renderInspectorTabs();return panel;
+  }
+  const id=++consoleSerial;
+  panel.element.className='tracker';panel.element.setAttribute('aria-label','Tracker '+id);
   const header=document.createElement('div');header.className='console-toolbar';
-  panel.select=document.createElement('select');panel.select.setAttribute('aria-label','Console '+id+' content');
-  const pauseButton=document.createElement('button');pauseButton.textContent='Ⅱ';pauseButton.title='Pause console';pauseButton.setAttribute('aria-label','Pause console '+id);pauseButton.setAttribute('aria-pressed','false');
-  pauseButton.onclick=()=>{panel.paused=!panel.paused;pauseButton.setAttribute('aria-pressed',String(panel.paused));syncTrace();renderCoreView();renderTrace();};
-  const close=document.createElement('button');close.textContent='×';close.setAttribute('aria-label','Remove console '+id);
+  panel.select.setAttribute('aria-label','Tracker '+id+' warrior');
+  const pauseButton=document.createElement('button');pauseButton.type='button';pauseButton.textContent='Ⅱ';pauseButton.title='Pause tracker';pauseButton.setAttribute('aria-label','Pause tracker '+id);pauseButton.setAttribute('aria-pressed','false');
+  pauseButton.onclick=()=>{panel.paused=!panel.paused;pauseButton.setAttribute('aria-pressed',String(panel.paused));syncTrace();renderTrace();};
+  const close=document.createElement('button');close.type='button';close.textContent='×';close.title='Close tracker';close.setAttribute('aria-label','Close tracker '+id);
   close.onclick=()=>{consoles.splice(consoles.indexOf(panel),1);panel.element.remove();syncTrace();};
-  panel.output=document.createElement('pre');panel.output.className='console-output';panel.output.setAttribute('aria-label','Console '+id+' output');
-  if(id===1)panel.output.id='instruction';
-  header.append(panel.select,pauseButton,close);panel.element.append(header,panel.output);consoles.push(panel);$('execution').insertBefore(panel.element,$('addConsole'));
+  panel.output.setAttribute('aria-label','Tracker '+id+' executed instructions');
+  header.append(panel.select,pauseButton,close);panel.element.append(header,panel.output);consoles.push(panel);$('addConsole').before(panel.element);
   consoleOptions(panel);panel.select.value=kind;
-  panel.select.onchange=()=>{syncTrace();renderCoreView();renderTrace();};
-  syncTrace();renderCoreView();renderTrace();return panel;
+  panel.select.onchange=()=>{syncTrace();renderTrace();};
+  syncTrace();renderTrace();return panel;
 }
-function ensureCdbConsole(){if(!consoles.some(p=>p.select.value==='cdb'))addConsole('cdb');}
+// A new tracker follows the first warrior that no tracker follows yet.
+function nextTrackerKind(){
+ const count=latest?.warriors.length ?? sources.length,tracked=new Set(consoles.map(p=>p.select.value));
+ for(let i=0;i<count;i++)if(!tracked.has('warrior:'+i))return 'warrior:'+i;
+ return 'all';
+}
+function ensureCdbConsole(){if(!consoles.some(p=>p.select.value==='cdb'))addConsole('cdb');if(inspectorActive==='output' || inspectorActive?.select?.value!=='cdb')activateInspector(consoles.find(p=>p.select.value==='cdb'));}
 function renderTrace() {
   if(nativeBusy || fastMode || $('pauseViews').checked)return;
   for(const panel of consoles){
@@ -416,7 +575,7 @@ function present(update) {
   if($('diagnostics').open && !fastMode)$('sliceTiming').textContent='Peak simulation slice: '+maxSlice.toFixed(1)+' ms';
   if(update.debugHit>=0){if(nativeResume){nativeResume=false;setTimeout(()=>nativeCommand(undefined).catch(e=>log(e.message)),0);}pause();status('Debug marker: '+update.warriors[update.debugHit].name+' at '+addressText(update.warriors[update.debugHit].pc)+'. Paused before execution.');}
   if(update.debugEvent && nativeResume){nativeResume=false;pause();setTimeout(()=>nativeCommand(undefined).catch(e=>log(e.message)),0);}
-  if (update.done) { setFast(false);sampleScores(update);state = 'done'; status('Battle complete. Inspect the core; Reset starts again.'); controls(); }
+  if (update.done) { setFast(false,true);sampleScores(update);state = 'done'; status('Battle complete. Inspect the core; Reset starts again.'); controls(); }
   if (!fastMode && (state !== 'running' || performance.now()-lastText >= 100)) {
     if(!$('pauseViews').checked && !$('pauseProcesses').checked){
       if(chartRound!==update.round){processChart.clear();chartRound=update.round;}
@@ -430,13 +589,14 @@ async function load() {
   stop(); const token = generation;
   state = 'loading'; controls(); $('log').textContent = ''; consoleText='';$('consoleOutput').textContent='';
   status('Assembling warriors in a background worker…');
-  const config = options(), banks = await work('compile',config);
+  const slots = selectedIndices(), config = options(), banks = await work('compile',config);
   if (token !== generation) return false;
   const next = await Engine.create(config,{log});
   if (token !== generation) return false;
   next.import(banks);
   // Reserve the widest counter for this match so digit changes cannot reflow the toolbar.
   $('timing').style.width = (('Cycle '+config.cycles.toLocaleString()+' / '+config.cycles.toLocaleString()+' · round '+next.config.rounds.toLocaleString()).length)+'ch';
+  loadedSlots = slots; setBattleSlots(slots);
   engine = next; total = 0; maxSlice = 0; credit = 0; history = []; combined = [];
   display.configure(config.coreSize);clearHover(); inspectionAddress=0;
   traceControls(banks.map(b=>b.name));engine.setDebug($('debugEnabled').checked);
@@ -601,8 +761,8 @@ async function command(text) {
   if(/^(f[1-9]|f10|up|down|pgup|pgdn|alive|tproc|mousel|mousem|mouser)$/.test(verb))text='macro '+verb;
   return nativeCommand(text);
 }
-function setFast(enabled){
- const wasFast=fastMode;fastMode=enabled;$('fastNotice').hidden=!enabled;$('fast').setAttribute('aria-pressed',String(enabled));
+function setFast(enabled,keepNotice=false){
+ const wasFast=fastMode;fastMode=enabled;if(enabled || !keepNotice)$('fastNotice').hidden=!enabled;$('fast').setAttribute('aria-pressed',String(enabled));
  $('speed').disabled=enabled;syncTrace();
  if(!enabled){display.redraw();if(latest){if(wasFast)sampleScores(latest);textViews();}}
 }
@@ -626,11 +786,11 @@ $('reset').onclick = safe(load);
 $('speed').oninput = () => {
  const unlimited=Number($('speed').value)>5;
  const label=unlimited?'Unlimited':Math.round(10 ** Number($('speed').value)).toLocaleString();
- $('speedValue').textContent=label;
+ $('speedValue').textContent=label;$('speed').closest('label').dataset.unlimited=String(unlimited);
  $('speed').setAttribute('aria-valuetext',unlimited?'Unlimited, with graphics':label+' instructions per second');
  credit=0;
 };
-$('addConsole').onclick=()=>addConsole(latest?.warriors.length?'warrior:0':'cdb');
+$('addConsole').onclick=()=>addConsole(nextTrackerKind());
 $('arenaLayout').onchange=()=>{
  const layout=$('arenaLayout').value,viewport=document.querySelector('.arena-viewport');
  viewport.dataset.layout=layout;
@@ -639,7 +799,8 @@ $('arenaLayout').onchange=()=>{
  clearHover();display.redraw();
 };
 function clearHover(){ $('hoverAddress').textContent='Cell: —'; }
-$('cellSize').onchange = () => {clearHover();display.setCellSize(Number($('cellSize').value));};
+$('cellSize').onchange = () => {document.querySelector('.arena-viewport').dataset.cells=$('cellSize').value==='0'?'auto':'fixed';clearHover();display.setCellSize(Number($('cellSize').value));};
+$('cellSize').onchange(); // Start from the selected size (8 px), not CoreDisplay's built-in default.
 $('core').onpointermove=event=>{
  const address=display.addressAt(event),text=address===null?'Cell: —':'Cell: '+String(address).padStart(String(display.size-1).length,'0');
  if($('hoverAddress').textContent!==text)$('hoverAddress').textContent=text;
@@ -702,19 +863,23 @@ async function importFiles(files){
  if(list.some(f=>f.size>65536))throw new Error('Warrior files must be at most 64 KiB each.');
  const texts=await Promise.all(list.map(f=>f.text()));
  if(sources.length+texts.length>36)throw new Error('Too many warriors after concurrent imports.');
- sources.push(...texts);sourceFiles.push(...list.map(f=>f.name));markDirty();editors();
- status('Imported '+list.length+' warrior files. Edit them below or Reset to load them.');
+ sources.push(...texts);originals.push(...texts);sourceFiles.push(...list.map(f=>f.name));markDirty();editors();
+ status('Imported '+list.length+' warrior files. Select one to edit it, or Reset to load them.');
 }
 $('newWarrior').onclick=()=>{
  if(sources.length>=36)return;
  sourceFiles.push(null);
  collapsedEditors=sources.map(()=>true);collapsedEditors[sources.length]=false;
- sources.push(';redcode-94\n;name Warrior '+(sources.length+1)+'\n;assert 1\nmov.i 0, 1\nend\n');
+ const fresh=';redcode-94\n;name Warrior '+(sources.length+1)+'\n;assert 1\nmov.i 0, 1\nend\n';
+ sources.push(fresh);originals.push(fresh);
  markDirty();editors();
 };
+$('uploadBtn').onclick=()=>$('warriorFiles').click();
+$('newWarriorTile').onclick=$('welcomeNew').onclick=()=>$('newWarrior').click();
+$('welcomeUpload').onclick=()=>$('warriorFiles').click();
 async function startDemo(selected){
- if(sources.length)return;
- sources=[...selected];sourceFiles=selected.map(source=>bundledWarriors.find(w=>w.source===source)?.file||null);excludedWarriors=[];collapsedEditors=[];
+ if(sources.length && !(await askUser('Replace the '+sources.length+' loaded warrior'+(sources.length===1?'':'s')+' with this example?','Replace')))return;
+ sources=[...selected];originals=[...selected];sourceFiles=selected.map(source=>bundledWarriors.find(w=>w.source===source)?.file||null);excludedWarriors=[];collapsedEditors=[];openTabs=[];welcomeDismissed=true;
  $('preset').value='94';$('preset').onchange();
  $('rounds').value='1';$('debugEnabled').checked=false;
  $('speed').value='3';$('speed').oninput();
@@ -736,17 +901,26 @@ for(const id of ['dropZone']){
  const zone=$(id);
  zone.ondragover=e=>{e.preventDefault();zone.classList.add('dragging');};
  zone.ondragleave=()=>zone.classList.remove('dragging');
- zone.ondrop=e=>{e.preventDefault();zone.classList.remove('dragging');importFiles(e.dataTransfer.files).catch(err=>status(err.message));};
+ zone.ondrop=e=>{e.preventDefault();e.stopPropagation();zone.classList.remove('dragging');$('dropOverlay').hidden=true;dragDepth=0;importFiles(e.dataTransfer.files).catch(err=>status(err.message));};
 }
+// The whole page is a drop target.
+let dragDepth=0;
+const hasFiles=e=>[...(e.dataTransfer?.types||[])].includes('Files');
+window.addEventListener('dragenter',e=>{if(!hasFiles(e))return;dragDepth++;$('dropOverlay').hidden=false;});
+window.addEventListener('dragleave',e=>{if(!hasFiles(e))return;dragDepth=Math.max(0,dragDepth-1);if(!dragDepth)$('dropOverlay').hidden=true;});
+window.addEventListener('dragover',e=>{if(hasFiles(e))e.preventDefault();});
+window.addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();dragDepth=0;$('dropOverlay').hidden=true;importFiles(e.dataTransfer.files).catch(err=>status(err.message));});
+for(const card of document.querySelectorAll('.demo-card'))card.onclick=()=>$(card.dataset.demo).click();
 $('theme').onchange=()=>{
  setTheme($('theme').value);
- for(const selector of ['#editors .warrior']) document.querySelectorAll(selector).forEach((label,i)=>{label.style.color=warriorColor(i);});
- display.redraw();legend();textViews();processChart.draw();scoreChart.draw();
+ document.querySelectorAll('#editors .editor-title').forEach((row,i)=>{row.style.color=warriorColor(i);});
+ display.redraw();legend();textViews();processChart.draw();scoreChart.draw();renderCenterTabs();scoreViewKey=null;if(latest)scores(latest);
 };
 $('pauseProcesses').onchange=()=>{if(latest)processIndicators(latest);};
 $('pauseViews').onchange=()=>{syncTrace();if(latest)processIndicators(latest);};
 $('clearConsole').onclick=event=>{event.preventDefault();event.stopPropagation();consoleText='';$('consoleOutput').textContent='';compileIssues=[];refreshDiagnostics();};
 $('consoleWindow').ontoggle=()=>{if($('consoleWindow').open)$('consoleOutput').textContent=consoleText;};
+$('consoleWindow').querySelector('summary').addEventListener('click',event=>{if(!event.target.closest('button'))event.preventDefault();});
 setupSettings(markDirty);
 processChart.clear();scoreChart.clear();
 
@@ -757,12 +931,213 @@ $('editorTheme').onchange=$('editorSyntax').onchange=()=>{
  sourceEditors.forEach(editor=>editor.setTheme(name,syntax));
  try{localStorage.setItem('pmars-editor-theme',name);localStorage.setItem('pmars-editor-syntax',syntax);}catch{}
 };
+// Workspace autosave: warriors, roster choices and settings survive a reload; battles and results do not.
+function workspaceSnapshot(){
+ return {format:WORKSPACE_FORMAT,version:WORKSPACE_VERSION,saved:new Date().toISOString(),
+  warriors:sources.map((source,i)=>({source,original:originals[i]===undefined || originals[i]===source?null:originals[i],file:sourceFiles[i]??null,excluded:!!excludedWarriors[i]})),
+  openTabs:openTabs.filter(i=>i<sources.length),active:activeEditor(),mode,welcomeDismissed,
+  settings:settingsSnapshot(),battle:{speed:$('speed').value,debugEnabled:$('debugEnabled').checked},
+  tournament:{mode:$('tournamentMode').value,rounds:$('tournamentRounds').value,seed:$('tournamentSeed').value,selfFights:$('selfFights').checked,suite:$('benchmarkSuite').value}};
+}
+function persistNow(){
+ clearTimeout(persistTimer);persistTimer=null;
+ if(!persistReady)return;
+ try{localStorage.setItem(WORKSPACE_KEY,JSON.stringify(workspaceSnapshot()));persistWarned=false;}
+ catch{if(!persistWarned){persistWarned=true;status('This browser did not save the workspace. Use Export workspace to keep a copy.');}}
+}
+function schedulePersist(){if(!persistReady)return;clearTimeout(persistTimer);persistTimer=setTimeout(persistNow,500);}
+// Startup and import share this; tournament fields and the mode tab follow once tournaments are set up.
+function applyWorkspace(w){
+ sources=w.warriors.map(x=>x.source);originals=w.warriors.map(x=>x.original??x.source);sourceFiles=w.warriors.map(x=>x.file);
+ excludedWarriors=w.warriors.map(x=>x.excluded);openTabs=[...w.openTabs];collapsedEditors=sources.map((_,i)=>i!==w.active);
+ welcomeDismissed=w.welcomeDismissed || sources.length>0;
+ applySettingsSnapshot(w.settings);
+ if(w.battle.speed!==undefined){$('speed').value=w.battle.speed;$('speed').oninput();}
+ if(w.battle.debugEnabled!==undefined)$('debugEnabled').checked=w.battle.debugEnabled;
+}
+function applyTournamentWorkspace(w){
+ const t=w.tournament;
+ if(t.suite!==undefined && [...$('benchmarkSuite').options].some(o=>o.value===t.suite))$('benchmarkSuite').value=t.suite;
+ if(t.mode)$('tournamentMode').value=t.mode;
+ if(t.rounds!==undefined)$('tournamentRounds').value=t.rounds;
+ if(t.seed!==undefined)$('tournamentSeed').value=t.seed;
+ if(t.selfFights!==undefined)$('selfFights').checked=t.selfFights;
+ tournaments.refresh();
+ if(w.mode!==mode)$(w.mode==='tournament'?'tournamentTab':'emulatorTab').click();
+}
+let restoredWorkspace=null;
+try{const saved=localStorage.getItem(WORKSPACE_KEY);if(saved!==null)restoredWorkspace=parseWorkspace(saved);}
+catch{restoredWorkspace=null;try{localStorage.removeItem(WORKSPACE_KEY);}catch{}}
+if(restoredWorkspace)applyWorkspace(restoredWorkspace);
 editors(); clearBattle();
+function columnSplitter(id,panelId,name,min,max,viewportShare,direction){
+ const bar=$(id),panel=$(panelId),key='pmars-'+name,prop='--'+name;
+ const limit=width=>{
+  const other=$(panelId==='sidebar'?'inspector':'sidebar').getBoundingClientRect().width;
+  const room=$('app').clientWidth-other-560;
+  return Math.round(Math.max(min,Math.min(max,room,innerWidth*viewportShare,width)));
+ };
+ const apply=(width,save)=>{
+  width=limit(width);document.body.style.setProperty(prop,width+'px');bar.setAttribute('aria-valuenow',String(width));
+  if(save)try{localStorage.setItem(key,String(width));}catch{}
+  processChart.draw();scoreChart.draw();
+ };
+ bar.setAttribute('aria-valuemin',String(min));bar.setAttribute('aria-valuemax',String(max));
+ try{const saved=Number(localStorage.getItem(key));if(saved)apply(saved,false);}catch{}
+ bar.onpointerdown=event=>{
+  if(event.button!==0)return;
+  event.preventDefault();try{bar.setPointerCapture(event.pointerId);}catch{}
+  const startX=event.clientX,start=panel.getBoundingClientRect().width;
+  bar.classList.add('dragging');document.body.classList.add('resizing');
+  bar.onpointermove=move=>apply(start+direction*(move.clientX-startX),false);
+  bar.onpointerup=bar.onpointercancel=()=>{
+   bar.onpointermove=bar.onpointerup=bar.onpointercancel=null;
+   bar.classList.remove('dragging');document.body.classList.remove('resizing');
+   apply(panel.getBoundingClientRect().width,true);
+  };
+ };
+ bar.ondblclick=()=>{document.body.style.removeProperty(prop);try{localStorage.removeItem(key);}catch{}processChart.draw();scoreChart.draw();};
+ bar.onkeydown=event=>{
+  const step=event.shiftKey?64:16,delta={ArrowLeft:-step,ArrowRight:step}[event.key];
+  if(!delta)return;
+  event.preventDefault();apply(panel.getBoundingClientRect().width+direction*delta,true);
+ };
+}
+columnSplitter('sidebarSplitter','sidebar','sidebar-w',180,560,.3,1);
+columnSplitter('inspectorSplitter','inspector','inspector-w',260,900,.4,-1);
 
 addConsole('cdb');addConsole('all');
+// Resizing the window or the inspector re-lists the core so the listing keeps filling the console.
+new ResizeObserver(()=>{if(coreView!=='inspect' || !engine || nativeBusy)return;const lines=lineCount();if(lines!==listedLines)renderListing();}).observe($('instruction'));
+activateInspector(consoles[0]);
+renderCenterTabs();
 
+// Popovers: one open at a time, closed by outside click or Escape.
+const popovers=[['examplesBtn','examplesMenu'],['workspaceBtn','workspaceMenu'],['viewBtn','viewMenu'],['keyBtn','keyMenu'],['debugHelpBtn','debugHelp']];
+function closePopovers(except){
+ for(const [b,m] of popovers){if(m===except)continue;$(m).hidden=true;$(b).setAttribute('aria-expanded','false');}
+ $('helpLinks').classList.remove('open');$('helpBtn').setAttribute('aria-expanded','false');
+}
+for(const [b,m] of popovers){
+ $(b).onclick=event=>{event.stopPropagation();const open=$(m).hidden;closePopovers(m);$(m).hidden=!open;$(b).setAttribute('aria-expanded',String(open));};
+ $(m).addEventListener('click',event=>{event.stopPropagation();if(event.target.closest('.menu button'))closePopovers();});
+}
+$('helpBtn').onclick=event=>{event.stopPropagation();const open=!$('helpLinks').classList.contains('open');closePopovers();$('helpLinks').classList.toggle('open',open);$('helpBtn').setAttribute('aria-expanded',String(open));};
+document.addEventListener('click',()=>closePopovers());
+// The cell key sits inline under the core when it fits on one line, otherwise behind the "? Cell key" button.
+$('cellKeyInline').replaceChildren(...[...$('keyMenu').querySelector('.legend').children].map(node=>node.cloneNode(true)));
+function fitCellKey(){
+ const inline=$('cellKeyInline');
+ inline.hidden=false;
+ const fits=inline.clientWidth>0 && inline.scrollWidth<=inline.clientWidth;
+ inline.hidden=!fits;$('keyBtn').parentElement.hidden=fits;
+ if(fits)$('keyMenu').hidden=true;
+}
+new ResizeObserver(fitCellKey).observe(document.querySelector('.core-view .arena-foot'));
+
+document.addEventListener('keydown',event=>{if(event.key==='Escape')closePopovers();});
+// The Redcode reference (#reference or #reference/<section>) and the About page (#about) open over the app; Back or "Back to the app" closes them.
+const PAGES={reference:{file:'redcode.html',title:'Redcode reference',link:'referenceLink'},about:{file:'about.html',title:'About corewar.dev',link:'aboutLink'}};
+let referenceFromHash=false;
+function placeReference(){document.body.style.setProperty('--reference-top',document.querySelector('.topbar').getBoundingClientRect().bottom+'px');}
+function showReference(){
+ const match=location.hash.match(/^#(reference|about)(?:\/([\w-]+))?$/), open=!!match, page=open&&PAGES[match[1]];
+ $('referenceView').hidden=!open;document.body.dataset.reference=String(open);
+ for(const [name,p] of Object.entries(PAGES)){if(page===p)$(p.link).setAttribute('aria-current','page');else $(p.link).removeAttribute('aria-current');}
+ if(!open)return;
+ closePopovers();placeReference();
+ $('referenceTitle').textContent=page.title;$('referenceFrame').title=page.title;$('referenceNewTab').href=page.file;$('referenceView').setAttribute('aria-label',page.title);
+ const target=page.file+'?embed'+(match[2]?'#'+match[2]:''), frame=$('referenceFrame');
+ if(frame.dataset.page!==match[1]){const first=!frame.dataset.page;frame.dataset.page=match[1];if(first)frame.src=target;else frame.contentWindow.location.replace(target);} // Replace, not navigate: switching pages must not add a history entry.
+ else if(match[2]){const doc=frame.contentDocument;doc?.getElementById(match[2])?.scrollIntoView();doc?.defaultView.history.replaceState(null,'','#'+match[2]);} // Scroll, not navigate: frame navigations add history entries.
+}
+const pageOpen=()=>/^#(reference|about)/.test(location.hash);
+function closeReference(){
+ if(!pageOpen())return;
+ if(referenceFromHash)window.history.back();
+ else{window.history.replaceState(null,'',location.pathname+location.search);showReference();}
+}
+addEventListener('hashchange',()=>{referenceFromHash=pageOpen();showReference();});
+addEventListener('resize',()=>{if(!$('referenceView').hidden)placeReference();});
+addEventListener('message',event=>{
+ if(event.origin!==location.origin)return;
+ if(event.data?.type==='corewar-reference-close')setTimeout(closeReference,50);
+ // A link from one page to another (About to the reference) swaps the page without adding a history entry.
+ if(event.data?.type==='corewar-open' && /^#(reference|about)(\/[\w-]+)?$/.test(event.data.hash))location.replace(event.data.hash);
+});
+$('closeReference').onclick=closeReference;
+// A plain click on the wordmark stays in the app instead of reloading it and losing the warriors; modified clicks still open a new tab.
+$('wordmark').onclick=event=>{if(event.button||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();closePopovers();closeReference();};
+// While it is open, section links replace the entry so one Back still returns to the app.
+document.addEventListener('click',event=>{const a=event.target.closest('a[href^="#reference"],a[href="#about"]');if(a && !$('referenceView').hidden){event.preventDefault();if(a.hash!==location.hash)location.replace(a.hash);}});
+// Escape also stops pending navigations in Chrome, so close after the key event.
+document.addEventListener('keydown',event=>{if(event.key==='Escape' && !$('referenceView').hidden){event.preventDefault();setTimeout(closeReference,50);}});
+showReference();
+
+// Phone bottom bar: Core | Code | Debug | Output.
+function markPane(name){
+ document.body.dataset.pane=name;
+ for(const b of document.querySelectorAll('#phoneBar button'))b.setAttribute('aria-pressed',String(b.dataset.pane===name));
+}
+function setPane(name){
+ markPane(name);
+ if(name==='code'){if(activeEditor()<0 && sources.length)openWarrior(openTabs[0]??0);}
+ else if(activeEditor()>=0)showCore();
+ if(name==='debug')activateInspector(consoles.find(p=>p.select.value==='cdb'));
+ if(name==='output')activateInspector('output');
+ if(name==='core'){display.redraw();}
+}
+for(const b of document.querySelectorAll('#phoneBar button'))b.onclick=()=>setPane(b.dataset.pane);
+
+// Choosing a mode always shows that mode's view: it leaves the reference or About page and steps out of an open editor (its tab stays open).
+$('modeTabs').addEventListener('click',event=>{
+ if(!event.target.closest('button[role=tab]:not(:disabled)'))return;
+ closeReference();
+ if(activeEditor()>=0)showCore();
+});
 tournaments=setupTournaments({
  roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),
  readConfig:()=>readSettings({warriors:2}),
- onTab:index=>{if(index===1 && state==='running')pause();if(index===0){display.redraw();processChart.draw();scoreChart.draw();}}
+ onTab:index=>{if(index===1)$('tournamentSettingsSlot').append($('settingsDock'));else $('settingsDock').closest('#tournamentSettingsSlot')&&document.querySelector('.core-view .arena-foot').prepend($('settingsDock'));for(const [i,id] of ['emulatorTab','tournamentTab'].entries()){if(i===index)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');}if(index===1 && state==='running')pause();mode=index===1?'tournament':'battle';document.body.dataset.mode=mode;$('phoneBar').querySelector('[data-pane=core]').textContent=index===1?'Tournament':'Core';if(index===1 && ['debug','output'].includes(document.body.dataset.pane))setPane('core');editorVisibility();if(index===0 && activeEditor()<0){display.redraw();processChart.draw();scoreChart.draw();}}
 });
+if(restoredWorkspace){
+ applyTournamentWorkspace(restoredWorkspace);
+ if(sources.length)status('Restored '+sources.length+' warrior'+(sources.length===1?'':'s')+' saved in this browser. Run or Reset to load them.');
+}
+persistReady=true;
+for(const type of ['input','change','click'])document.addEventListener(type,schedulePersist,true);
+// Flush a pending save so a quick reload or tab close keeps the last edit.
+addEventListener('pagehide',()=>{if(persistTimer)persistNow();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden && persistTimer)persistNow();});
+// Another tab saving wins until this tab changes something; say so instead of overwriting silently.
+addEventListener('storage',event=>{if(event.key===WORKSPACE_KEY && event.newValue!==null)$('changed').textContent='Another tab saved its workspace. Your next change here replaces it; reload to use that version instead.';});
+function exportWorkspace(){
+ const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify(workspaceSnapshot(),null,2)+'\n'],{type:'application/json'}));
+ a.href=url;a.download='corewar-workspace.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function importWorkspace(file){
+ if(file.size>8*1024*1024)throw new Error('Workspace files must be at most 8 MiB.');
+ const w=parseWorkspace(await file.text());
+ if(sources.length && !(await askUser('Replace the '+sources.length+' loaded warrior'+(sources.length===1?'':'s')+' and the settings with “'+file.name+'”?','Replace')))return;
+ if(nativeBusy)throw new Error('Cancel the running debugger command before importing a workspace.');
+ clearBattle();applyWorkspace(w);markDirty();editors();applyTournamentWorkspace(w);persistNow();
+ status('Imported workspace with '+sources.length+' warrior'+(sources.length===1?'':'s')+'. Run or Reset to load them.');
+}
+// An in-page dialog: some embedded browsers answer confirm() and alert() with false without showing anything.
+function askUser(message,ok,cancel=true){
+ const dialog=$('workspaceDialog');
+ $('workspaceDialogText').textContent=message;$('workspaceDialogOk').textContent=ok;$('workspaceDialogCancel').hidden=!cancel;
+ dialog.returnValue='';dialog.showModal();
+ return new Promise(resolve=>dialog.addEventListener('close',()=>resolve(dialog.returnValue==='ok'),{once:true}));
+}
+$('exportWorkspace').onclick=exportWorkspace;
+$('importWorkspace').onclick=()=>$('workspaceFile').click();
+$('workspaceFile').onchange=()=>{const file=$('workspaceFile').files[0];$('workspaceFile').value='';if(file)importWorkspace(file).catch(error=>{status(error.message);askUser(error.message,'OK',false);});};
+// Reloading after removing the saved copy is the most complete reset: battles, consoles and results go too.
+$('startClean').onclick=async()=>{
+ const count=sources.length?' all '+sources.length+' warrior'+(sources.length===1?'':'s')+',':'';
+ if(!(await askUser('Start clean? This discards'+count+' your edits and the settings saved in this browser. Use Export workspace first to keep a copy.','Start clean')))return;
+ persistReady=false;clearTimeout(persistTimer);
+ try{localStorage.removeItem(WORKSPACE_KEY);}catch{}
+ location.reload();
+};

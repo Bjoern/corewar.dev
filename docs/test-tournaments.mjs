@@ -11,7 +11,7 @@ const exportRun=async()=>{const d=page.waitForEvent('download');await page.locat
 try {
  await page.goto(process.env.PMARS_URL||'http://127.0.0.1:8766/');
  await page.locator('#warriorFiles').setInputFiles(['Imp','Dwarf','Loop'].map((name,i)=>({name:name+'.red',mimeType:'text/plain',buffer:Buffer.from(';redcode\n;name '+name+'\n;assert 1\n'+['mov 0,1','add.ab #4,3\nmov.i 2,@2\njmp -2\ndat 0,0','jmp 0'][i]+'\n')})));
- await page.locator('#tournamentTab').click();assert(await page.locator('#emulatorPanel').isHidden());
+ await page.locator('#tournamentTab').click();assert(await page.locator('#coreView').isHidden());assert(await page.locator('#tournamentPanel').isVisible());
  await page.locator('[data-workers=all]').click();assert.equal(await page.locator('#tournamentWorkers').inputValue(),'4');
  await page.locator('#workerSlider').focus();await page.locator('#workerSlider').press('ArrowLeft');assert.equal(await page.locator('#tournamentWorkers').inputValue(),'3');
  await page.locator('[data-workers=one]').click();assert.equal(await page.locator('#workerSlider').inputValue(),'1');

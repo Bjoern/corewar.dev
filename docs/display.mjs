@@ -9,6 +9,10 @@ export function setTheme(value){theme=palettes[value]?value:'modern';document.bo
 export function warriorColor(i) {
  return palettes[theme][i % palettes[theme].length];
 }
+// Battle slot j shows the colour of the roster row it was loaded from, so excluded warriors don't shift colours.
+let battleSlots=[];
+export function setBattleSlots(slots){battleSlots=slots.slice();}
+export function battleColor(j){return warriorColor(battleSlots[j] ?? j);}
 export class CoreDisplay {
   constructor(canvas) {
     this.canvas = canvas;
@@ -56,6 +60,16 @@ export class CoreDisplay {
     const naturalColumns = Math.ceil(Math.sqrt(this.size * 2.5));
     // Even CSS pixel sizes keep quarter-cell boundaries on whole pixels.
     this.cellSize = this.preferredCellSize || Math.max(2,2*Math.floor(available/naturalColumns/2));
+    if (!this.preferredCellSize && this.viewport?.dataset.layout==='fill' && this.viewport.clientHeight>0) {
+      // Fill: the largest even cell size whose whole grid fits both dimensions.
+      const height=this.viewport.clientHeight;
+      let best=2;
+      for (let size=Math.max(2,2*Math.floor(Math.min(available,height)/2)); size>=2; size-=2) {
+        const columns=Math.max(1,Math.floor(available/size));
+        if (Math.ceil(this.size/columns)*size<=height) { best=size; break; }
+      }
+      this.cellSize=best;
+    }
     if (constrainedHeight) {
       const rows = Math.max(1,Math.floor(this.viewport.clientHeight/this.cellSize));
       this.columns = Math.min(this.size,Math.max(Math.floor(available/this.cellSize),Math.ceil(this.size/rows)));
@@ -134,7 +148,7 @@ export class CoreDisplay {
     for(let q=0;q<4;q++){
       const owner=this.cells[address*4+q];
       if(!owner)continue;
-      c.fillStyle=warriorColor(owner-1);
+      c.fillStyle=battleColor(owner-1);
       c.fillRect(x+pad+(q%2)*half,y+pad+Math.floor(q/2)*half,half,half);
     }
     if(!classic){

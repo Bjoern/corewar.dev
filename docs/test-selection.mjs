@@ -6,6 +6,7 @@ const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(
 const source=(name,code='jmp 0')=>({name:name+'.red',mimeType:'text/plain',buffer:Buffer.from(';redcode\n;name '+name+'\n;assert 1\n'+code+'\n')});
 try {
  await page.goto(process.env.PMARS_URL || 'http://127.0.0.1:8765/docs/');
+ const sameColor=async(name,row)=>assert.equal(await page.locator('#legendNames > span',{hasText:name}).evaluate(e=>e.style.color),await page.locator('#editors .editor-title').nth(row).evaluate(e=>e.style.color),name+' should keep its roster colour in the battle');
  await page.locator('#warriorFiles').setInputFiles([source('Broken','invalid opcode'),source('Bravo'),source('Charlie')]);
  const checks=page.locator('.include-warrior');await checks.first().waitFor();
  await checks.nth(0).uncheck();await checks.nth(2).uncheck();
@@ -18,14 +19,14 @@ try {
  await page.locator('#reset').click();await page.waitForFunction(()=>document.querySelector('#activeSettings').textContent.includes('2 warriors'));
  await checks.nth(1).uncheck();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Paused before') && document.querySelectorAll('#legendNames > span').length===1);
- assert.match(await page.locator('#legendNames').textContent(),/Charlie/);
+ assert.match(await page.locator('#legendNames').textContent(),/Charlie/);await sameColor('Charlie',2);
  assert.equal(await page.locator('#timing').getAttribute('data-instructions'),'0');
  await checks.nth(2).uncheck();
  assert.equal(await page.locator('#legendNames').textContent(),'');
  assert(await page.locator('#reset').isDisabled());assert(await page.locator('#run').isDisabled());
  await page.locator('.remove-warrior').first().click();assert.equal(await checks.nth(0).isChecked(),false);
  await checks.nth(1).check();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Paused before'));
- assert.match(await page.locator('#legendNames').textContent(),/Charlie/);
+ assert.match(await page.locator('#legendNames').textContent(),/Charlie/);await sameColor('Charlie',1);
  assert.match(await page.locator('#activeSettings').textContent(),/1 warriors/);
  assert.deepEqual(errors,[]);
  // Rapid changes must cancel pending assemblies and leave the final selection loaded.
@@ -36,5 +37,5 @@ try {
  assert.match(await page.locator('#legendNames').textContent(),/Bravo/);
  assert.equal(await page.locator('#timing').getAttribute('data-instructions'),'0');
  assert.deepEqual(errors,[]);
- console.log('PASS: selection, excluded invalid source, solo stepping, reset, zero selection, and removal preserve roster mapping.');
+ console.log('PASS: selection, excluded invalid source, solo stepping, reset, zero selection, and removal preserve roster mapping and roster colours.');
 } finally {await browser.close();}

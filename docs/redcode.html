@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Redcode reference - corewar.dev</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta name="description" content="A practical Redcode reference for writing Core War warriors: program layout, addressing modes, opcodes, modifiers, processes, and classic warrior patterns.">
+<script defer src="https://cloud.umami.is/script.js" data-website-id="e78560ba-d8d1-44de-a5f3-4048690fef79"></script>
+<style>
+:root{color-scheme:dark;--bg:#09131d;--panel:#101d29;--code:#0b1620;--border:#2a3d4d;--text:#e4edf3;--muted:#aec0ce;--soft:#9db0bf;--accent:#54d8df;--warm:#f9a567;--good:#a7e8a3;--bad:#ffb9b9;font-family:system-ui,sans-serif;color:var(--text);background:var(--bg)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);line-height:1.6}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.topbar{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;max-width:1180px;margin:auto;padding:20px 32px 8px}
+.wordmark{font-weight:700;font-size:18px;text-decoration:none;color:var(--text)}
+.topbar nav{display:flex;gap:16px;font-size:14px;margin-left:auto}
+.layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:40px;max-width:1180px;margin:auto;padding:8px 32px 48px}
+.toc{position:sticky;top:16px;align-self:start;font-size:14px;max-height:calc(100vh - 32px);overflow:auto}
+.toc strong{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.toc ol{list-style:none;margin:0;padding:0}.toc li{margin:2px 0}
+.toc a{display:block;padding:3px 10px;border-left:2px solid var(--border);color:var(--soft);text-decoration:none}
+.toc a:hover,.toc a[aria-current=true]{color:var(--text);border-left-color:var(--accent)}
+article{min-width:0;max-width:820px}
+h1{font-size:clamp(28px,4.5vw,42px);letter-spacing:-.03em;line-height:1.15;margin:12px 0 8px}
+.lede{font-size:18px;color:var(--soft);margin:0 0 24px}
+h2{font-size:24px;letter-spacing:-.01em;margin:48px 0 8px;padding-top:16px;border-top:1px solid var(--border);scroll-margin-top:12px}
+h3{font-size:17px;margin:28px 0 6px;scroll-margin-top:12px}
+p,li{color:#c6d4de}
+code{font:14px Consolas,"Cascadia Mono",monospace;background:var(--code);border:1px solid var(--border);border-radius:4px;padding:0 4px;color:var(--text);white-space:nowrap}
+pre{font:14px/1.55 Consolas,"Cascadia Mono",monospace;background:var(--code);border:1px solid var(--border);border-radius:8px;padding:14px 16px;overflow-x:auto;margin:12px 0;color:var(--text)}
+pre code{background:none;border:0;padding:0;white-space:pre}
+.tok-op{color:var(--accent);font-weight:600}.tok-mod{color:#7fb6d9}.tok-mode{color:var(--warm);font-weight:700}.tok-com{color:#7893a6;font-style:italic}.tok-label{color:var(--good)}.tok-dir{color:#d7a8f0}
+.table-wrap{overflow-x:auto;margin:12px 0;border:1px solid var(--border);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:8px 12px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:0}
+th{background:var(--panel);color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+td:first-child{white-space:nowrap}
+td code{white-space:nowrap}
+.callout{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;padding:12px 16px;margin:16px 0}
+.callout.warn{border-left-color:var(--warm)}
+.callout p{margin:4px 0}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;margin:16px 0}
+.cards div{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.cards strong{display:block;color:var(--text)}
+.cards span{font-size:14px;color:var(--soft)}
+.diagram{display:flex;flex-wrap:wrap;gap:4px;margin:12px 0;font:13px Consolas,monospace}
+.diagram span{border:1px solid var(--border);background:var(--panel);border-radius:4px;padding:6px 8px;text-align:center;min-width:64px}
+.diagram em{display:block;font-style:normal;color:var(--muted);font-size:11px}
+.diagram .hot{border-color:var(--accent);color:var(--accent)}
+.embedded .topbar,.embedded footer{display:none}
+.embedded .layout{padding-top:16px}
+footer{max-width:1180px;margin:auto;padding:20px 32px 40px;border-top:1px solid var(--border);color:#7893a6;font-size:13px}
+@media(max-width:860px){
+ .layout{grid-template-columns:1fr;gap:0;padding:8px 16px 40px}
+ .topbar{padding:16px 16px 4px}
+ footer{padding:20px 16px 32px}
+ .toc{position:static;max-height:none;margin-bottom:8px}
+ .toc ol{display:flex;flex-wrap:wrap;gap:6px}
+ .toc a{border:1px solid var(--border);border-radius:999px;padding:2px 10px;font-size:13px}
+}
+@media print{
+ :root{color-scheme:light;--bg:#fff;--panel:#f3f6f8;--code:#f6f8fa;--border:#ccd6dd;--text:#111;--muted:#445;--soft:#333;--accent:#006b73}
+ p,li{color:#222}.toc,.topbar nav{display:none}.layout{display:block}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+<a class="wordmark" href="./">corewar.dev</a>
+<nav aria-label="Site"><a href="./">Open the app</a><a href="https://corewar.co.uk/icws94.txt" target="_blank" rel="noopener">ICWS ’94 standard</a></nav>
+</header>
+<div class="layout">
+<nav class="toc" aria-label="On this page">
+<strong>On this page</strong>
+<ol>
+<li><a href="#basics">The basics</a></li>
+<li><a href="#layout">A warrior file</a></li>
+<li><a href="#instructions">Instructions &amp; fields</a></li>
+<li><a href="#modes">Addressing modes</a></li>
+<li><a href="#opcodes">Opcodes</a></li>
+<li><a href="#modifiers">Modifiers</a></li>
+<li><a href="#processes">Processes &amp; timing</a></li>
+<li><a href="#assembler">Assembler features</a></li>
+<li><a href="#pspace">P-space</a></li>
+<li><a href="#patterns">Classic warriors</a></li>
+<li><a href="#pitfalls">Common pitfalls</a></li>
+<li><a href="#settings">Hill settings</a></li>
+<li><a href="#icws88">’88 vs ’94</a></li>
+<li><a href="#more">Further reading</a></li>
+</ol>
+</nav>
+<article>
+<h1>Redcode for warrior writers</h1>
+<p class="lede">A practical reference for writing Core War programs in Redcode. It covers what you need to write, read, and debug warriors. Implementers should read the full ICWS ’94 standard instead.</p>
+
+<h2 id="basics">The basics</h2>
+<p>Two or more programs, called <em>warriors</em>, are loaded at random places in a circular memory called the <em>core</em>. They take turns executing one instruction each. A program that executes a <code>DAT</code> instruction, or divides by zero, loses that process. A warrior is dead when all its processes are dead. The last warrior still running wins the round. If several survive until the cycle limit, the round is a tie.</p>
+<div class="cards">
+<div><strong>Every address is relative</strong><span><code>0</code> is the current instruction, <code>1</code> is the next one, <code>-1</code> the previous one. There are no absolute addresses.</span></div>
+<div><strong>The core wraps around</strong><span>In an 8000-cell core, address 8000 is address 0 again. Every number is stored as a value from 0 to 7999, so <code>-1</code> is stored as 7999.</span></div>
+<div><strong>Empty core is <code>DAT 0, 0</code></strong><span>All cells that do not belong to a warrior start as <code>DAT.F $0, $0</code>. Jumping into empty core kills the process.</span></div>
+<div><strong>Scoring</strong><span>In a two-warrior match, a win is worth 3 points, a tie 1, and a loss 0. Matches run many rounds from random starting positions.</span></div>
+</div>
+
+<h2 id="layout">A warrior file</h2>
+<p>Here is a complete warrior, the classic <em>Dwarf</em>. It drops a <code>DAT</code> bomb on every fourth cell of the core, forever.</p>
+<pre><code class="red">;redcode-94
+;name Dwarf
+;author A. K. Dewdney
+;strategy Bombs every fourth cell with a DAT.
+;assert CORESIZE % 4 == 0
+
+step    equ    4
+
+        org    loop
+loop    add.ab #step, bomb      ; move the bomb pointer 4 cells on
+        mov.i  bomb, @bomb      ; copy the bomb to where it points
+        jmp    loop             ; and again
+bomb    dat    #0, #0           ; the bomb, and the pointer
+        end</code></pre>
+<div class="table-wrap"><table>
+<thead><tr><th>Line</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>;redcode-94</code></td><td>Marks the start of the code. Anything before it is ignored, so you can paste a warrior into an email or notes.</td></tr>
+<tr><td><code>;name</code>, <code>;author</code></td><td>Shown in results and on hills. Optional, but please use them.</td></tr>
+<tr><td><code>;strategy</code></td><td>A short description of how the warrior works. Many hills show it next to the warrior, and it helps readers once you publish the warrior. Repeat the line for more text: each <code>;strategy</code> line adds one line. pMARS itself ignores it.</td></tr>
+<tr><td><code>;assert</code></td><td>An expression that must be true, or the warrior refuses to assemble. Use it to say which settings the warrior was written for, for example <code>;assert CORESIZE == 8000</code>. Some hills require an assert line; <code>;assert 1</code> always passes.</td></tr>
+<tr><td><code>step equ 4</code></td><td>A named constant. The assembler replaces <code>step</code> with <code>4</code>.</td></tr>
+<tr><td><code>org loop</code></td><td>Where execution starts. Without it, execution starts at the first instruction. <code>end loop</code> does the same.</td></tr>
+<tr><td><code>loop</code>, <code>bomb</code></td><td>Labels. A label is turned into the distance from the instruction that uses it, so <code>jmp loop</code> on the third line becomes <code>jmp -2</code>.</td></tr>
+<tr><td><code>; ...</code></td><td>A comment. Everything after a semicolon is ignored, except the directives above.</td></tr>
+<tr><td><code>end</code></td><td>End of the warrior. Anything after it is ignored.</td></tr>
+</tbody></table></div>
+<p>Opcodes, modifiers and directives are case-insensitive. Use the <strong>Validate</strong> button in the editor to see exactly what the assembler made of your code. For the Dwarf above it shows:</p>
+<pre><code class="red">       ADD.AB #     4, $     3
+       MOV.I  $     2, @     2
+       JMP.B  $    -2, $     0
+       DAT.F  #     0, #     0</code></pre>
+
+<h2 id="instructions">Instructions and fields</h2>
+<p>Each cell in the core holds exactly one instruction. An instruction has five parts:</p>
+<pre><code class="red">opcode.modifier  A-mode A-number, B-mode B-number
+mov.i            $2,              @2</code></pre>
+<ul>
+<li><strong>Opcode</strong>: what to do, for example <code>MOV</code> (copy) or <code>JMP</code> (jump).</li>
+<li><strong>Modifier</strong>: which parts of the instructions are used, for example <code>.I</code> for the whole instruction. If you leave it out, the assembler picks a sensible default (see <a href="#modifiers">Modifiers</a>).</li>
+<li><strong>A-field</strong> and <strong>B-field</strong>: two numbers, each with an addressing mode in front. Roughly, A is the source and B is the destination. If you leave out the mode, <code>$</code> (direct) is used.</li>
+</ul>
+<p>The fields are also plain data. Warriors use them as pointers and counters: the <code>bomb</code> in the Dwarf is both the thing being thrown and the pointer that says where to throw it.</p>
+<p>If you write only one operand, <code>DAT</code> puts it in the B-field (<code>dat #5</code> is <code>dat #0, #5</code>). Most other opcodes put it in the A-field and use <code>$0</code> for B (<code>jmp loop</code> is <code>jmp loop, $0</code>).</p>
+
+<h2 id="modes">Addressing modes</h2>
+<p>The mode tells the processor how to turn the number into an address. Indirect modes follow a pointer stored in another instruction: the number picks an instruction, and that instruction’s A- or B-field gives a further offset <em>from that instruction</em>.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Mode</th><th>Name</th><th>Points to</th><th>Typical use</th></tr></thead>
+<tbody>
+<tr><td><code>#</code></td><td>Immediate</td><td>The number itself. The address is the current instruction.</td><td>Constants: <code>add #4, ptr</code></td></tr>
+<tr><td><code>$</code></td><td>Direct</td><td>The cell that many steps away. The default.</td><td><code>jmp loop</code></td></tr>
+<tr><td><code>@</code></td><td>B-indirect</td><td>Go to the cell, then add its B-field.</td><td>Use a B-field as a pointer: <code>mov bomb, @ptr</code></td></tr>
+<tr><td><code>*</code></td><td>A-indirect</td><td>Go to the cell, then add its A-field.</td><td>Use an A-field as a pointer</td></tr>
+<tr><td><code>&lt;</code></td><td>B pre-decrement</td><td>Subtract 1 from the cell’s B-field, then use it like <code>@</code>.</td><td>Walking a pointer backwards</td></tr>
+<tr><td><code>&gt;</code></td><td>B post-increment</td><td>Use the B-field like <code>@</code>, then add 1 to it.</td><td>Walking a pointer forwards</td></tr>
+<tr><td><code>{</code></td><td>A pre-decrement</td><td>Like <code>&lt;</code>, using the A-field.</td><td>Second pointer in the same cell</td></tr>
+<tr><td><code>}</code></td><td>A post-increment</td><td>Like <code>&gt;</code>, using the A-field.</td><td>Copy loops: <code>mov }src, &gt;dst</code></td></tr>
+</tbody></table></div>
+<h3>An indirect example</h3>
+<p>The instruction at address 0 is <code>mov.i 2, @2</code>. The A operand <code>2</code> is direct: the source is cell 2. The B operand <code>@2</code> looks at cell 2, reads its B-field (5), and adds it: the destination is cell 2 + 5 = 7.</p>
+<div class="diagram" aria-label="Cells 0 to 7: MOV at 0, DAT 0,5 at 2, copied to 7">
+<span class="hot">0<em>mov.i 2, @2</em></span><span>1<em>…</em></span><span class="hot">2<em>dat 0, 5</em></span><span>3<em>…</em></span><span>4<em>…</em></span><span>5<em>…</em></span><span>6<em>…</em></span><span class="hot">7<em>← copy</em></span>
+</div>
+<div class="callout"><p>The order matters. Decrements (<code>&lt;</code>, <code>{</code>) change the pointer <em>first</em> and then follow the new value. Increments (<code>&gt;</code>, <code>}</code>) follow the current value <em>first</em> and then change the pointer. So a pointer of 5 used with <code>&lt;</code> reaches offset 4, but used with <code>&gt;</code> it reaches offset 5 and is 6 afterwards.</p>
+<p>Increments and decrements change the core straight away, even if the instruction then does nothing useful. <code>jmp loop, &lt;ptr</code> jumps <em>and</em> decrements <code>ptr</code>’s B-field. This is how many warriors fit two jobs into one instruction.</p></div>
+
+<h2 id="opcodes">Opcodes</h2>
+<p>“A” and “B” below mean the instructions (or numbers) that the A and B operands point to. The default modifier is what you get if you write no modifier.</p>
+<h3>Moving and arithmetic</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Opcode</th><th>What it does</th><th>Default modifier</th></tr></thead>
+<tbody>
+<tr><td><code>DAT</code></td><td>Kills the process that executes it. Also used to hold data, pointers and bombs.</td><td><code>.F</code></td></tr>
+<tr><td><code>MOV</code></td><td>Copies A to B.</td><td><code>.AB</code> if A is <code>#</code>, else <code>.B</code> if B is <code>#</code>, else <code>.I</code></td></tr>
+<tr><td><code>ADD</code></td><td>B = B + A</td><td rowspan="3"><code>.AB</code> if A is <code>#</code>, else <code>.B</code> if B is <code>#</code>, else <code>.F</code></td></tr>
+<tr><td><code>SUB</code></td><td>B = B − A</td></tr>
+<tr><td><code>MUL</code></td><td>B = B × A</td></tr>
+<tr><td><code>DIV</code></td><td>B = B ÷ A, rounded down. <strong>Dividing by zero kills the process.</strong></td><td rowspan="2">same as <code>ADD</code></td></tr>
+<tr><td><code>MOD</code></td><td>B = remainder of B ÷ A. Dividing by zero kills the process.</td></tr>
+</tbody></table></div>
+<p>All arithmetic wraps around the core size: in an 8000-cell core, <code>7999 + 2</code> is <code>1</code>.</p>
+<h3>Jumps</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Opcode</th><th>What it does</th><th>Default modifier</th></tr></thead>
+<tbody>
+<tr><td><code>JMP</code></td><td>Continue at A.</td><td rowspan="5"><code>.B</code></td></tr>
+<tr><td><code>JMZ</code></td><td>Continue at A if B is zero, otherwise go to the next instruction.</td></tr>
+<tr><td><code>JMN</code></td><td>Continue at A if B is not zero.</td></tr>
+<tr><td><code>DJN</code></td><td>Decrement B, then continue at A if B is not zero. A loop counter in one instruction.</td></tr>
+<tr><td><code>SPL</code></td><td>Start a new process at A. The current process continues at the next instruction. See <a href="#processes">Processes</a>.</td></tr>
+</tbody></table></div>
+<p>Jumps test the B-field by default. <code>jmz.f</code> and <code>jmz.i</code> jump only if <em>both</em> fields are zero; <code>jmn.f</code> jumps if <em>either</em> field is non-zero; <code>djn.f</code> decrements both fields and jumps if either is non-zero. <code>jmz.f</code> is the usual way to ask “is this cell still empty core?” It only looks at the numbers, though, so warriors can hide from it with instructions whose fields are both zero, such as <code>spl #0, #0</code> or <code>jmp #0, #0</code>. Comparing whole instructions with <code>seq.i</code> or <code>sne.i</code> still sees them.</p>
+<h3>Comparisons</h3>
+<p>Comparisons do not jump. If the condition is true, they <em>skip</em> the next instruction.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Opcode</th><th>Skips the next instruction if</th><th>Default modifier</th></tr></thead>
+<tbody>
+<tr><td><code>SEQ</code> / <code>CMP</code></td><td>A equals B. <code>CMP</code> is the old name.</td><td rowspan="2">same as <code>MOV</code></td></tr>
+<tr><td><code>SNE</code></td><td>A does not equal B.</td></tr>
+<tr><td><code>SLT</code></td><td>A is less than B. Numbers are compared as 0 to CORESIZE−1, so <code>-1</code> counts as the largest value.</td><td><code>.AB</code> if A is <code>#</code>, else <code>.B</code></td></tr>
+</tbody></table></div>
+<p>A common scanner idiom compares two cells some distance apart, and only drops through to the attack when they differ:</p>
+<pre><code class="red">        seq.i  ptr1, ptr2      ; both cells look the same?
+        jmp    attack          ; no: something is there
+        add.f  step, ptr1      ; yes: look further on</code></pre>
+<h3>Other</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Opcode</th><th>What it does</th><th>Default modifier</th></tr></thead>
+<tbody>
+<tr><td><code>NOP</code></td><td>Nothing. Operands are still evaluated, so <code>nop &gt;a, &lt;b</code> still changes <code>a</code> and <code>b</code>.</td><td><code>.F</code></td></tr>
+<tr><td><code>LDP</code></td><td>Loads P-space cell number A into B. See <a href="#pspace">P-space</a>.</td><td rowspan="2"><code>.AB</code> if A is <code>#</code>, else <code>.B</code></td></tr>
+<tr><td><code>STP</code></td><td>Stores A into P-space cell number B.</td></tr>
+</tbody></table></div>
+
+<h2 id="modifiers">Modifiers</h2>
+<p>A modifier says which fields an instruction reads and writes. Think of it as “from which field of A, to which field of B”.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Modifier</th><th>From A</th><th>To B</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td><code>.A</code></td><td>A-field</td><td>A-field</td><td><code>add.a #1, ptr</code> moves an A-field pointer</td></tr>
+<tr><td><code>.B</code></td><td>B-field</td><td>B-field</td><td><code>mov.b ptr, save</code> copies a pointer</td></tr>
+<tr><td><code>.AB</code></td><td>A-field</td><td>B-field</td><td><code>add.ab #4, bomb</code> (the Dwarf)</td></tr>
+<tr><td><code>.BA</code></td><td>B-field</td><td>A-field</td><td>Move a B-pointer into an A-field</td></tr>
+<tr><td><code>.F</code></td><td>both fields</td><td>both fields, A→A and B→B</td><td><code>add.f step, ptrs</code> moves two pointers at once</td></tr>
+<tr><td><code>.X</code></td><td>both fields</td><td>both fields, swapped</td><td><code>mov.x ptr, ptr</code> swaps a cell’s two fields</td></tr>
+<tr><td><code>.I</code></td><td colspan="2">the whole instruction, including opcode, modifier and modes</td><td><code>mov.i bomb, @ptr</code> copies a complete bomb</td></tr>
+</tbody></table></div>
+<p><code>.I</code> only makes a difference for <code>MOV</code>, <code>SEQ</code> and <code>SNE</code>. Arithmetic and jumps treat <code>.I</code> like <code>.F</code>.</p>
+<h3>How <code>#</code> works with modifiers</h3>
+<p>An immediate operand points at the current instruction. So in <code>add.ab #4, bomb</code>, “the A-field of A” is the A-field of the <code>ADD</code> itself, which holds <code>4</code>. That is why <code>MOV</code> and <code>ADD</code> default to <code>.AB</code> when A is immediate: it takes the number you wrote and applies it to B’s B-field.</p>
+<div class="callout warn"><p><strong>Watch out:</strong> <code>mov.i #0, 5</code> copies the whole <code>MOV</code> instruction to cell 5, not a zero. If you want to put a number into a field, use <code>.AB</code> (the default for <code>mov #0, 5</code>), <code>.A</code> or <code>.B</code>.</p></div>
+
+<h2 id="processes">Processes and timing</h2>
+<p>A warrior starts with one process. <code>SPL</code> creates more. Each warrior keeps its processes in a queue, and the warriors take turns: warrior 1 runs one instruction of its next process, then warrior 2 does the same, and so on.</p>
+<ul>
+<li>A warrior with one process runs one instruction per turn. With ten processes, each process runs only every tenth turn of that warrior. More processes do not make a warrior faster; they make it harder to kill.</li>
+<li>After <code>SPL</code>, the current process is queued first (at the next instruction), then the new process (at A).</li>
+<li>When the warrior already has the maximum number of processes (<code>MAXPROCESSES</code>), <code>SPL</code> does not create a new one. Only the current process is queued again, at the next instruction, so <code>SPL</code> then behaves like <code>NOP</code>.</li>
+<li>A process that executes <code>DAT</code>, or divides by zero, is removed. The warrior lives on as long as it has at least one process.</li>
+</ul>
+<pre><code class="red">        spl    1               ; 1 process becomes 2, both continue below
+        spl    1               ; 4
+        spl    1               ; 8 processes now run the next line</code></pre>
+<p><code>spl 0</code> on its own line creates a new process at the same instruction every time it runs, which quickly fills the process queue. Combined with a <code>DAT</code> bomb, opponents hit by <code>spl 0</code> bombs waste their time creating useless processes.</p>
+
+<h2 id="assembler">Assembler features</h2>
+<h3>Labels and expressions</h3>
+<p>Labels and numbers can be combined in expressions: <code>bomb+1</code>, <code>step*2</code>, <code>(CORESIZE/3)+1</code>. The assembler supports <code>+ - * / %</code>, comparisons (<code>== != &lt; &gt; &lt;= &gt;=</code>) and logic (<code>&amp;&amp; || !</code>). Comparisons give 1 for true and 0 for false.</p>
+<div class="callout warn"><p><strong>Use brackets.</strong> <code>EQU</code> replaces a name with its text, not with a computed value. After <code>x equ 2+3</code>, the expression <code>x*2</code> becomes <code>2+3*2</code>, which is 8, not 10. Put brackets around combined expressions, both in the <code>EQU</code> (<code>x equ (2+3)</code>) and where you use them, to avoid surprises.</p></div>
+<h3>Predefined constants</h3>
+<p>These come from the match settings, so a warrior can adapt to them or assert them.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Name</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>CORESIZE</code></td><td>Number of cells in the core</td></tr>
+<tr><td><code>MAXPROCESSES</code></td><td>Process limit per warrior</td></tr>
+<tr><td><code>MAXCYCLES</code></td><td>Cycles before the round is a tie</td></tr>
+<tr><td><code>MAXLENGTH</code></td><td>Maximum warrior length in instructions</td></tr>
+<tr><td><code>MINDISTANCE</code></td><td>Minimum distance between warriors when loaded</td></tr>
+<tr><td><code>PSPACESIZE</code></td><td>Number of P-space cells</td></tr>
+<tr><td><code>WARRIORS</code></td><td>Number of warriors in the battle</td></tr>
+<tr><td><code>ROUNDS</code></td><td>Number of rounds in the match</td></tr>
+<tr><td><code>CURLINE</code></td><td>Number of the current instruction, starting at 0</td></tr>
+</tbody></table></div>
+<h3>Repeating code with <code>FOR</code></h3>
+<p><code>FOR n</code> … <code>ROF</code> repeats the lines between them <code>n</code> times. A label in front of <code>FOR</code> becomes a counter (01, 02, …). This is handy for decoys, tables and unrolled loops.</p>
+<pre><code class="red">        for    10
+        dat    #0, #0          ; ten empty cells
+        rof
+
+i       for    3
+        dat    #i, #i*100      ; dat #1,#100  dat #2,#200  dat #3,#300
+        rof</code></pre>
+<p><code>FOR</code> blocks can be nested. Each <code>ROF</code> closes the nearest open <code>FOR</code>, and each block can have its own counter. A label in front of a line inside the block can include the counter with <code>&amp;</code>, so each copy gets its own name.</p>
+<pre><code class="red">i       for    2
+j       for    3
+        dat    #i, #j          ; i = 01..02, j = 01..03: six lines
+        rof                    ; end of j
+        rof                    ; end of i
+
+n       for    3
+slot&amp;n  dat    #0, #n          ; labels slot01, slot02, slot03
+        rof</code></pre>
+<p><code>ROF</code> cannot take a label: pMARS warns and ignores it. Use a comment after <code>rof</code>, as above, to show which loop it closes.</p>
+<p>The count can be any expression. A <code>FOR 0</code> block is skipped, which makes it a convenient way to comment out several lines, and a condition gives conditional assembly:</p>
+<pre><code class="red">        for    CORESIZE == 8000
+        ; code for the standard core size
+        rof
+        for    MAXLENGTH-CURLINE
+        dat    #1, #1          ; fill the rest of the warrior with decoys
+        rof</code></pre>
+<h3>Debugging directives</h3>
+<p>In this app, <code>;break</code> sets a breakpoint on the next instruction, and <code>;trace</code> / <code>;trace off</code> mark a range of instructions. Turn on <strong>Stop at breakpoints and debug markers</strong> in the debugger to stop there.</p>
+
+<h2 id="pspace">P-space</h2>
+<p>P-space is a small private memory that survives from one round to the next. Warriors use it to remember which strategy worked and switch if they keep losing. Only <code>LDP</code> and <code>STP</code> can access it.</p>
+<ul>
+<li>Cell 0 is filled in for you: it holds −1 in the first round, 0 if the warrior lost the previous round, and otherwise the number of warriors that survived the previous round.</li>
+<li>The other cells start at 0 and keep whatever you store in them. Cell numbers wrap around <code>PSPACESIZE</code>.</li>
+<li><code>PIN n</code> gives a warrior a P-space ID. Warriors with the same PIN share P-space.</li>
+</ul>
+<pre><code class="red">        ldp.ab #0, result       ; how did the last round go?
+        jmz    switch, result   ; lost: switch strategy
+        ...
+result  dat    #0, #0</code></pre>
+
+<h2 id="patterns">Classic warriors</h2>
+<p>Most warriors are built from a few basic strategies, often combined. The examples below are short on purpose: they work, but real warriors on a hill are far more refined. Try them in the app.</p>
+<h3>Imp</h3>
+<p>Copies itself one cell ahead and then executes the copy. It is very hard to kill, but it cannot kill anything either: an opponent that runs into an imp turns into an imp. Imps mostly secure ties.</p>
+<pre><code class="red">        mov.i  0, 1</code></pre>
+<h3>Stone (bomber)</h3>
+<p>Throws bombs at regular intervals and hopes to hit the opponent before it is hit. The Dwarf <a href="#layout">above</a> is the simplest stone. Good stones bomb with a step that does not hit themselves, and run fast in a tight loop.</p>
+<h3>Scanner</h3>
+<p>Looks for non-empty cells and attacks only where it finds something. It spends time looking, but its attacks rarely miss. This simple version also finds itself eventually; real scanners avoid that.</p>
+<pre><code class="red">gap     equ    7
+
+        org    scan
+scan    add.ab #gap, ptr        ; look 7 cells further on
+ptr     jmz.f  scan, 20         ; empty cell? keep looking
+        mov.i  bomb, @ptr       ; found something: bomb it
+        jmp    scan
+bomb    dat    #0, #0</code></pre>
+<h3>Paper (replicator)</h3>
+<p>Makes copies of itself all over the core, each running in parallel with many processes. Killing one copy does not stop the rest. Papers are hard to kill, but bombs that only slow them down can still lead to a tie.</p>
+<pre><code class="red">        org    paper
+paper   spl    1                ; 1 process becomes 2
+        spl    1                ; ... 4
+        spl    1                ; ... 8
+silk    spl    @0, 2667         ; start a process in the new copy
+        mov.i  }silk, &gt;silk     ; copy one instruction there</code></pre>
+<p>The eight processes each run <code>mov.i }silk, &gt;silk</code> once. Each run copies one instruction to the new location and advances both pointers, so together they copy the two-line loop (plus a few empty cells). The new copy then does the same.</p>
+<h3>Other strategies</h3>
+<ul>
+<li><strong>Core clear</strong>: overwrites the whole core cell by cell, often as the final phase of a scanner.</li>
+<li><strong>Imp spiral / imp ring</strong>: several imps spaced evenly round the core, so killing one doesn’t stop them.</li>
+<li><strong>Quickscanner</strong>: a fast unrolled scan of the core at the very start of a round, before switching to another strategy.</li>
+<li><strong>Decoys</strong>: blocks of harmless non-empty cells that waste the opponent’s scans.</li>
+</ul>
+<p>Hill players often describe strategies as rock-paper-scissors: paper tends to beat stone, stone tends to beat scanners, and scanners tend to beat paper. The tiny examples here are too simple to follow that reliably.</p>
+
+<h2 id="pitfalls">Common pitfalls</h2>
+<ul>
+<li><strong>Your warrior bombs itself.</strong> Check that the bombing step never lands on your own code before you’ve gone round the core. Watch the first few hundred cycles in the core view.</li>
+<li><strong>The default modifier isn’t what you meant.</strong> <code>mov 0, 1</code> is <code>mov.i</code> but <code>mov #0, 1</code> is <code>mov.ab</code>. When in doubt, write the modifier.</li>
+<li><strong>Negative numbers are big.</strong> <code>-1</code> is stored as <code>CORESIZE-1</code>. <code>slt #10, x</code> treats <code>x = -1</code> as a large number.</li>
+<li><strong><code>DAT</code> bombs are invisible to <code>jmz.f</code> scanners.</strong> <code>dat 0, 0</code> looks exactly like empty core. That is good for bombs and bad for decoys.</li>
+<li><strong>Operands always run.</strong> <code>&lt;</code>, <code>&gt;</code>, <code>{</code> and <code>}</code> change the core even on <code>JMP</code>, <code>SPL</code>, <code>NOP</code> and <code>DAT</code>.</li>
+<li><strong>Labels are relative to the instruction that uses them.</strong> <code>bomb</code> means a different number on each line. Copying a line elsewhere copies the offset, not the label.</li>
+<li><strong>Your warrior is too long.</strong> Warriors longer than <code>MAXLENGTH</code> instructions do not assemble. Some hills allow only 100 instructions, Nano only 5.</li>
+</ul>
+
+<h2 id="settings">Hill settings</h2>
+<p>The match preset in the app sets these values. Warriors written for one hill can behave very differently on another.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Preset</th><th>Core size</th><th>Processes</th><th>Cycles</th><th>Max length</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Standard ’94</td><td>8000</td><td>8000</td><td>80000</td><td>100</td><td>The usual starting point</td></tr>
+<tr><td>’94 No P-space</td><td>8000</td><td>8000</td><td>80000</td><td>100</td><td>P-space size 1</td></tr>
+<tr><td>Standard ’88</td><td>8000</td><td>8000</td><td>80000</td><td>100</td><td>’88 rules (see below)</td></tr>
+<tr><td>’94 Experimental</td><td>55440</td><td>10000</td><td>500000</td><td>200</td><td>Large core</td></tr>
+<tr><td>Limited Process</td><td>8000</td><td>8</td><td>80000</td><td>200</td><td>Few processes</td></tr>
+<tr><td>Medium Process</td><td>8000</td><td>64</td><td>80000</td><td>100</td><td></td></tr>
+<tr><td>Tiny</td><td>800</td><td>800</td><td>8000</td><td>20</td><td></td></tr>
+<tr><td>Nano</td><td>80</td><td>80</td><td>800</td><td>5</td><td>Five instructions</td></tr>
+</tbody></table></div>
+
+<h2 id="icws88">’88 vs ’94</h2>
+<p>ICWS ’88 is the older, smaller dialect. Under ’88 rules (the Standard ’88 and ICWS ’88 Tournament presets):</p>
+<ul>
+<li>There are no modifiers. Each opcode behaves as in ’94 with its default modifier.</li>
+<li>Only the modes <code>#</code>, <code>$</code>, <code>@</code> and <code>&lt;</code> exist.</li>
+<li><code>SEQ</code>, <code>SNE</code>, <code>NOP</code>, <code>MUL</code>, <code>DIV</code>, <code>MOD</code>, <code>LDP</code> and <code>STP</code> do not exist. Use <code>CMP</code> for <code>SEQ</code>.</li>
+<li>Some opcodes accept only certain modes; for example <code>DAT</code> accepts only <code>#</code> and <code>&lt;</code>.</li>
+</ul>
+<p>Most ’88 warriors run unchanged under ’94 rules. The reverse is usually not true.</p>
+
+<h2 id="more">Further reading</h2>
+<ul>
+<li>The corewar.dev tutorial (coming soon): run your first battle and use the debugger.</li>
+<li><a href="https://vyznev.net/corewar/guide.html" target="_blank" rel="noopener">The beginners’ guide to Redcode</a>: a longer introduction with more examples.</li>
+<li><a href="https://corewar.co.uk/" target="_blank" rel="noopener">corewar.co.uk</a>: strategy articles, history and archives of warriors.</li>
+<li><a href="https://corewar.co.uk/icws94.txt" target="_blank" rel="noopener">The ICWS ’94 draft standard</a>: the full specification, for exact rules.</li>
+</ul>
+</article>
+</div>
+<footer>corewar.dev · <a href="./">Back to the app</a> · Examples assembled and tested with pMARS 0.9.6.</footer>
+<script>
+// Inside the app the app's own top bar is shown, so drop ours and send app links to the app.
+if(window.top!==window||new URLSearchParams(location.search).has('embed')){
+  document.documentElement.classList.add('embedded');
+  for(const a of document.querySelectorAll('a[href^="./"]'))a.target='_top';
+  // Jump within the page without adding history entries, so the app's Back button closes the reference.
+  document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]'),h=a&&document.getElementById(a.hash.slice(1));if(!h)return;e.preventDefault();h.scrollIntoView();history.replaceState(null,'',a.hash);});
+  if(window.top!==window)addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();parent.postMessage({type:'corewar-reference-close'},location.origin);}});
+}
+// Lightweight Redcode highlighting for the examples on this page.
+const ops='dat|mov|add|sub|mul|div|mod|jmp|jmz|jmn|djn|spl|slt|cmp|seq|sne|nop|ldp|stp|equ|org|end|for|rof|pin';
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function line(text){
+  const i=text.indexOf(';');
+  const code=i<0?text:text.slice(0,i), comment=i<0?'':text.slice(i);
+  let out=esc(code)
+    .replace(new RegExp('\\b('+ops+')(\\.(?:ab|ba|a|b|f|x|i))?\\b','gi'),(m,o,mod)=>'<span class="tok-op">'+o+'</span>'+(mod?'<span class="tok-mod">'+mod+'</span>':''))
+    .replace(/(^|[\s,])([#$@*{}]|&lt;|&gt;)(?=[\w\-(])/g,'$1<span class="tok-mode">$2</span>')
+    .replace(/^([A-Za-z_]\w*)(?=\s)/,(m,l)=>new RegExp('^('+ops+')$','i').test(l)?m:'<span class="tok-label">'+l+'</span>');
+  if(comment) out+=/^;(redcode|name|author|strategy|assert|break|trace)/i.test(comment)&&!code.trim()?'<span class="tok-dir">'+esc(comment)+'</span>':'<span class="tok-com">'+esc(comment)+'</span>';
+  return out;
+}
+for(const el of document.querySelectorAll('code.red')) el.innerHTML=el.textContent.split('\n').map(line).join('\n');
+// Highlight the current section in the table of contents.
+const links=[...document.querySelectorAll('.toc a')];
+const observer=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting)for(const a of links)a.setAttribute('aria-current',a.hash==='#'+e.target.id)},{rootMargin:'0px 0px -75% 0px'});
+for(const a of links){const h=document.getElementById(a.hash.slice(1));if(h)observer.observe(h)}
+</script>
+</body>
+</html>

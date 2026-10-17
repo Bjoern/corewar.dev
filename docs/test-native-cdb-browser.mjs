@@ -7,7 +7,7 @@ const send=async text=>{await page.locator('#command').fill(text);await page.loc
 const idle=()=>page.waitForFunction(()=>document.querySelector('#commandOutput').textContent==='Ready.');
 try{
  await page.goto(process.env.PMARS_URL || 'http://127.0.0.1:8765/docs/');await page.locator('#newWarrior').click();
- await page.locator('#first').fill(';redcode\n;assert 1\njmp 0\n');await page.locator('#reset').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Paused before'));
+ await page.locator('#first').fill(';redcode\n;assert 1\njmp 0\n');await page.locator('.core-tab').click();await page.locator('#reset').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Paused before'));
  await send('calc 6*7');await idle();assert((await page.locator('#instruction').textContent()).includes('42'));
  await send('fill 10,12');await page.waitForFunction(()=>document.querySelector('#commandOutput').textContent.includes('instruction or expression'));
  await send('mov.i 0,1');await idle();await send('list 10,12');await idle();assert.equal(await page.locator('#instruction .listing-line').count(),3);assert((await page.locator('#instruction').textContent()).includes('MOV.I'));

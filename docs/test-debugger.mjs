@@ -21,8 +21,8 @@ try {
   await page.locator('#reset').click(); await ready('Paused before');
   assert.equal(await count(),0);
   assert.equal(await page.locator('#instruction .listing-line').count(),0);
-  assert.equal(await page.locator('#execution section').count(),2);
-  assert.equal(await page.locator('#execution pre').nth(1).textContent(),'');
+  assert.equal(await page.locator('.tracker').count(),1);
+  assert.equal(await page.locator('.tracker pre').first().textContent(),'');
   await page.locator('#step').click(); await ready('Paused after');
   assert.equal(await count(),1);
   // Resizing an active arena preserves execution and cell inspection after scrolling.
@@ -43,7 +43,7 @@ try {
   assert(await page.locator('#core').evaluate(c=>c.clientWidth<=c.parentElement.clientWidth && Number(c.dataset.cellSize)%2===0));
   await page.locator('#cellSize').selectOption('8');
 
-  assert((await page.locator('#execution pre').nth(1).textContent()).includes('0000  MOV.I'));
+  assert((await page.locator('.tracker pre').first().textContent()).includes('0000  MOV.I'));
   const beforeWorkers = workers;
   await page.locator('#run').click(); await ready('Battle running');
   await page.waitForTimeout(100); await page.locator('#run').click();
@@ -51,7 +51,7 @@ try {
   assert(await count()>1);
   await page.locator('#reset').click(); await ready('Paused before');
   assert.equal(await count(),0);
-  assert.equal(await page.locator('#execution pre').nth(1).textContent(),'');
+  assert.equal(await page.locator('.tracker pre').first().textContent(),'');
 
   await command('list 7998,1');
   assert.deepEqual(await page.locator('#instruction .listing-line').allTextContents().then(a=>a.map(s=>s.slice(0,4))),
@@ -66,8 +66,8 @@ try {
   assert((await page.locator('#instruction').textContent()).includes('MOV.I'));
   await command('alive'); await command('tproc');
   assert((await page.locator('#instruction').textContent()).includes('2'));
-  await page.locator('.output-console select').nth(1).selectOption('all');
-  assert.equal(await page.locator('.output-console').nth(1).locator('.instruction-row').count(),2);
+  await page.locator('.tracker select').first().selectOption('all');
+  assert.equal(await page.locator('.tracker').first().locator('.instruction-row').count(),2);
   await page.locator('#core').click({position:{x:40,y:30}});
   assert.equal(await page.locator('#instruction .listing-line').count(),10);
 
@@ -78,7 +78,7 @@ try {
   assert.equal(await page.locator('#editorViews .cm-content').count(),1);
   await page.locator('#reset').click(); await ready('Paused before');
   await page.locator('#step').click(); await ready('Paused after');
-  const trace = await page.locator('#execution').textContent();
+  const trace = await page.locator('#trackers').textContent();
   assert.match(trace,/ADD.AB\s+#\s*1,\s*\$\s*0/);
   await command('list 0');
   assert.match(await page.locator('#instruction').textContent(),/ADD.AB\s+#\s*1,\s*\$\s*1/);
@@ -88,13 +88,13 @@ try {
 
   await page.locator('#reset').click(); await ready('Paused before');
   await page.locator('#addConsole').click();await page.locator('#addConsole').click();
-  for(let i=0;i<3;i++)await page.locator('.output-console select').nth(i+1).selectOption('warrior:'+i);
-  assert.equal(await page.locator('#execution section').count(),4);
+  for(let i=0;i<3;i++)await page.locator('.tracker select').nth(i).selectOption('warrior:'+i);
+  assert.equal(await page.locator('.tracker').count(),3);
   await command('step~!3');
   assert.equal(await count(),3);
-  const rows = (await page.locator('#execution pre').allTextContents()).slice(1);
+  const rows = await page.locator('.tracker pre').allTextContents();
   assert(rows.every(s=>/^\d{4}\s/.test(s)));
-  const colors = await page.locator('.output-console:not(:first-child) .instruction-row').evaluateAll(nodes=>nodes.map(n=>n.style.color));
+  const colors = await page.locator('.tracker .instruction-row').evaluateAll(nodes=>nodes.map(n=>n.style.color));
   assert.equal(new Set(colors).size,3);
   await page.screenshot({path:'docs/test-output/debugger-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});
