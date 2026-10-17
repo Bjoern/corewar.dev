@@ -28,6 +28,7 @@ export class CoreDisplay {
     this.observer = new ResizeObserver(() => this.redraw());
     this.observer.observe(this.viewport || canvas);
     if(this.viewport?.parentElement)this.observer.observe(this.viewport.parentElement);
+    const coreView=this.viewport?.closest('.core-view');if(coreView)this.observer.observe(coreView);
     this.onScroll = () => {
       if (!this.surface) return;
       cancelAnimationFrame(this.scrollFrame);
@@ -60,9 +61,11 @@ export class CoreDisplay {
     const naturalColumns = Math.ceil(Math.sqrt(this.size * 2.5));
     // Even CSS pixel sizes keep quarter-cell boundaries on whole pixels.
     this.cellSize = this.preferredCellSize || Math.max(2,2*Math.floor(available/naturalColumns/2));
-    if (!this.preferredCellSize && this.viewport?.dataset.layout==='fill' && this.viewport.clientHeight>0) {
-      // Fill: the largest even cell size whose whole grid fits both dimensions.
-      const height=this.viewport.clientHeight;
+    const coreView=this.viewport?.closest('.core-view');
+    if (!this.preferredCellSize && this.viewport?.dataset.layout==='fill' && coreView?.clientHeight>0) {
+      // Auto: the largest even cell size whose whole grid fits the width and about 60% of the core view's height,
+      // leaving the rest for the trackers. Below the desktop layout the page scrolls, so the window height is the reference.
+      const height=0.6*(matchMedia('(min-width:1100px)').matches?coreView.clientHeight:innerHeight);
       let best=2;
       for (let size=Math.max(2,2*Math.floor(Math.min(available,height)/2)); size>=2; size-=2) {
         const columns=Math.max(1,Math.floor(available/size));
@@ -108,9 +111,10 @@ export class CoreDisplay {
     this.paintWidth=paintWidth;this.paintHeight=paintHeight;
     this.canvas.style.width=paintWidth+'px';this.canvas.style.height=paintHeight+'px';
     this.canvas.width=Math.round(paintWidth*ratio);this.canvas.height=Math.round(paintHeight*ratio);
-    this.context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    // Cells are drawn in device pixels, so their edges stay sharp at fractional display scaling (125%, 150%).
+    this.ratio=ratio;this.context.setTransform(1, 0, 0, 1, 0, 0);
     this.context.fillStyle = '#101d29';
-    this.context.fillRect(0, 0, width, height);
+    this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
     for (let i = 0; i < this.size; ++i) this.draw(i);
   }
   apply(events, paint = true) {
@@ -142,24 +146,25 @@ export class CoreDisplay {
     const x=(address%this.columns)*this.cellSize-this.offsetX,y=Math.floor(address/this.columns)*this.cellSize-this.offsetY;
     if(x<0 || y<0 || x>=this.paintWidth || y>=this.paintHeight)return;
     const classic=this.preferredCellSize===4 || this.preferredCellSize===6;
-    const c=this.context,pad=classic?1:0,half=(this.cellSize-2*pad)/2;
-    c.fillStyle='#101d29';c.fillRect(x,y,this.cellSize,this.cellSize);
-    c.fillStyle='#192b39';c.fillRect(x+pad,y+pad,this.cellSize-2*pad,this.cellSize-2*pad);
+    const r=this.ratio||1,px=v=>Math.round(v*r),c=this.context;
+    const x0=px(x),y0=px(y),x1=px(x+this.cellSize),y1=px(y+this.cellSize);
+    // Classic cells keep a 1px gap; modern cells a dark border of up to 1px. Both are whole device pixels.
+    let inset=classic?Math.max(1,Math.floor(r)):Math.round(Math.min(1,this.cellSize/8)*r);
+    if(!classic && x1-x0>=6)inset=Math.max(1,inset);
+    const ix0=x0+inset,iy0=y0+inset,ix1=x1-inset,iy1=y1-inset;
+    const mx=ix0+Math.round((ix1-ix0)/2),my=iy0+Math.round((iy1-iy0)/2);
+    c.fillStyle='#101d29';c.fillRect(x0,y0,x1-x0,y1-y0);
+    c.fillStyle='#192b39';c.fillRect(ix0,iy0,ix1-ix0,iy1-iy0);
     for(let q=0;q<4;q++){
       const owner=this.cells[address*4+q];
       if(!owner)continue;
-      c.fillStyle=battleColor(owner-1);
-      c.fillRect(x+pad+(q%2)*half,y+pad+Math.floor(q/2)*half,half,half);
-    }
-    if(!classic){
-    c.strokeStyle='#101d29';c.lineWidth=Math.min(1,this.cellSize/8);
-    const border=c.lineWidth/2;
-    c.strokeRect(x+border,y+border,this.cellSize-2*border,this.cellSize-2*border);
+      const qx0=q%2?mx:ix0,qx1=q%2?ix1:mx,qy0=q<2?iy0:my,qy1=q<2?my:iy1;
+      c.fillStyle=battleColor(owner-1);c.fillRect(qx0,qy0,qx1-qx0,qy1-qy0);
     }
     if(this.pcs.includes(address)){
-      c.strokeStyle='#ffffff';c.lineWidth=Math.max(0.4,this.cellSize/12);
-      const inset=c.lineWidth/2;
-      c.strokeRect(x+inset,y+inset,this.cellSize-2*inset,this.cellSize-2*inset);
+      const w=Math.max(1,Math.round(this.cellSize/12*r));
+      c.fillStyle='#ffffff';
+      c.fillRect(x0,y0,x1-x0,w);c.fillRect(x0,y1-w,x1-x0,w);c.fillRect(x0,y0,w,y1-y0);c.fillRect(x1-w,y0,w,y1-y0);
     }
   }
   addressAt(event) {
