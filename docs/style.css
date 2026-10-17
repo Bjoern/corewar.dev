@@ -436,13 +436,13 @@ button.small{white-space:nowrap}
 .tournament-settings{margin-bottom:12px}.tournament-settings>.settings-dock{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;width:100%}
 #matchSettings{flex:0 0 100%;order:10}.arena-foot>.foot-spacer{order:1}.arena-foot>.menu-wrap,.arena-foot>output{order:2}
 .tournament-settings>.settings-dock>#matchSettings{order:0}
-.arena-space:has(>.arena-viewport[data-layout=fill]:not([data-cells=auto])){flex:none;min-height:0}
-.arena-space:has(>.arena-viewport[data-layout=fill]:not([data-cells=auto])) .arena-viewport{position:static;height:auto}
+.arena-space:has(>.arena-viewport[data-layout=fill]){flex:none;min-height:0}
+.arena-space:has(>.arena-viewport[data-layout=fill]) .arena-viewport{position:static;height:auto}
 .arena-space:has(>.arena-viewport:not([data-layout=fill])){flex:none;min-height:0}
 .arena-space:has(>.arena-viewport:not([data-layout=fill])) .arena-viewport{position:static}
 .core-view{overflow:auto}
 
-.arena-space:has(>.arena-viewport:not([data-layout=fill])),.arena-space:has(>.arena-viewport[data-layout=fill]:not([data-cells=auto])){aspect-ratio:auto}
+.arena-space:has(>.arena-viewport){aspect-ratio:auto}
 .phone-only{display:none!important}
 @media(max-width:700px){.phone-only{display:inline-flex!important}}
 .sidebar .editor-title .remove-warrior:hover:not(:disabled),.editor-title .remove-warrior:focus-visible{color:#ff6b6b}
@@ -452,7 +452,7 @@ button.small{white-space:nowrap}
 .splitter{display:none}
 @media(min-width:1100px){
  .sidebar{flex:0 0 min(var(--sidebar-w,320px),30vw);max-width:none}
- .inspector{flex:0 0 min(var(--inspector-w,340px),40vw);max-width:none}
+ .inspector{flex:0 0 min(var(--inspector-w,clamp(340px,20vw,600px)),40vw);max-width:none}
  .splitter{display:block;flex:0 0 4px;margin:0 -8px;position:relative;z-index:5;cursor:col-resize;border-radius:2px;touch-action:none}
  .splitter::before{content:"";position:absolute;inset:0 -4px}
  .splitter:hover,.splitter:focus-visible,.splitter.dragging{background:var(--accent);outline:0}
@@ -477,8 +477,6 @@ button.small{white-space:nowrap}
 .speed-slot:has(>.fast-notice:not([hidden]))>.speed-control{visibility:hidden}
 @media(max-width:700px){.speed-slot{flex:1 1 100%;margin-left:0}.speed-slot>.fast-notice{white-space:normal;justify-self:stretch;justify-content:center}}
 .foot-status{display:flex;flex-wrap:wrap;gap:2px 14px;align-items:baseline}.foot-status:has(>#activeSettings:empty):has(>#changed:empty){display:none}
-/* Phones: a 5:2 box leaves "fill" only ~130px tall; give it most of the screen instead. */
-@media(max-width:700px){.arena-space:has(>.arena-viewport[data-layout=fill][data-cells=auto]){flex:none;aspect-ratio:auto;height:60vh;height:60dvh}}
 /* The Redcode reference opens over the workspace, below the top bar, so the app keeps its state. */
 .reference-view{position:fixed;left:0;right:0;bottom:0;top:var(--reference-top,48px);z-index:30;display:flex;flex-direction:column;background:var(--bg)}
 .reference-view[hidden]{display:none}
@@ -488,10 +486,9 @@ body[data-reference=true] #phoneBar{display:none}
 .help-links a[aria-current=page]{color:#e4edf3}
 .workspace-menu #startClean{border-top:1px solid var(--border);border-radius:0;margin-top:4px;padding-top:8px}
 #workspaceDialog p{margin:0 0 14px;line-height:1.45}.dialog-actions{display:flex;justify-content:flex-end;gap:8px}#workspaceDialogOk{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
-/* Trackers sit side by side below the arena. A fixed cell size leaves the arena its natural height and the trackers take the rest; Auto fills, so they keep a fixed strip. */
-.arena:has(.arena-viewport:not([data-layout=fill][data-cells=auto])){flex:none}
+/* Trackers sit side by side below the arena: the arena keeps its natural height (Auto sizes cells to leave them room) and the trackers take the rest. */
+.arena:has(.arena-viewport){flex:none}
 .tracker-strip{display:flex;gap:8px;flex:1 1 0;min-height:200px;overflow-x:auto;overflow-y:hidden}
-.arena:has(.arena-viewport[data-layout=fill][data-cells=auto])~.tracker-strip{flex:0 0 220px}
 body[data-welcome=true] .tracker-strip{display:none}
 .tracker{display:flex;flex-direction:column;flex:1 1 260px;min-width:220px;min-height:0}
 .tracker .console-toolbar{margin-bottom:4px}
@@ -500,4 +497,9 @@ body[data-welcome=true] .tracker-strip{display:none}
 .add-tracker{flex:0 0 auto;align-self:stretch;border-style:dashed;background:transparent;color:var(--muted);font-size:12px;white-space:nowrap}
 .add-tracker:hover{color:#e4edf3;border-color:var(--accent)}
 .tracker-strip:not(:has(.tracker))>.add-tracker{flex:1}
-@media(max-width:1099px){.tracker-strip{flex:none;height:240px;min-height:0}.arena:has(.arena-viewport[data-layout=fill][data-cells=auto])~.tracker-strip{flex:none}}
+@media(max-width:1099px){.tracker-strip{flex:none;height:240px;min-height:0}}
+/* Before any warrior is loaded, the welcome takes the whole centre instead of the strip a short fixed-size arena leaves. */
+@media(min-width:701px){
+ body[data-welcome=true] #center .arena{flex:1 0 auto}
+ body[data-welcome=true] #center .arena-space{flex:1 1 auto;min-height:420px}
+}

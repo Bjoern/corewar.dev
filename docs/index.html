@@ -53,10 +53,10 @@
 <span id="timing">Cycle —</span>
 <div class="menu-wrap"><button id="viewBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View ▾</button>
 <div id="viewMenu" class="popover view-menu" hidden>
-<label>Layout <select id="arenaLayout"><option value="vertical">Scroll vertically</option><option value="horizontal">Scroll horizontally</option><option value="fill" selected>Fill vertically</option><option value="fill-horizontal">Fill horizontally</option></select></label><label>Cell size <select id="cellSize"><option value="0">Auto · whole pixels</option><option value="4">Classic · 2×2 mark</option><option value="6">Compact · 4×4 mark</option><option value="8" selected>8 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="24">24 px</option></select></label><label class="arena-theme">Theme <select id="theme"><option value="modern">Modern</option><option value="classic">pMARS classic</option><option value="accessible">pMARS accessible</option></select></label></div></div>
+<label>Layout <select id="arenaLayout"><option value="vertical">Scroll vertically</option><option value="horizontal">Scroll horizontally</option><option value="fill" selected>Fill vertically</option><option value="fill-horizontal">Fill horizontally</option></select></label><label>Cell size <select id="cellSize"><option value="0" selected>Auto · room for trackers</option><option value="4">Classic · 2×2 mark</option><option value="6">Compact · 4×4 mark</option><option value="8">8 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="24">24 px</option></select></label><label class="arena-theme">Theme <select id="theme"><option value="modern">Modern</option><option value="classic">pMARS classic</option><option value="accessible">pMARS accessible</option></select></label></div></div>
 </div>
 <section class="arena" aria-label="Core arena">
-<div class="arena-space"><div class="arena-viewport" data-layout="fill" data-cells="fixed" tabindex="0" role="region" aria-label="Core arena filling vertically">
+<div class="arena-space"><div class="arena-viewport" data-layout="fill" data-cells="auto" tabindex="0" role="region" aria-label="Core arena filling vertically">
 <canvas id="core" aria-label="Core memory activity; click a cell to inspect it in the debugger"></canvas></div>
 <section id="demos" class="welcome" aria-label="Welcome">
 <p class="eyebrow">New to Core War?</p><h2>Watch programs fight for control of a shared memory</h2>
