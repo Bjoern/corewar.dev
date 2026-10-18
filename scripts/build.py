@@ -30,7 +30,16 @@ for path in WEB.iterdir():
     elif path.is_file():
         shutil.copy2(path, OUT / path.name)
 shutil.copy2(ROOT / "engine-lock.json", OUT / "engine-lock.json")
-(OUT / "benchmark-catalog.mjs").write_text("// Generated from warriors_public descriptors.\nexport const benchmarkCatalog = " + json.dumps(catalog(ROOT), ensure_ascii=True) + ";\n", encoding="utf-8")
+# The page loads only a small index. Each suite's warriors and hill scores are a separate
+# file named by its content hash, fetched when the suite is selected or prefetched when idle.
+(OUT / "benchmarks").mkdir()
+index = []
+for entry in catalog(ROOT):
+    data = json.dumps({"files": entry["files"], **({"scores": entry["scores"]} if "scores" in entry else {})}, ensure_ascii=True).encode("utf-8")
+    name = "benchmarks/" + hashlib.sha256(data).hexdigest()[:16] + ".json"
+    (OUT / name).write_bytes(data)
+    index.append({"id": entry["id"], "descriptor": entry["descriptor"], "data": name})
+(OUT / "benchmark-catalog.mjs").write_text("// Generated from warriors_public descriptors.\nexport const benchmarkCatalog = " + json.dumps(index, ensure_ascii=True) + ";\n", encoding="utf-8")
 write_presets(WEB / "config", OUT / "presets.mjs")
 text_paths = sorted(OUT.glob("*.mjs")) + [OUT / "index.html", OUT / "style.css", OUT / "favicon.svg"]
 normalized = {p: re.sub(r"\?v=[A-Za-z0-9_-]+", "", p.read_text(encoding="utf-8")) for p in text_paths}

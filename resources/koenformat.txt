@@ -1,0 +1,19 @@
+hill32.dat
+----------
+
+The first line of the .dat file contains the number of warriors, followed
+by a 4-line entry for each warrior:
+
+* name of warrior
+* name of author
+* name of file
+* hill format (88, 94, P-space)
+
+hill32.scores
+-------------
+
+The .scores file is a binary x-by-x matrix, where x is the number of
+warriors.  Each entry is a little-endian 32-bit integer representing the
+normalized score (multiplied by 10000) of the warrior in the column versus
+the warrior in the row.
+

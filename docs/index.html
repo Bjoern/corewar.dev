@@ -93,38 +93,52 @@
 </div>
 <section id="tournamentPanel" role="tabpanel" aria-labelledby="tournamentTab" hidden>
 <div id="tournamentSettingsSlot" class="arena-foot tournament-settings"></div>
-<fieldset id="parallelSetup" class="parallel-panel"><legend>Parallel execution</legend>
-<p id="workerLimit" class="hint"></p>
-<div class="worker-controls"><label for="workerSlider">Parallel workers</label><input id="workerSlider" type="range" min="1" max="1" value="1" aria-describedby="workerExplanation"><input id="tournamentWorkers" type="number" min="1" value="1" aria-label="Parallel workers" aria-describedby="workerExplanation"></div>
-<div class="worker-presets"><button type="button" data-workers="one">1 worker</button><button type="button" data-workers="half">Half</button><button type="button" data-workers="all">All available</button><output id="workerSummary"></output></div>
-<p id="workerExplanation" class="hint">One worker per matchup. More workers can finish sooner but leave less CPU time for other apps.</p>
-</fieldset>
-<fieldset id="tournamentSetup"><legend>Tournament setup</legend>
+<p id="suiteSettingsNote" class="t-suite-note" role="note" hidden></p>
+<fieldset id="tournamentSetup" class="t-card"><legend class="sr-only">Tournament setup</legend>
 <div id="tournamentModes" class="mode-tabs" role="tablist" aria-label="Tournament mode">
 <button type="button" id="mode-melee" role="tab" data-mode="melee" aria-selected="false" tabindex="-1" aria-controls="modePanel">Melee</button><button type="button" id="mode-round-robin" role="tab" data-mode="round-robin" aria-selected="true" aria-controls="modePanel">Round robin</button><button type="button" id="mode-benchmark" role="tab" data-mode="benchmark" aria-selected="false" tabindex="-1" aria-controls="modePanel">Benchmark</button><button type="button" id="mode-challenge" role="tab" data-mode="challenge" aria-selected="false" tabindex="-1" aria-controls="modePanel">Challenge</button></div>
 <div id="modePanel" role="tabpanel" aria-labelledby="mode-round-robin"><p id="modeDescription" class="hint"></p>
 <input id="tournamentMode" type="hidden" value="round-robin">
-<div class="tournament-controls">
-
+<div class="t-fields">
+<label id="challengeSetup" hidden>Challenger <select id="challenger"></select></label>
+<label id="suiteField" hidden>Opponent suite <select id="benchmarkSuite"></select></label>
 <label>Rounds per matchup <input id="tournamentRounds" type="number" min="1" max="2147483647" value="100"></label>
-
-<label>Seed <input id="tournamentSeed" maxlength="120" value="corewar-1"></label>
-<label><input id="selfFights" type="checkbox" title="Include self matches in round robin/Challenge, or identical-source opponents in benchmarks."> Self fights</label>
+<label title="The seed determines reproducible starting positions.">Seed <input id="tournamentSeed" maxlength="120" value="corewar-1"></label>
+<label id="rankingField">Ranking <select id="tournamentRanking"></select></label>
+<label class="t-check"><input id="selfFights" type="checkbox" title="Include self matches in round robin/Challenge, or identical-source opponents in benchmarks."> Self fights</label>
 </div>
-<p id="tournamentEntrants" class="hint"></p>
-<div id="challengeSetup" hidden><label>Challenger <select id="challenger"></select></label></div>
-<div id="benchmarkSetup" hidden><div class="tournament-controls"><label>Opponent suite <select id="benchmarkSuite"></select></label><button id="downloadBenchmarkZip" type="button">Download benchmark (.zip)</button></div>
-<p id="benchmarkDescription" class="hint"></p><div class="benchmark-import"><label class="benchmark-upload">Import benchmark <input id="benchmarkFiles" type="file" multiple accept=".json,.red,.rc,.txt"></label><label class="benchmark-upload">Import folder <input id="benchmarkFolder" type="file" webkitdirectory multiple></label></div>
-<details id="benchmarkDetails"><summary id="benchmarkSummary">Suite details</summary><ul id="benchmarkMembers"></ul><label>Descriptor <textarea id="benchmarkDescriptor" spellcheck="false" aria-label="Benchmark descriptor"></textarea></label><div class="tournament-controls"><button id="applyBenchmark" type="button">Apply changes</button><button id="downloadBenchmark" type="button">Download descriptor</button></div><p class="hint">Select a descriptor and its warrior files together. Editing changes this session only.</p></details>
-<details><summary>Create a suite from selected warriors</summary><div class="tournament-controls"><label>Name <input id="benchmarkName" maxlength="100"></label><button id="saveBenchmark" type="button">Save session suite</button><span class="hint">Then use Download benchmark (.zip) above to keep a copy.</span></div><p id="saveBenchmarkStatus" role="status" aria-live="polite" hidden></p><p class="hint">Copies the selected sources and current match settings. Then select the candidates you want to test.</p></details></div>
-<p id="tournamentWorkload"></p><p id="tournamentRules" class="hint"></p><p class="hint">The seed here determines reproducible starting positions. Pause finishes active matchups; Cancel stops them immediately.</p>
+<p id="rankingHint" class="hint" hidden></p>
+<div id="hillStatus" class="t-hill" hidden><p class="hint"><span id="hillText"></span> <label id="recomputeHillField" class="t-check-inline"><input id="recomputeHill" type="checkbox"> Recompute hill scores</label></p>
+<div id="hillFightSetup" class="t-fields"><label>Hill rounds per pair <input id="hillRounds" type="number" min="1" max="2147483647" value="1000"></label><label class="t-check"><input id="hillPermutate" type="checkbox"> <span id="hillPermutateLabel">All starting positions</span></label></div>
+<p id="hillWarning" class="t-warning" role="status" hidden></p></div>
+<div id="benchmarkSetup" hidden><p id="benchmarkDescription" class="hint"></p>
+<details id="benchmarkDetails" class="t-more"><summary id="benchmarkSummary">Suite details</summary><ul id="benchmarkMembers"></ul><label class="t-block">Descriptor <textarea id="benchmarkDescriptor" spellcheck="false" aria-label="Benchmark descriptor"></textarea></label><div class="t-row"><button id="applyBenchmark" type="button">Apply changes</button><button id="downloadBenchmark" type="button">Download descriptor</button><button id="downloadBenchmarkZip" type="button">Download benchmark (.zip)</button><button id="downloadHillScores" type="button" disabled title="Hill scores from a push-off benchmark run, to ship with the suite">Download hill scores (.json)</button></div><p class="hint">Editing changes this session only.</p></details>
+<details class="t-more"><summary>Import a suite</summary><p class="hint">Select a descriptor and its warrior files together, or a folder that contains them.</p><div class="benchmark-import"><label class="benchmark-upload">Import benchmark <input id="benchmarkFiles" type="file" multiple accept=".json,.red,.rc,.txt"></label><label class="benchmark-upload">Import folder <input id="benchmarkFolder" type="file" webkitdirectory multiple></label></div></details>
+<details class="t-more"><summary>Create a suite from selected warriors</summary><div class="t-row"><label>Name <input id="benchmarkName" maxlength="100"></label><button id="saveBenchmark" type="button">Save session suite</button></div><p id="saveBenchmarkStatus" role="status" aria-live="polite" hidden></p><p class="hint">Copies the selected sources and current match settings. Use Download benchmark (.zip) under Suite details to keep a copy.</p></details></div>
+<p class="t-summary"><strong id="tournamentWorkload"></strong> <span id="tournamentRules" class="hint"></span></p>
+<p id="tournamentEntrants" class="hint t-entrants"></p>
 </div></fieldset>
-<div class="tournament-controls"><button id="tournamentStart" class="primary">Run tournament</button><button id="tournamentPause" disabled title="Finish active matchups before pausing">Pause</button><button id="tournamentCancel" disabled>Cancel</button><button id="tournamentExport" disabled>Export results</button></div>
-<p id="tournamentStatus" role="status">Ready.</p><progress id="tournamentProgress" value="0" max="1" aria-label="Tournament progress"></progress>
+<div class="t-actions">
+<button id="tournamentStart" class="primary" type="button">▶ Run tournament</button><button id="tournamentPause" type="button" disabled title="Finish active matchups, then pause">Pause</button><button id="tournamentCancel" type="button" disabled title="Stop active matchups immediately">Cancel</button>
+<span class="foot-spacer"></span>
+<fieldset id="parallelSetup" class="t-worker-set"><legend class="sr-only">Parallel execution</legend>
+<label class="t-workers" title="Parallel workers: each runs one matchup at a time">Workers <input id="tournamentWorkers" type="number" min="1" value="1" aria-label="Parallel workers" aria-describedby="workerExplanation"><output id="workerSummary"></output></label>
+<details class="t-worker-more"><summary>Adjust</summary><div class="t-popover">
+<p id="workerLimit" class="hint"></p>
+<input id="workerSlider" type="range" min="1" max="1" value="1" aria-label="Parallel workers slider" aria-describedby="workerExplanation">
+<div class="worker-presets"><button type="button" data-workers="one">1 worker</button><button type="button" data-workers="half">Half</button><button type="button" data-workers="all">All available</button></div>
+<p id="workerExplanation" class="hint">One worker per matchup. More workers can finish sooner but leave less CPU time for other apps.</p></div></details>
+</fieldset>
+</div>
+<section class="t-card t-results" aria-labelledby="resultsHeading"><div class="t-results-head"><h2 id="resultsHeading">Results</h2><p id="tournamentStatus" role="status">Ready.</p><span class="foot-spacer"></span><button id="tournamentExport" type="button" disabled>Export results (.json)</button><button id="tournamentExportKoen" type="button" disabled title="Koenigstuhl hill32.dat and hill32.scores, after a complete round robin">Export score matrix (.zip)</button></div>
+<progress id="tournamentProgress" value="0" max="1" aria-label="Tournament progress"></progress>
 <div id="tournamentExclusions" class="tournament-exclusions" role="alert" hidden></div>
+<div id="pushoffResults" hidden><h3 id="pushoffTitle"></h3><div class="tournament-table"><table><thead><tr id="pushoffHead"></tr></thead><tbody id="pushoffStandings"></tbody></table></div>
+<details class="t-more"><summary>Removal log</summary><pre id="pushoffLog"></pre></details><h3>Match totals</h3></div>
 <div class="tournament-table"><table><thead><tr><th>Warrior</th><th>Rounds</th><th>Wins</th><th>Ties</th><th>Losses</th><th>Points</th><th>Points / round</th></tr></thead><tbody id="tournamentStandings"></tbody></table></div>
 <canvas id="tournamentChart" aria-label="Tournament score progress"></canvas>
-<details><summary>Completed matchups</summary><ol id="matchupResults"></ol></details>
+<details class="t-more"><summary>Completed matchups</summary><ol id="matchupResults"></ol></details>
+</section>
 </section>
 <section id="sharedEditor" class="editor-pane" hidden aria-label="Warrior editor"><div class="shared-editor-toolbar"><strong id="editingName"></strong><button id="validateActive" type="button">↻ Validate</button><button id="downloadActive" type="button">Download</button><button id="removeActive" class="danger" type="button" title="Remove this warrior from the roster">Delete</button><span id="editorStatus" class="hint" role="status"></span><span class="foot-spacer"></span><label class="editor-theme-control">Background <select id="editorTheme"><option value="dark">Dark</option><option value="light">Light</option><option value="contrast">High contrast</option></select></label><label class="syntax-theme-control">Syntax colors <select id="editorSyntax"><option value="ocean">Ocean</option><option value="warm">Warm</option><option value="mono">Monochrome</option></select></label><button id="toggleEditors" aria-controls="editorViews">Close editor</button><button id="runFromEditor" class="primary" type="button">▶ Run battle</button></div><div id="editorViews"></div>
 <div class="asm-output"><div class="asm-head"><strong>pMARS assembler output</strong><span id="asmCount" class="hint"></span><button id="clearAsm" type="button" class="small">Clear</button></div><pre id="asmOutput" aria-label="Assembler output">Validate the warrior to see assembly output here.</pre></div></section>

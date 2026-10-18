@@ -16,6 +16,9 @@ No engine checkout, Emscripten, backend, or runtime request to another site is n
 Run `python scripts/build.py`, then `python -m http.server 8766 --bind 127.0.0.1 --directory _site`.
 Open http://127.0.0.1:8766/ . The build verifies engine hashes, versions the runtime
 assets together, and emits `_site/` without modifying source files.
+The benchmark catalog ships as a small index (`_site/benchmark-catalog.mjs`) plus one
+file per suite in `_site/benchmarks/`, named by content hash. The app loads a suite when
+it is selected and prefetches the rest once the page is idle, unless the browser asks to save data.
 The editor bundle is committed. To rebuild it after editor changes, run
 `npm ci` and `npm run build:editor` before the Python build.
 

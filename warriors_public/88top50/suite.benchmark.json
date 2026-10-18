@@ -75,5 +75,6 @@
     "HILL32/whitefire.red",
     "HILL32/zygote_hv.red"
   ],
-  "retrievedAt": "2026-10-10"
+  "retrievedAt": "2026-10-10",
+  "scores": "hill-scores.json"
 }

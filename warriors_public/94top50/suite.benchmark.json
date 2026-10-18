@@ -75,5 +75,6 @@
     "HILL32/ziggy.red",
     "HILL32/zplusplus.red"
   ],
-  "retrievedAt": "2026-10-10"
+  "retrievedAt": "2026-10-10",
+  "scores": "hill-scores.json"
 }

@@ -11,6 +11,10 @@ def catalog(root):
         descriptor = json.loads(path.read_text(encoding="utf-8-sig"))
         if descriptor.get("version") != 1 or not isinstance(descriptor.get("name"), str):
             raise ValueError(f"Invalid descriptor: {path}")
+        # "listed": false keeps a suite in the repository (e.g. a full hill that a top-N suite
+        # is derived from) without offering it in the app.
+        if descriptor.get("listed", True) is False:
+            continue
         paths = descriptor.get("warriors")
         if not isinstance(paths, list) or not 1 <= len(paths) <= 500 or len(set(paths)) != len(paths):
             raise ValueError(f"Invalid warrior list: {path}")
@@ -29,7 +33,14 @@ def catalog(root):
             except UnicodeDecodeError:
                 text = raw.decode("cp1252")
             files[name] = text
-        result.append({"id": "public-"+path.relative_to(folder).as_posix(), "descriptor": descriptor, "files": files})
+        entry = {"id": "public-"+path.relative_to(folder).as_posix(), "descriptor": descriptor, "files": files}
+        # Optional precomputed hill scores (docs/hill-scores.mjs validates them in the app).
+        scores = descriptor.get("scores")
+        if scores is not None:
+            if not isinstance(scores, str) or not scores.endswith(".json") or "\\" in scores or ":" in scores or any(p in ("", ".", "..") for p in scores.split("/")):
+                raise ValueError(f"Invalid scores path in {path}: {scores}")
+            entry["scores"] = json.loads((path.parent / scores).read_text(encoding="utf-8-sig"))
+        result.append(entry)
     # Standard '94 suites first, then '88, then small-core/other formats.
     # Preserve the existing order within each group.
     def group(entry):

@@ -19,4 +19,25 @@ assert(plan('challenge',{challenger:'B',config:{permutate:true}}).jobs.every(j=>
 assert(plan('benchmark',{opponents:entrants,config:{permutate:true}}).jobs.every(j=>j.config.permutate));
 assert(plan('melee',{entrants:entrants.slice(0,2),config:{permutate:true}}).jobs[0].config.permutate);
 assert.throws(()=>plan('melee',{config:{permutate:true}}),/exactly two/);
+const hill=['X','Y','Z'].map(id=>({id,name:id,source:';name '+id+'\nmov 0,1'}));
+const pushed=plan('benchmark',{entrants:entrants.slice(0,2),opponents:hill,pushoff:true});
+assert.deepEqual(pushed.jobs.map(j=>j.kind),['candidate','candidate','candidate','self','candidate','candidate','candidate','self']);
+const withHill=plan('benchmark',{entrants:entrants.slice(0,1),opponents:hill,pushoff:true,hill:true});
+assert.deepEqual(withHill.jobs.filter(j=>j.kind==='hill').map(j=>[j.i,j.j]),[[0,0],[0,1],[0,2],[1,1],[1,2],[2,2]]);
+// Pair-keyed placement: the same two warriors get the same positions in any run.
+const key=(p,a,b)=>p.jobs.find(j=>j.warriors[0].id===a&&j.warriors[1].id===b).config.fixedPosition;
+assert.equal(key(pushed,'B','Y'),key(plan('benchmark',{entrants:[entrants[1]],opponents:hill,pushoff:true}),'B','Y'));
+assert.equal(key(withHill,'X','Y'),key(plan('benchmark',{entrants:entrants.slice(1),opponents:hill,pushoff:true,hill:true}),'X','Y'));
+assert.notEqual(key(withHill,'X','Y'),key(withHill,'X','Z'));
+const hillRun=plan('benchmark',{entrants:entrants.slice(0,1),opponents:hill,pushoff:true,hill:true,hillRounds:1000});
+assert.equal(hillRun.jobs.find(j=>j.kind==='hill').config.rounds,1000);assert.equal(hillRun.jobs.find(j=>j.kind==='candidate').config.rounds,10);
+assert.equal(hillRun.totalRounds,4*10+6*1000);assert.deepEqual(hillRun.jobs.map(j=>j.id),[...hillRun.jobs.keys()]);
+// Placement keys become numeric -F values (pMARS's text-key RNG is broken), never seed 0.
+import('./tournament-plan.mjs').then(({numericPosition})=>{
+ const nano={coreSize:80,maxLength:5,distance:5};
+ const values=Array.from({length:500},(_,i)=>Number(numericPosition('k'+i,nano)));
+ assert(values.every(v=>Number.isInteger(v)&&v>=6&&v<=75));assert(new Set(values).size>60);
+ assert.match(numericPosition('x',{}),/^\d+$/);
+});
+assert(plan('round-robin').jobs.every(j=>/^\d+$/.test(j.config.fixedPosition)));
 console.log('PASS: tournament schedules, self fights, settings validation and reproducible seeds.');

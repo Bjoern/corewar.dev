@@ -27,8 +27,8 @@ try{
  await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Imported'));
  assert.equal(await page.locator('.include-warrior').count(),1);
  assert.equal(await page.locator('#tournamentRounds').inputValue(),'7');
- const zipDownload=page.waitForEvent('download');await page.locator('#downloadBenchmarkZip').click();const zip=await zipDownload;assert.match(zip.suggestedFilename(),/\.zip$/);await zip.saveAs('docs/test-output/benchmark-export.zip');
  await page.locator('#benchmarkDetails summary').click();assert.equal(await page.locator('#benchmarkMembers li').count(),2);
+ const zipDownload=page.waitForEvent('download');await page.locator('#downloadBenchmarkZip').click();const zip=await zipDownload;assert.match(zip.suggestedFilename(),/\.zip$/);await zip.saveAs('docs/test-output/benchmark-export.zip');
  await page.locator('#tournamentRounds').fill('3');await page.locator('#tournamentStart').click();
  await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Complete'));
  const download=page.waitForEvent('download');await page.locator('#tournamentExport').click();const result=JSON.parse(await readFile(await (await download).path(),'utf8'));
@@ -42,6 +42,32 @@ try{
  await page.locator('#benchmarkFiles').setInputFiles(file('missing.benchmark.json',JSON.stringify(descriptor)));
  await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.includes('Missing warrior'));
  assert.equal(await page.locator('#benchmarkSuite option').count(),count);assert.equal(await page.locator('.include-warrior').count(),1);
+ // Push-off benchmark: the first run fights the hill pairs and caches them; later runs only fight the candidate.
+ const opponents=[file('loop.red',';redcode\n;name Loop\n;assert 1\njmp 0'),file('dead.red',';redcode\n;name Dead\n;assert 1\ndat 0,0')];
+ const pushSuite={...descriptor,name:'Nano push-off',parameters:{...descriptor.parameters,rounds:5}};
+ const imported=async(label)=>{await page.waitForFunction(text=>document.querySelector('#tournamentStatus').textContent.includes(text),label);};
+ await page.locator('#benchmarkFiles').setInputFiles([file('push.benchmark.json',JSON.stringify(pushSuite)),...opponents]);await imported('Nano push-off');
+ assert(await page.locator('#tournamentSettingsSlot').evaluate(e=>e.inert));assert.match(await page.locator('#suiteSettingsNote').textContent(),/core 80 · cycles 800/);
+ await page.locator('#tournamentRanking').selectOption('sd-diversity');
+ await page.waitForFunction(()=>document.querySelector('#hillText').textContent.startsWith('No hill scores'));
+ assert.match(await page.locator('#tournamentWorkload').textContent(),/^6 matchups \(3 between hill warriors\)/);
+ const finished=()=>page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Complete'));
+ await page.locator('#tournamentStart').click();await finished();
+ assert.match(await page.locator('#pushoffStandings tr').first().textContent(),/Candidate\d of 3/);
+ const firstPlace=await page.locator('#pushoffStandings tr').first().textContent();
+ await page.waitForFunction(()=>document.querySelector('#hillText').textContent.startsWith('Hill scores cached'));
+ assert.match(await page.locator('#tournamentWorkload').textContent(),/^3 matchups ·/);
+ await page.locator('#tournamentStart').click();await finished();
+ assert.equal(await page.locator('#pushoffStandings tr').first().textContent(),firstPlace); // pair-keyed placement reproduces the run
+ await page.locator('#recomputeHill').check();assert.match(await page.locator('#tournamentWorkload').textContent(),/^6 matchups/);await page.locator('#recomputeHill').uncheck();
+ // Downloaded hill scores can ship with the suite.
+ await page.locator('#benchmarkDetails').evaluate(d=>{d.open=true;});
+ const hillDownload=page.waitForEvent('download');await page.locator('#downloadHillScores').click();const scores=await readFile(await (await hillDownload).path(),'utf8');
+ assert.deepEqual(JSON.parse(scores).warriors,['loop.red','dead.red']);
+ await page.locator('#benchmarkFiles').setInputFiles([file('shipped.benchmark.json',JSON.stringify({...pushSuite,name:'Nano shipped',scores:'hill-scores.json'})),file('hill-scores.json',scores),...opponents]);await imported('Nano shipped');
+ await page.waitForFunction(()=>document.querySelector('#hillText').textContent.includes('shipped with the suite'));
+ assert.match(await page.locator('#tournamentWorkload').textContent(),/^3 matchups ·/);
+ await page.locator('#mode-round-robin').click();assert(!(await page.locator('#tournamentSettingsSlot').evaluate(e=>e.inert)));assert(await page.locator('#suiteSettingsNote').isHidden());
  assert.deepEqual(errors,[]);
- console.log('PASS: separate benchmark upload, descriptor editing, defaults and rounds override, missing-file recovery, unchanged roster.');
+ console.log('PASS: separate benchmark upload, descriptor editing, defaults and rounds override, missing-file recovery, unchanged roster, suite-owned settings, push-off hill caching and shipped hill scores.');
 }finally{await browser.close();}
