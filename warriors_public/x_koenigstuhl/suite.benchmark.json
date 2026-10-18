@@ -1,6 +1,7 @@
 {
   "version": 1,
   "name": "Koenigstuhl X · 2026-10-18",
+  "listed": false,
   "description": "Supplied snapshot of the Koenigstuhl ’94 experimental hill, settings from config/94x.opt: 214 warriors, all retained. P-space is allowed. Rounds defaults to 100 in this app.",
   "parameters": {
     "coreSize": 55440,
