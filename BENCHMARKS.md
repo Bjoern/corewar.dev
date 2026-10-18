@@ -140,21 +140,22 @@ identity test. Melee ignores this option because all entrants already share a co
 
 ## Supplied catalog (2026-10-18)
 
-The catalog lists 14 suites with 654 runnable opponent entries. Original files,
+The catalog lists 13 suites with 440 runnable opponent entries. Original files,
 readmes, and historical runner scripts are preserved under `warriors_public/`.
 Koenigstuhl archive membership follows the supplied files, not an inferred top-50
 ranking: 59 '88 opponents, 59 '94nop opponents, and 53 P-space
-opponents. Numb is included with the corrected pinned assembler. The 2026-10-18
-snapshots add the low-process hill (149 warriors, `lp.opt`: 8 processes, length
-200; unlisted, the app offers its top 50 by average score in the hill scores, in
-`lp_koenigstuhl/top50.benchmark.json`, with scores taken from the full matrix) and the experimental X hill (214 warriors, `94x.opt`: core 55440, 500000
-cycles, 10000 processes, length 200; also offered as its top 50 in Koenigstuhl's
-own ranking of 2026-10-18, in `x_koenigstuhl/top50.benchmark.json`); both allow P-space.
+opponents, hence "~top 50" in their names. Numb is included with the corrected
+pinned assembler. The 2026-10-18 snapshots add the low-process hill (149
+warriors, `lp.opt`: 8 processes, length 200) and the experimental X hill (214
+warriors, `94x.opt`: core 55440, 500000 cycles, 10000 processes, length 200);
+both allow P-space. Both full hills are unlisted. The app offers the LP top 50
+by average score in the hill scores, in `lp_koenigstuhl/top50.benchmark.json`,
+with scores taken from the full matrix, and the X top 50 in Koenigstuhl's own
+ranking of 2026-10-18, in `x_koenigstuhl/top50.benchmark.json`.
 Hill scores ship for the '94nop, '88, P-space, LP and X top 50 Koenigstuhl
 suites and Franz's Tiny (X top 50: 1.3 million rounds, 5 minutes with exMARS on
-24 threads). The full X hill has none yet (23 million rounds at up to 500000
-cycles); until then a push-off benchmark against it fights the hill pairs in
-the browser.
+24 threads). The full X hill has none (23 million rounds at up to 500000
+cycles).
 Franz's Tiny contains 10 of the 20 warriors described by its README and is labeled
 partial. Nano 2007 uses permutation mode with a 142-round default, covering every
 legal relative placement and both first-warrior choices. Round overrides can
