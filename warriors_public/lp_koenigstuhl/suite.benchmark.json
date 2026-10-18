@@ -1,6 +1,7 @@
 {
   "version": 1,
   "name": "Koenigstuhl LP · 2026-10-18",
+  "listed": false,
   "description": "Supplied snapshot of the Koenigstuhl low process (SAL limited process) hill, settings from config/lp.opt: 149 warriors, all retained. P-space is allowed. Rounds defaults to 100 in this app.",
   "parameters": {
     "coreSize": 8000,

@@ -8,7 +8,7 @@
 //
 // Defaults: 1000 rounds per pair on cores above 1000 cells, every starting position otherwise.
 // The default engine is the app's own (docs/engine.mjs). --exmars runs an exMARS executable
-// for pairs without P-space, about three times faster; --verify N rechecks N of them on pMARS.
+// instead, about three times faster; --verify N rechecks N random pairs on the built-in engine.
 import {readFile,writeFile,rename,readdir,stat,mkdtemp,rm} from 'node:fs/promises';
 import {Worker} from 'node:worker_threads';
 import {execFile} from 'node:child_process';
@@ -25,7 +25,9 @@ const args=process.argv.slice(2),flag=name=>args.includes(name),option=(name,fal
 const target=args.find((a,i)=>!a.startsWith('--')&&!valued.includes(args[i-1]));
 if(!target){console.error('Usage: node scripts/precompute-hill.mjs <suite folder or .benchmark.json> [--rounds N] [--all-positions] [--workers N] [--seed S] [--exmars PATH] [--yes]');process.exit(2);}
 const withoutBom=text=>text.charCodeAt(0)===0xFEFF?text.slice(1):text;
-const descriptorPath=(await stat(target)).isDirectory()?path.join(target,(await readdir(target)).find(f=>f.endsWith('.benchmark.json'))??''):target;
+const descriptorsIn=async dir=>(await readdir(dir)).filter(f=>f.endsWith('.benchmark.json'));
+if((await stat(target)).isDirectory()&&(await descriptorsIn(target)).length>1){console.error(`${target} has several descriptors (${(await descriptorsIn(target)).join(', ')}); name the .benchmark.json file.`);process.exit(2);}
+const descriptorPath=(await stat(target)).isDirectory()?path.join(target,(await descriptorsIn(target))[0]??''):target;
 const folder=path.dirname(descriptorPath);
 // Rewriting the descriptor keeps its line endings (supplied suites use CRLF).
 const descriptorText=withoutBom(await readFile(descriptorPath,'utf8')),eol=descriptorText.includes('\r\n')?'\r\n':'\n';
@@ -43,23 +45,41 @@ const jobs=hillJobs(suite.warriors,{seed,config,rounds,permutate}),total=jobs.le
 
 // exMARS: P-space is always core/16 and shared, as in pMARS. It cannot run every starting
 // position, and assembles '88 warriors with the '94 parser, whose default modifiers reproduce
-// '88 behaviour. Cross-checked with shared -F seeds: the '94nop and '88 Koenigstuhl hills matched
-// pMARS in every cell, but 13% of the P-space hill's cells differed. So pairs where either warrior
-// uses P-space (LDP, STP or PIN) always run on the built-in engine; exMARS runs the rest.
-// Other differences exist (LP hill: Bipolar, without P-space), so use --verify with --exmars.
-const usesPspace=source=>/(^|\s)(ldp|stp|pin)(\.[a-z]+)?(\s|$)/im.test(source.split(/\r?\n/).map(line=>line.replace(/;.*/,'')).join('\n'));
+// '88 behaviour. Builds with the pMARS compatibility fixes of 2026-10-18 matched pMARS cell for
+// cell on the '94nop, '88, P-space and LP Koenigstuhl hills with shared numeric -F seeds.
+// Earlier builds misassemble some expressions and differ on P-space and large cores, so the
+// executable must first win these two-round checks, which pMARS ties and those builds do not.
+const exmarsProbes=[
+ // Bipolar's a-(b)/2-c/2 chain is 1 in pMARS; the old evaluator gave 5, and the jump dies.
+ {name:'expression',args:[],sources:['jmp 9-(3*4)/2-4/2\njmp 0','jmp 0']},
+ // Equal PINs share P-space, and STP reads its immediate B after A's post-increment (P[7]).
+ {name:'P-space',args:[],sources:['pin 123\nstp.ab >0, #6\nstp.ab #7, #1\njmp 0\ndat 0, 0\ndat 0, 0\ndat 0, 0\ndat 7, 0',
+  'pin 123\nnop 0, 0\nnop 0, 0\nldp.ab #1, v\nseq.ab #7, v\ndat 0, 0\nldp.ab #7, v\nseq.ab #7, v\ndat 0, 0\njmp 0\nv dat 0, 0']},
+ // 30000+40000 in a 55440 core: the old engine reduced the sum in 16 bits.
+ {name:'large core',args:['-s','55440'],sources:['add.ab #40000, t\nseq.ab #14560, t\ndat 0, 0\njmp 0\nt dat 0, 30000','jmp 0']},
+];
+async function exmarsMismatch(file){
+ const scratch=await mkdtemp(path.join(tmpdir(),'exmars-check-'));
+ try{
+  for(const [n,probe] of exmarsProbes.entries()){
+   const paths=await Promise.all(probe.sources.map(async(source,i)=>{const p=path.join(scratch,`${n}-${i}.red`);await writeFile(p,`;redcode-94\n;assert 1\n${source}\nend\n`);return p;}));
+   const rows=await new Promise(resolve=>execFile(file,['-r','2','-c','1000','-F','4000',...probe.args,...paths],{windowsHide:true},(error,stdout)=>resolve(error?'':stdout.trim().split(/\r?\n/).map(l=>l.trim()).join(';'))));
+   if(rows!=='0 2;0 2')return probe.name;
+  }
+ }finally{await rm(scratch,{recursive:true,force:true});}
+ return null;
+}
 let exmars=option('--exmars'),engine='pmars-wasm '+(JSON.parse(await readFile(new URL('../engine-lock.json',import.meta.url),'utf8')).commit||'');
 let exmarsJobs=[],builtinJobs=jobs;
 if(exmars){
  if(permutate){console.error('exMARS cannot fight every starting position. Use the built-in engine (no --exmars) or --rounds N.');process.exit(2);}
  if(config.pspace&&config.pspace!==Math.max(1,Math.floor(config.coreSize/16))){console.error(`exMARS always uses P-space ${Math.floor(config.coreSize/16)}; this suite sets ${config.pspace}.`);process.exit(2);}
  if((await stat(exmars)).isDirectory())exmars=path.join(exmars,'bin',config.coreSize===8000&&config.tasks===8000?'standard':'generic','exmars-fast.exe');
+ const mismatch=await exmarsMismatch(exmars);
+ if(mismatch){console.error(`${exmars} differs from pMARS (${mismatch} check). Use an exMARS build with the pMARS compatibility fixes.`);process.exit(2);}
  if(config.rules88)console.warn('Note: exMARS has no ICWS ’88 mode; the warriors are assembled with ’94 defaults, which give ’88 behaviour.');
- const pspace=suite.warriors.map(w=>usesPspace(w.source));
- exmarsJobs=jobs.filter(j=>!pspace[j.i]&&!pspace[j.j]);builtinJobs=jobs.filter(j=>pspace[j.i]||pspace[j.j]);
- const exmarsId='exmars '+createHash('sha256').update(await readFile(exmars)).digest('hex').slice(0,16);
- engine=builtinJobs.length?`${exmarsId} + ${engine} for P-space pairs`:exmarsId;
- console.log(`${pspace.filter(Boolean).length} warriors use P-space: ${builtinJobs.length.toLocaleString()} pairs on the built-in engine, ${exmarsJobs.length.toLocaleString()} on ${path.basename(path.dirname(exmars))} exMARS.`);
+ exmarsJobs=jobs;builtinJobs=[];
+ engine='exmars '+createHash('sha256').update(await readFile(exmars)).digest('hex').slice(0,16);
 }
 console.log(`${suite.name}: ${suite.warriors.length} warriors, ${jobs.length.toLocaleString()} pairs × ${rounds.toLocaleString()} rounds${permutate?' (every starting position)':''} = ${total.toLocaleString()} rounds on ${workers} workers.`);
 if(total>20_000_000&&!flag('--yes')){console.error('That is a very large run. Pass --yes to start it, or lower --rounds.');process.exit(1);}

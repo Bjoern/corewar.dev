@@ -27,7 +27,9 @@ suites with descriptors; it does not guess rules from folder names.
 Parameters: `coreSize`, `cycles`, `tasks`, `maxLength`, `distance`, `pspace`,
 `rules88`, `noPspace`, `permutate`, `formula`, and `rounds`. Omitted settings use pMARS defaults;
 omitted rounds defaults to 100. Descriptors can also retain descriptive metadata
-such as `description`, `sourceUrl`, and `retrievedAt`.
+such as `description`, `sourceUrl`, and `retrievedAt`. `"listed": false` keeps a
+suite in the repository without offering it in the app, for example a full hill
+that a smaller suite is derived from.
 
 Selecting a suite (or applying an edited descriptor) sets its default rounds.
 The editable Rounds per matchup field overrides that default for the next run.
@@ -134,13 +136,14 @@ identity test. Melee ignores this option because all entrants already share a co
 
 ## Supplied catalog (2026-10-18)
 
-The catalog contains 13 suites and 703 runnable opponent entries. Original files,
+The catalog lists 13 suites with 604 runnable opponent entries. Original files,
 readmes, and historical runner scripts are preserved under `warriors_public/`.
 Koenigstuhl archive membership follows the supplied files, not an inferred top-50
 ranking: 59 '88 opponents, 59 '94nop opponents, and 53 P-space
 opponents. Numb is included with the corrected pinned assembler. The 2026-10-18
 snapshots add the low-process hill (149 warriors, `lp.opt`: 8 processes, length
-200) and the experimental X hill (214 warriors, `94x.opt`: core 55440, 500000
+200; unlisted, the app offers its top 50 by average score in the hill scores, in
+`lp_koenigstuhl/top50.benchmark.json`, with scores taken from the full matrix) and the experimental X hill (214 warriors, `94x.opt`: core 55440, 500000
 cycles, 10000 processes, length 200); both allow P-space.
 Hill scores ship for the '94nop, '88, P-space and LP Koenigstuhl suites and
 Franz's Tiny. The X hill has none yet (23 million rounds at up to 500000

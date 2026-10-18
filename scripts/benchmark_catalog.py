@@ -11,6 +11,10 @@ def catalog(root):
         descriptor = json.loads(path.read_text(encoding="utf-8-sig"))
         if descriptor.get("version") != 1 or not isinstance(descriptor.get("name"), str):
             raise ValueError(f"Invalid descriptor: {path}")
+        # "listed": false keeps a suite in the repository (e.g. a full hill that a top-N suite
+        # is derived from) without offering it in the app.
+        if descriptor.get("listed", True) is False:
+            continue
         paths = descriptor.get("warriors")
         if not isinstance(paths, list) or not 1 <= len(paths) <= 500 or len(set(paths)) != len(paths):
             raise ValueError(f"Invalid warrior list: {path}")
