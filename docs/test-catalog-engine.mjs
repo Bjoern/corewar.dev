@@ -1,9 +1,11 @@
 import {benchmarkCatalog} from '../_site/benchmark-catalog.mjs';
 import {readBenchmark} from './benchmarks.mjs';
 import {Engine} from './engine.mjs';
+import {readFileSync} from 'node:fs';
 let count=0,failed=[];
 for(const entry of benchmarkCatalog){
- const suite=readBenchmark(entry.descriptor,entry.files,entry.id,entry.scores);
+ const {files,scores}=JSON.parse(readFileSync(new URL('../_site/'+entry.data,import.meta.url),'utf8'));
+ const suite=readBenchmark(entry.descriptor,files,entry.id,scores);
  for(const warrior of suite.warriors){
   let logs='';
   try{

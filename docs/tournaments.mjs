@@ -2,7 +2,7 @@ import {suiteFilenames} from './warrior-files.mjs';
 import {benchmarkZip,storeZip} from './benchmark-zip.mjs';
 import {pushoff,rankings,koenScore,writeKoenigstuhl} from './pushoff.mjs';
 import {benchmarkCatalog} from './benchmark-catalog.mjs';
-import {readBenchmark,importBenchmarkFiles,benchmarkParameters} from './benchmarks.mjs';
+import {readBenchmark,importBenchmarkFiles,benchmarkParameters,benchmarkHeader} from './benchmarks.mjs';
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {planTournament} from './tournament-plan.mjs';
 import {cacheKey,loadCached,saveCached,withCandidate,writeHillScores,defaultHillRounds,permutationRounds} from './hill-scores.mjs';
@@ -17,7 +17,22 @@ export function describeSettings(c){
 }
 const authorOf=source=>/^\s*;\s*author\s+(.*?)\s*$/im.exec(source)?.[1]||'Anonymous';
 export function setupTournaments({roster,readConfig,onTab}) {
- const suites=benchmarkCatalog.map(s=>readBenchmark(s.descriptor,s.files,s.id,s.scores));
+ // Catalog suites start as their descriptors; warriors and hill scores load on first use.
+ const suites=benchmarkCatalog.map(s=>({id:s.id,descriptor:s.descriptor,...benchmarkHeader(s.descriptor),data:s.data,warriors:null}));
+ const loading=new Map();
+ function loadSuite(suite){
+  if(suite.warriors)return Promise.resolve(suite);
+  if(!loading.has(suite.id))loading.set(suite.id,(async()=>{
+   try{
+    const response=await fetch(new URL(suite.data,import.meta.url));if(!response.ok)throw new Error('HTTP '+response.status);
+    const {files,scores}=await response.json(),loaded=readBenchmark(suite.descriptor,files,suite.id,scores??null);
+    const index=suites.indexOf(suite);if(index>=0)suites[index]=loaded;
+    if($('benchmarkSuite').value===suite.id)refresh();
+    return loaded;
+   }catch(error){loading.delete(suite.id);suite.loadError=`Could not load the opponents (${error.message})`;refresh();throw new Error(suite.loadError);}
+  })());
+  return loading.get(suite.id);
+ }
  let serial=0,run=null,workers=[],pendingRender=null,displayedSuite=null;
  // Hill scores for the selected suite: shipped with it, cached in this browser, or none yet.
  let hill={id:null,key:null,data:null};
@@ -89,12 +104,13 @@ export function setupTournaments({roster,readConfig,onTab}) {
   $('rankingHint').textContent={sequential:'Repeatedly removes the warrior with the lowest total score, self fight included. Turn on Self fights to match the Koenigstuhl scripts.',diversity:'Repeatedly removes the warrior with the lowest average × distance to its most similar warrior (Astolfi).','sd-diversity':'Repeatedly removes the warrior with the lowest average × smallest SD-score to another warrior (Ismael 2025).'}[ranking]||'';
   const old=$('challenger').value;$('challenger').replaceChildren(...roster().map(w=>new Option(w.name,w.id)));if(roster().some(w=>w.id===old))$('challenger').value=old;
   const selected=$('benchmarkSuite').value;$('benchmarkSuite').replaceChildren(...suites.map(s=>new Option(s.name,s.id)));if(suites.some(s=>s.id===selected))$('benchmarkSuite').value=selected;
-  const suite=suites.find(s=>s.id===$('benchmarkSuite').value);
-  if(displayedSuite!==suite){
+  const suite=suites.find(s=>s.id===$('benchmarkSuite').value),pending=!suite.warriors;
+  if(pending&&mode==='benchmark'&&!suite.loadError)loadSuite(suite).catch(()=>{});
+  if(displayedSuite!==suite||pending){
    displayedSuite=suite;
    $('benchmarkDescription').textContent=suite.descriptor.description||'';
-   $('benchmarkSummary').textContent=`${suite.name} · ${suite.warriors.length} opponents · default ${suite.rounds} rounds`;
-   $('benchmarkMembers').replaceChildren(...suite.warriors.map(w=>{const li=document.createElement('li');li.textContent=w.name+' ('+w.file+')';return li;}));
+   $('benchmarkSummary').textContent=`${suite.name} · ${pending?suite.loadError||'loading opponents…':suite.warriors.length+' opponents'} · default ${suite.rounds} rounds`;
+   $('benchmarkMembers').replaceChildren(...(suite.warriors||[]).map(w=>{const li=document.createElement('li');li.textContent=w.name+' ('+w.file+')';return li;}));
    $('benchmarkDescriptor').value=JSON.stringify(suite.descriptor,null,2);
    const hillDefault=defaultHillRounds(suite.config);$('hillRounds').value=hillDefault.rounds;$('hillPermutate').checked=hillDefault.permutate;
   }
@@ -104,7 +120,10 @@ export function setupTournaments({roster,readConfig,onTab}) {
   $('suiteSettingsNote').hidden=!suiteOwned;
   if(suiteOwned)$('suiteSettingsNote').textContent=`This benchmark uses the settings of “${suite.name}”, not the match settings above: ${describeSettings(suite.config)}. Edit them under Suite details.`;
   const pushing=benchmarkPushoff();$('hillStatus').hidden=!pushing;
-  if(pushing){
+  if(pushing&&pending){
+   $('hillText').textContent=suite.loadError||'Loading the suite…';
+   $('recomputeHillField').hidden=$('hillFightSetup').hidden=$('hillWarning').hidden=true;
+  }else if(pushing){
    if(hill.id!==suiteId(suite))lookupHill(suite);
    const data=hill.id===suiteId(suite)&&hill.data,pairs=suite.warriors.length*(suite.warriors.length+1)/2;
    $('hillText').textContent=hill.pending?'Looking for hill scores…':data?`Hill scores ${data.source==='suite'?'shipped with the suite':'cached in this browser'}: ${data.permutate?'every starting position':`${data.rounds.toLocaleString()} rounds per pair`}${data.createdAt?`, ${data.createdAt}`:''}. Only the selected warriors fight.`:`${suite.scoresProblem?suite.scoresProblem+' ':''}No hill scores yet: this run also fights the ${pairs.toLocaleString()} hill pairs and caches the result in this browser.`;
@@ -118,7 +137,7 @@ export function setupTournaments({roster,readConfig,onTab}) {
   }
   $('downloadHillScores').disabled=!(hill.id===suiteId(suite)&&hill.data);
   $('tournamentEntrants').textContent=roster().map(w=>w.name).join(', ')||'Select warriors in the roster above.';
-  try {const c=configForRun();$('tournamentRules').textContent=`${suiteOwned?'Suite settings':'Match settings'} · ${describeSettings(c)}`;const p=plan(),hillJobs=p.jobs.filter(j=>j.kind==='hill').length;$('tournamentWorkload').textContent=`${p.jobs.length.toLocaleString()} matchups${hillJobs?` (${hillJobs.toLocaleString()} between hill warriors)`:''} · ${p.totalRounds.toLocaleString()} rounds`;}
+  try {const c=configForRun();$('tournamentRules').textContent=`${suiteOwned?'Suite settings':'Match settings'} · ${describeSettings(c)}`;if(mode==='benchmark'&&pending)throw new Error(suite.loadError||'Loading the suite’s opponents…');const p=plan(),hillJobs=p.jobs.filter(j=>j.kind==='hill').length;$('tournamentWorkload').textContent=`${p.jobs.length.toLocaleString()} matchups${hillJobs?` (${hillJobs.toLocaleString()} between hill warriors)`:''} · ${p.totalRounds.toLocaleString()} rounds`;}
   catch(error){$('tournamentWorkload').textContent=error.message;}
  }
  function dispose(){for(const slot of workers){clearTimeout(slot.timer);slot.worker.terminate();}workers=[];}
@@ -243,6 +262,7 @@ export function setupTournaments({roster,readConfig,onTab}) {
  }
  $('tournamentStart').onclick=async()=>{
   try {
+   if($('tournamentMode').value==='benchmark')await loadSuite(currentSuite());
    if(benchmarkPushoff())await lookupHill(currentSuite());
    const next=plan(),count=Number($('tournamentWorkers').value);
    if(!Number.isInteger(count)||count<1||count>processors)throw new Error(`Choose 1–${processors} workers.`);
@@ -318,12 +338,13 @@ export function setupTournaments({roster,readConfig,onTab}) {
   try{const suite=await importBenchmarkFiles($(id).files,'import-'+(++serial));suites.push(suite);refresh();$('benchmarkSuite').value=suite.id;suiteDefaults();$('tournamentStatus').textContent=`Imported “${suite.name}” (${suite.warriors.length} opponents).`;}
   catch(error){$('tournamentStatus').textContent=error.message;}finally{$(id).value='';}
  };
- $('applyBenchmark').onclick=()=>{
-  try{const old=suites.find(s=>s.id===$('benchmarkSuite').value),updated=readBenchmark(JSON.parse($('benchmarkDescriptor').value),old.files,old.id,old.scoresData);suites[suites.indexOf(old)]=updated;suiteDefaults();$('tournamentStatus').textContent='Benchmark updated for this session.';}
+ $('applyBenchmark').onclick=async()=>{
+  try{const text=$('benchmarkDescriptor').value,old=await loadSuite(currentSuite()),updated=readBenchmark(JSON.parse(text),old.files,old.id,old.scoresData);suites[suites.indexOf(old)]=updated;suiteDefaults();$('tournamentStatus').textContent='Benchmark updated for this session.';}
   catch(error){$('tournamentStatus').textContent=error.message;}
  };
- $('downloadBenchmarkZip').onclick=()=>{
-  const suite=suites.find(s=>s.id===$('benchmarkSuite').value),a=document.createElement('a'),url=URL.createObjectURL(benchmarkZip(suite));
+ $('downloadBenchmarkZip').onclick=async()=>{
+  let suite;try{suite=await loadSuite(currentSuite());}catch(error){$('tournamentStatus').textContent=error.message;return;}
+  const a=document.createElement('a'),url=URL.createObjectURL(benchmarkZip(suite));
   a.href=url;a.download=(suite.name.replace(/[^a-z0-9_-]+/gi,'-').replace(/^-|-$/g,'')||'benchmark')+'.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  };
  $('downloadBenchmark').onclick=()=>{
@@ -333,5 +354,12 @@ export function setupTournaments({roster,readConfig,onTab}) {
  $('tournamentMode').addEventListener('change',suiteDefaults);
  for(const id of ['tournamentRounds','tournamentSeed','selfFights'])$(id).addEventListener('change',refresh);
  $('challenger').addEventListener('change',()=>{try{$('tournamentWorkload').textContent=`${plan().jobs.length} matchups`;}catch{}});
- refresh();controls();return {refresh};
+ refresh();controls();
+ // Prefetch the rest when the browser is idle, the selected suite first, unless the visitor asked to save data.
+ if(!navigator.connection?.saveData){
+  const prefetch=async()=>{for(const suite of [currentSuite(),...suites])if(suite&&!suite.warriors&&!suite.loadError)await loadSuite(suite).catch(()=>{});};
+  const idle=()=>window.requestIdleCallback?requestIdleCallback(prefetch,{timeout:5000}):setTimeout(prefetch,1000);
+  if(document.readyState==='complete')idle();else addEventListener('load',idle,{once:true});
+ }
+ return {refresh};
 }

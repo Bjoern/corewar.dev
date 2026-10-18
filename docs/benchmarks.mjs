@@ -6,8 +6,8 @@ export function benchmarkPath(path){
  if(typeof path!=='string'||!path||path.length>256||path.includes('\\')||path.startsWith('/')||path.split('/').some(p=>!p||p==='.'||p==='..')||/[:\0]/.test(path))throw new Error('Invalid benchmark file path: '+path);
  return path;
 }
-// scoresData: the parsed file named by descriptor.scores (precomputed hill scores), if any.
-export function readBenchmark(descriptor,files,id='imported',scoresData=null){
+// Name, rounds and settings of a descriptor; enough to list a suite before its warriors load.
+export function benchmarkHeader(descriptor){
  if(!descriptor||descriptor.version!==1)throw new Error('Benchmark descriptor must have version: 1.');
  if(typeof descriptor.name!=='string'||!descriptor.name.trim()||descriptor.name.length>100)throw new Error('Benchmark needs a name of 1–100 characters.');
  const parameters=descriptor.parameters??{};
@@ -16,7 +16,11 @@ export function readBenchmark(descriptor,files,id='imported',scoresData=null){
  for(const key of ['rules88','noPspace','permutate'])if(key in parameters&&typeof parameters[key]!=='boolean')throw new Error(key+' must be true or false.');
  const rounds=parameters.rounds??100;
  if(!Number.isInteger(rounds)||rounds<1)throw new Error('Benchmark rounds must be a positive integer.');
- const config=settings({...defaults,...parameters,rounds,warriors:2});
+ return {name:descriptor.name.trim(),rounds,config:settings({...defaults,...parameters,rounds,warriors:2})};
+}
+// scoresData: the parsed file named by descriptor.scores (precomputed hill scores), if any.
+export function readBenchmark(descriptor,files,id='imported',scoresData=null){
+ const {name,rounds,config}=benchmarkHeader(descriptor);
  if(!Array.isArray(descriptor.warriors)||!descriptor.warriors.length||descriptor.warriors.length>500)throw new Error('List between 1 and 500 warrior files.');
  const paths=descriptor.warriors.map(benchmarkPath);
  if(new Set(paths).size!==paths.length)throw new Error('A warrior file is listed more than once.');
@@ -25,7 +29,7 @@ export function readBenchmark(descriptor,files,id='imported',scoresData=null){
   const source=files[file];if(typeof source!=='string'||new TextEncoder().encode(source).length>65536)throw new Error('Warrior exceeds 64 KiB: '+file);
   return {id:id+'-'+i,file,name:source.match(/^\s*;name\s+([^\r\n]*)/im)?.[1].trim()||file,source};
  });
- const suite={id,name:descriptor.name.trim(),descriptor:JSON.parse(JSON.stringify(descriptor)),files:{...files},warriors,config,rounds,scoresData:null,hillScores:null};
+ const suite={id,name,descriptor:JSON.parse(JSON.stringify(descriptor)),files:{...files},warriors,config,rounds,scoresData:null,hillScores:null};
  if(descriptor.scores!==undefined){
   benchmarkPath(descriptor.scores);
   if(!scoresData)throw new Error('Missing hill scores file: '+descriptor.scores);
