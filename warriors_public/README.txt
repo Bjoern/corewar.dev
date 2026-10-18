@@ -11,3 +11,6 @@ tinybm02 is Metcalf's Tiny Benchmark 2002 for the tiny hill
 tinybm04 is Metcalf's Tiny Benchmark 2004 for the tiny hill
 tinyfran is Franz's Tiny Benchmark for the tiny hill
 nanobm07 is Metcalf's Nano Benchmark for the Nano hill
+lp_koenigstuhl contains warriors from the low process Koenigstuhl (snapshot: 2026-10-18)
+x_koenigstuhl contains warriors from the  X-Koenigstuhl (snapshot: 2026-10-18)
+

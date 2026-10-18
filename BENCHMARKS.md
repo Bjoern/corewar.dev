@@ -89,7 +89,13 @@ bundle folder, it picks the `standard` build for core 8000 / 8000 processes
 and `generic` otherwise. exMARS places warriors exactly like pMARS for the same
 numeric `-F`, and its results matched the app's engine cell for cell on the
 '94nop and '88 Koenigstuhl hills. On the P-space hill 13% of cells differed by
-a few points, so the script refuses `--exmars` for suites that allow P-space.
+a few points. So with `--exmars`, pairs where either warrior uses P-space
+(LDP, STP or PIN outside comments) run on the built-in engine and exMARS runs
+the rest. `--verify N` reruns N random exMARS pairs on the built-in engine and
+saves nothing if any differ. On the LP hill it caught 4 of 200 pairs, all with
+Bipolar, which uses no P-space; the cause is not yet narrowed down. So the LP
+scores were computed with the built-in engine only, and `--exmars` should
+always be combined with `--verify`.
 It has no permutation option, so `--all-positions` needs the
 built-in engine, and no '88 assembly mode (warriors are assembled with '94
 defaults, which reproduce '88 behaviour).
@@ -126,13 +132,20 @@ Benchmark mode it includes opponents whose source text exactly matches the
 candidate; unchecked skips those entries. It does not use warrior names as an
 identity test. Melee ignores this option because all entrants already share a core.
 
-## Supplied catalog (2026-10-10)
+## Supplied catalog (2026-10-18)
 
-The catalog contains 11 suites and 340 runnable opponent entries. Original files,
+The catalog contains 13 suites and 703 runnable opponent entries. Original files,
 readmes, and historical runner scripts are preserved under `warriors_public/`.
 Koenigstuhl archive membership follows the supplied files, not an inferred top-50
 ranking: 59 '88 opponents, 59 '94nop opponents, and 53 P-space
-opponents. Numb is included with the corrected pinned assembler.
+opponents. Numb is included with the corrected pinned assembler. The 2026-10-18
+snapshots add the low-process hill (149 warriors, `lp.opt`: 8 processes, length
+200) and the experimental X hill (214 warriors, `94x.opt`: core 55440, 500000
+cycles, 10000 processes, length 200); both allow P-space.
+Hill scores ship for the '94nop, '88, P-space and LP Koenigstuhl suites and
+Franz's Tiny. The X hill has none yet (23 million rounds at up to 500000
+cycles); until then a push-off benchmark against it fights the hill pairs in
+the browser.
 Franz's Tiny contains 10 of the 20 warriors described by its README and is labeled
 partial. Nano 2007 uses permutation mode with a 142-round default, covering every
 legal relative placement and both first-warrior choices. Round overrides can
