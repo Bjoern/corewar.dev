@@ -93,9 +93,11 @@ numeric `-F`. Builds before the pMARS compatibility fixes of 2026-10-18
 misassembled some expressions (Bipolar, Twister), handled immediate B operands
 and PIN differently in P-space battles, and overflowed ADD/SUB on cores above
 32768. With the fixes, exMARS matched pMARS in every pair on the '94nop, '88,
-P-space and LP Koenigstuhl hills. The script first runs three two-round probe
-battles that only fixed builds pass, and refuses older builds such as the
-bundle in `resources/`. `--verify N` additionally reruns N random pairs on the
+P-space and LP Koenigstuhl hills, and in a 150-pair X sample. The script
+first runs two-round probe battles that only fixed builds pass (a third,
+large-core probe only for cores above 32768) and refuses older builds. The
+fixed bundle is `resources/exmars-windows-x64-2026-10-18-df43de4` (not
+committed; built from exMARS commit `df43de4`). `--verify N` additionally reruns N random pairs on the
 built-in engine and saves nothing if any differ.
 exMARS has no permutation option, so `--all-positions` needs the built-in
 engine, and no '88 assembly mode (warriors are assembled with '94 defaults,

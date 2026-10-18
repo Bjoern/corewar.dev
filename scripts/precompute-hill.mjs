@@ -55,13 +55,15 @@ const exmarsProbes=[
  // Equal PINs share P-space, and STP reads its immediate B after A's post-increment (P[7]).
  {name:'P-space',args:[],sources:['pin 123\nstp.ab >0, #6\nstp.ab #7, #1\njmp 0\ndat 0, 0\ndat 0, 0\ndat 0, 0\ndat 7, 0',
   'pin 123\nnop 0, 0\nnop 0, 0\nldp.ab #1, v\nseq.ab #7, v\ndat 0, 0\nldp.ab #7, v\nseq.ab #7, v\ndat 0, 0\njmp 0\nv dat 0, 0']},
- // 30000+40000 in a 55440 core: the old engine reduced the sum in 16 bits.
- {name:'large core',args:['-s','55440'],sources:['add.ab #40000, t\nseq.ab #14560, t\ndat 0, 0\njmp 0\nt dat 0, 30000','jmp 0']},
+ // 30000+40000 in a 55440 core: the old engine reduced the sum in 16 bits. Only for cores above
+ // 32768, which always use the generic build (the standard build only runs core 8000).
+ {name:'large core',args:['-s','55440'],large:true,sources:['add.ab #40000, t\nseq.ab #14560, t\ndat 0, 0\njmp 0\nt dat 0, 30000','jmp 0']},
 ];
 async function exmarsMismatch(file){
  const scratch=await mkdtemp(path.join(tmpdir(),'exmars-check-'));
  try{
   for(const [n,probe] of exmarsProbes.entries()){
+   if(probe.large&&config.coreSize<=32768)continue;
    const paths=await Promise.all(probe.sources.map(async(source,i)=>{const p=path.join(scratch,`${n}-${i}.red`);await writeFile(p,`;redcode-94\n;assert 1\n${source}\nend\n`);return p;}));
    const rows=await new Promise(resolve=>execFile(file,['-r','2','-c','1000','-F','4000',...probe.args,...paths],{windowsHide:true},(error,stdout)=>resolve(error?'':stdout.trim().split(/\r?\n/).map(l=>l.trim()).join(';'))));
    if(rows!=='0 2;0 2')return probe.name;
