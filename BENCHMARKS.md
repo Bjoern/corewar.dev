@@ -86,21 +86,22 @@ engine. Rebuild with `python scripts/build.py`. A 59-warrior Koenigstuhl
 hill at 1000 rounds takes about 4 minutes on a 20-thread machine.
 
 `--exmars <exmars-fast.exe or bundle folder>` runs an exMARS executable
-instead, about three times faster (78 seconds for the same hill). Given a
-bundle folder, it picks the `standard` build for core 8000 / 8000 processes
-and `generic` otherwise. exMARS places warriors exactly like pMARS for the same
-numeric `-F`, and its results matched the app's engine cell for cell on the
-'94nop and '88 Koenigstuhl hills. On the P-space hill 13% of cells differed by
-a few points. So with `--exmars`, pairs where either warrior uses P-space
-(LDP, STP or PIN outside comments) run on the built-in engine and exMARS runs
-the rest. `--verify N` reruns N random exMARS pairs on the built-in engine and
-saves nothing if any differ. On the LP hill it caught 4 of 200 pairs, all with
-Bipolar, which uses no P-space; the cause is not yet narrowed down. So the LP
-scores were computed with the built-in engine only, and `--exmars` should
-always be combined with `--verify`.
-It has no permutation option, so `--all-positions` needs the
-built-in engine, and no '88 assembly mode (warriors are assembled with '94
-defaults, which reproduce '88 behaviour).
+instead, about three times faster (78 seconds for the '94 hill). Given a bundle
+folder, it picks the `standard` build for core 8000 / 8000 processes and
+`generic` otherwise. exMARS places warriors exactly like pMARS for the same
+numeric `-F`. Builds before the pMARS compatibility fixes of 2026-10-18
+misassembled some expressions (Bipolar, Twister), handled immediate B operands
+and PIN differently in P-space battles, and overflowed ADD/SUB on cores above
+32768. With the fixes, exMARS matched pMARS in every pair on the '94nop, '88,
+P-space and LP Koenigstuhl hills. The script first runs three two-round probe
+battles that only fixed builds pass, and refuses older builds such as the
+bundle in `resources/`. `--verify N` additionally reruns N random pairs on the
+built-in engine and saves nothing if any differ.
+exMARS has no permutation option, so `--all-positions` needs the built-in
+engine, and no '88 assembly mode (warriors are assembled with '94 defaults,
+which reproduce '88 behaviour). The shipped '94nop and '88 scores came from the
+old build, which matched pMARS on those hills in every cell; the P-space and LP
+scores came from the built-in engine.
 
 ### Placement seeds
 
