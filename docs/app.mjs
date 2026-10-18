@@ -963,7 +963,7 @@ function applyTournamentWorkspace(w){
  if(t.seed!==undefined)$('tournamentSeed').value=t.seed;
  if(t.selfFights!==undefined)$('selfFights').checked=t.selfFights;
  tournaments.refresh();
- if(w.mode!==mode)$(w.mode==='tournament'?'tournamentTab':'emulatorTab').click();
+ if(w.mode!==mode)tournaments.selectTab(w.mode==='tournament'?1:0);
 }
 let restoredWorkspace=null;
 try{const saved=localStorage.getItem(WORKSPACE_KEY);if(saved!==null)restoredWorkspace=parseWorkspace(saved);}
@@ -1055,9 +1055,34 @@ const pageOpen=()=>/^#(reference|about)/.test(location.hash);
 function closeReference(){
  if(!pageOpen())return;
  if(referenceFromHash)window.history.back();
- else{window.history.replaceState(null,'',location.pathname+location.search);showReference();}
+ else{pendingMode=null;window.history.replaceState(null,'',modeUrl(shownMode()));showReference();}
 }
-addEventListener('hashchange',()=>{referenceFromHash=pageOpen();showReference();});
+// Each mode has an address: #battle (or no hash) and #tournaments. The history keeps at most one entry per mode:
+// choosing the mode of the entry underneath steps Back instead of adding an entry.
+const MODE_HASHES=['battle','tournaments'];
+let routing=false, pendingMode=null;
+const shownMode=()=>mode==='tournament'?1:0;
+const hashMode=()=>{const i=MODE_HASHES.indexOf(location.hash.slice(1));return i<0?null:i;};
+const modeUrl=index=>'#'+MODE_HASHES[index];
+function showMode(index){if(index===shownMode())return;routing=true;try{tournaments.selectTab(index);}finally{routing=false;}schedulePersist();} // Back and Forward fire no click, so save here.
+function stepToMode(from,to){
+ if(window.history.state?.below===to)window.history.back();
+ else if(from!==to)window.history.pushState({below:from},'',modeUrl(to));
+}
+// The person chose a mode (the view already shows it). Over the reference, close it first and record the mode once it is gone.
+function modeChosen(from,to){
+ if(pageOpen()){pendingMode=to;closeReference();}
+ else stepToMode(from,to);
+}
+function route(){
+ showReference();
+ if(pageOpen())return;
+ const landed=hashMode()??0;
+ if(pendingMode!==null){const to=pendingMode;pendingMode=null;stepToMode(landed,to);}
+ else showMode(landed);
+}
+// Moving between the reference and About keeps the flag; only arriving from the app sets it.
+addEventListener('hashchange',event=>{if(!/#(reference|about)/.test(new URL(event.oldURL).hash))referenceFromHash=pageOpen();route();});
 addEventListener('resize',()=>{if(!$('referenceView').hidden)placeReference();});
 addEventListener('message',event=>{
  if(event.origin!==location.origin)return;
@@ -1089,21 +1114,23 @@ function setPane(name){
 }
 for(const b of document.querySelectorAll('#phoneBar button'))b.onclick=()=>setPane(b.dataset.pane);
 
-// Choosing a mode always shows that mode's view: it leaves the reference or About page and steps out of an open editor (its tab stays open).
+// Choosing a mode always shows that mode's view: it leaves the reference or About page (see modeChosen) and steps out of an open editor (its tab stays open).
 $('modeTabs').addEventListener('click',event=>{
  if(!event.target.closest('button[role=tab]:not(:disabled)'))return;
- closeReference();
  if(activeEditor()>=0)showCore();
 });
 tournaments=setupTournaments({
  roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),
  readConfig:()=>readSettings({warriors:2}),
- onTab:index=>{if(index===1)$('tournamentSettingsSlot').append($('settingsDock'));else $('settingsDock').closest('#tournamentSettingsSlot')&&document.querySelector('.core-view .arena-foot').prepend($('settingsDock'));for(const [i,id] of ['emulatorTab','tournamentTab'].entries()){if(i===index)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');}if(index===1 && state==='running')pause();mode=index===1?'tournament':'battle';document.body.dataset.mode=mode;$('phoneBar').querySelector('[data-pane=core]').textContent=index===1?'Tournament':'Core';if(index===1 && ['debug','output'].includes(document.body.dataset.pane))setPane('core');editorVisibility();if(index===0 && activeEditor()<0){display.redraw();processChart.draw();scoreChart.draw();}}
+ onTab:index=>{const from=shownMode();if(index===1)$('tournamentSettingsSlot').append($('settingsDock'));else $('settingsDock').closest('#tournamentSettingsSlot')&&document.querySelector('.core-view .arena-foot').prepend($('settingsDock'));for(const [i,id] of ['emulatorTab','tournamentTab'].entries()){if(i===index)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');}if(index===1 && state==='running')pause();mode=index===1?'tournament':'battle';document.body.dataset.mode=mode;$('phoneBar').querySelector('[data-pane=core]').textContent=index===1?'Tournament':'Core';if(index===1 && ['debug','output'].includes(document.body.dataset.pane))setPane('core');editorVisibility();if(index===0 && activeEditor()<0){display.redraw();processChart.draw();scoreChart.draw();}if(!routing)modeChosen(from,index);}
 });
 if(restoredWorkspace){
- applyTournamentWorkspace(restoredWorkspace);
+ routing=true;try{applyTournamentWorkspace(restoredWorkspace);}finally{routing=false;}
  if(sources.length)status('Restored '+sources.length+' warrior'+(sources.length===1?'':'s')+' saved in this browser. Run or Reset to load them.');
 }
+// A mode in the address wins over the saved one; otherwise the address shows the saved mode.
+if(hashMode()!==null)showMode(hashMode());
+else if(!pageOpen() && shownMode()!==0)window.history.replaceState(null,'',modeUrl(shownMode()));
 persistReady=true;
 for(const type of ['input','change','click'])document.addEventListener(type,schedulePersist,true);
 // Flush a pending save so a quick reload or tab close keeps the last edit.
@@ -1139,5 +1166,6 @@ $('startClean').onclick=async()=>{
  if(!(await askUser('Start clean? This discards'+count+' your edits and the settings saved in this browser. Use Export workspace first to keep a copy.','Start clean')))return;
  persistReady=false;clearTimeout(persistTimer);
  try{localStorage.removeItem(WORKSPACE_KEY);}catch{}
+ window.history.replaceState(null,'',location.pathname+location.search); // Start clean starts in Battle, not the mode in the address.
  location.reload();
 };

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://corewar.dev/sitemap.xml

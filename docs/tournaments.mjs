@@ -361,5 +361,5 @@ export function setupTournaments({roster,readConfig,onTab}) {
   const idle=()=>window.requestIdleCallback?requestIdleCallback(prefetch,{timeout:5000}):setTimeout(prefetch,1000);
   if(document.readyState==='complete')idle();else addEventListener('load',idle,{once:true});
  }
- return {refresh};
+ return {refresh,selectTab};
 }
