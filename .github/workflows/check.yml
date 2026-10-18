@@ -43,3 +43,4 @@ jobs:
           node docs/test-results.mjs
           node docs/test-release-assets.mjs
           node docs/test-workspace.mjs
+          node docs/test-routing.mjs

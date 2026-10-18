@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Search engines ignore #fragments, so #battle and #tournaments are the same page as the app itself. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://corewar.dev/</loc></url>
+  <url><loc>https://corewar.dev/redcode.html</loc></url>
+  <url><loc>https://corewar.dev/about.html</loc></url>
+</urlset>
