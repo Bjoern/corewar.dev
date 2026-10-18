@@ -6,3 +6,4 @@
 
 # Preserve downloaded collection bytes and original formatting.
 /warriors_public/** -text -whitespace
+/resources/fixture5/hill32.scores binary

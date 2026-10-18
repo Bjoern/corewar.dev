@@ -3,7 +3,7 @@ import {readBenchmark} from './benchmarks.mjs';
 import {Engine} from './engine.mjs';
 let count=0,failed=[];
 for(const entry of benchmarkCatalog){
- const suite=readBenchmark(entry.descriptor,entry.files,entry.id);
+ const suite=readBenchmark(entry.descriptor,entry.files,entry.id,entry.scores);
  for(const warrior of suite.warriors){
   let logs='';
   try{

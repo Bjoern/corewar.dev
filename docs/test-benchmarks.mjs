@@ -12,5 +12,5 @@ assert.throws(()=>readBenchmark({...descriptor,parameters:{rounds:0}},{}),/posit
 const suite=await importBenchmarkFiles([new File([JSON.stringify(descriptor)],'suite.benchmark.json'),new File([source],'loop.red')],'upload');
 assert.equal(suite.warriors[0].name,'Loop');
 await assert.rejects(()=>importBenchmarkFiles([new File([JSON.stringify(descriptor)],'suite.json')]),/Missing warrior/);
-for(const entry of benchmarkCatalog)readBenchmark(entry.descriptor,entry.files,entry.id);
+for(const entry of benchmarkCatalog){const suite=readBenchmark(entry.descriptor,entry.files,entry.id,entry.scores);assert(!suite.scoresProblem,entry.id+": "+suite.scoresProblem);assert.equal(!!suite.hillScores,!!entry.descriptor.scores);}
 console.log(`PASS: benchmark validation, missing/unsafe paths, upload resolution, and ${benchmarkCatalog.length} catalog descriptors.`);

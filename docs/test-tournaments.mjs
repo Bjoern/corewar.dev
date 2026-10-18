@@ -12,6 +12,7 @@ try {
  await page.goto(process.env.PMARS_URL||'http://127.0.0.1:8766/');
  await page.locator('#warriorFiles').setInputFiles(['Imp','Dwarf','Loop'].map((name,i)=>({name:name+'.red',mimeType:'text/plain',buffer:Buffer.from(';redcode\n;name '+name+'\n;assert 1\n'+['mov 0,1','add.ab #4,3\nmov.i 2,@2\njmp -2\ndat 0,0','jmp 0'][i]+'\n')})));
  await page.locator('#tournamentTab').click();assert(await page.locator('#coreView').isHidden());assert(await page.locator('#tournamentPanel').isVisible());
+ assert(await page.locator('[data-workers=all]').isHidden());await page.locator('.t-worker-more summary').click();
  await page.locator('[data-workers=all]').click();assert.equal(await page.locator('#tournamentWorkers').inputValue(),'4');
  await page.locator('#workerSlider').focus();await page.locator('#workerSlider').press('ArrowLeft');assert.equal(await page.locator('#tournamentWorkers').inputValue(),'3');
  await page.locator('[data-workers=one]').click();assert.equal(await page.locator('#workerSlider').inputValue(),'1');
@@ -27,6 +28,10 @@ try {
  await page.locator('#tournamentWorkers').fill('3');await page.locator('#tournamentStart').click();await complete();const parallel=await exportRun();
  assert.deepEqual(parallel.results.sort((a,b)=>a.id-b.id),first.results.sort((a,b)=>a.id-b.id));
  assert.deepEqual(parallel.standings,first.standings);
+ await page.locator('#tournamentRanking').selectOption('sd-diversity');assert.equal(await page.locator('#pushoffStandings tr').count(),3);
+ assert.match(await page.locator('#pushoffLog').textContent(),/^  3 /);const pushed=await exportRun();assert.equal(pushed.pushoff.variant,'sd-diversity');assert.equal(pushed.pushoff.ranking.length,3);
+ const matrix=page.waitForEvent('download');await page.locator('#tournamentExportKoen').click();assert.equal((await matrix).suggestedFilename(),'corewar-scores.zip');
+ await page.locator('#tournamentRanking').selectOption('average');assert(await page.locator('#pushoffResults').isHidden());
  await page.locator('#mode-challenge').click();await page.locator('#challenger').selectOption('roster-1');
  await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results.length,2);
  await page.locator('#permutate').uncheck();

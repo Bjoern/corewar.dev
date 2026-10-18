@@ -1,15 +1,35 @@
 import {suiteFilenames} from './warrior-files.mjs';
-import {benchmarkZip} from './benchmark-zip.mjs';
+import {benchmarkZip,storeZip} from './benchmark-zip.mjs';
+import {pushoff,rankings,koenScore,writeKoenigstuhl} from './pushoff.mjs';
 import {benchmarkCatalog} from './benchmark-catalog.mjs';
 import {readBenchmark,importBenchmarkFiles,benchmarkParameters} from './benchmarks.mjs';
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {planTournament} from './tournament-plan.mjs';
+import {cacheKey,loadCached,saveCached,withCandidate,writeHillScores,defaultHillRounds,permutationRounds} from './hill-scores.mjs';
 import {HistoryChart} from './charts.mjs';
 import {warriorColor} from './display.mjs';
 const $=id=>document.getElementById(id);
+function download(blob,name){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+// One line for the settings a run uses, including the ones that are easy to miss.
+export function describeSettings(c){
+ const positions=2*(c.coreSize-2*(c.distance||c.maxLength)+1);
+ return `${c.rules88?'ICWS ’88':'ICWS ’94'} · core ${c.coreSize} · cycles ${c.cycles} · processes ${c.tasks} · length ${c.maxLength} · distance ${c.distance||c.maxLength} · ${c.noPspace?'no P-space':`P-space ${c.pspace||'auto'}`}${c.permutate?` · permutation: ${positions} rounds per full pass`:''}`;
+}
+const authorOf=source=>/^\s*;\s*author\s+(.*?)\s*$/im.exec(source)?.[1]||'Anonymous';
 export function setupTournaments({roster,readConfig,onTab}) {
- const suites=benchmarkCatalog.map(s=>readBenchmark(s.descriptor,s.files,s.id));
+ const suites=benchmarkCatalog.map(s=>readBenchmark(s.descriptor,s.files,s.id,s.scores));
  let serial=0,run=null,workers=[],pendingRender=null,displayedSuite=null;
+ // Hill scores for the selected suite: shipped with it, cached in this browser, or none yet.
+ let hill={id:null,key:null,data:null};
+ const engine=fetch(new URL('./engine-lock.json',import.meta.url)).then(r=>r.json()).then(lock=>lock.commit||'').catch(()=>'');
+ const suiteId=suite=>suite.id+'|'+JSON.stringify(suite.config);
+ async function lookupHill(suite){
+  const id=suiteId(suite);if(hill.id===id&&!hill.pending)return hill;
+  if(hill.id===id&&hill.pending)return hill.pending;
+  const pending=(async()=>{const key=await cacheKey(suite.warriors,suite.config,await engine),data=suite.hillScores||await loadCached(key);if(hill.id===id){hill={id,key,data};refresh();}return hill;})();
+  hill={id,key:null,data:null,pending};
+  return pending;
+ }
  const chart=new HistoryChart($('tournamentChart'),'Average points / round · completed matchups');
  let chartWidth=0;
  new ResizeObserver(([entry])=>{const width=entry.contentRect.width;if(width>0&&width!==chartWidth){chartWidth=width;chart.draw();}}).observe($('tournamentChart'));
@@ -17,10 +37,11 @@ export function setupTournaments({roster,readConfig,onTab}) {
  $('tournamentWorkers').max=processors;$('tournamentWorkers').value=Math.max(1,Math.floor(processors/2));
  $('workerLimit').textContent=navigator.hardwareConcurrency?`${processors} logical processors available (not necessarily physical cores).`:'The browser did not report a processor count. Using a limit of 2 workers.';
  $('workerSlider').max=processors;
+ $('tournamentRanking').replaceChildren(...Object.entries(rankings).map(([value,{label}])=>new Option(label,value)));
  function workerPreview(){
   const count=Number($('tournamentWorkers').value);
   $('workerSlider').value=count;
-  $('workerSummary').textContent=`${count} of ${processors} available workers`;
+  $('workerSummary').textContent=`of ${processors}`;
  }
  $('tournamentWorkers').addEventListener('input',workerPreview);
  $('workerSlider').oninput=()=>{$('tournamentWorkers').value=$('workerSlider').value;workerPreview();};
@@ -28,6 +49,9 @@ export function setupTournaments({roster,readConfig,onTab}) {
   $('tournamentWorkers').value=button.dataset.workers==='one'?1:button.dataset.workers==='half'?Math.max(1,Math.floor(processors/2)):processors;workerPreview();
  });
  workerPreview();
+ const workerMore=document.querySelector('.t-worker-more');
+ document.addEventListener('click',event=>{if(workerMore.open&&!workerMore.contains(event.target))workerMore.open=false;});
+ workerMore.addEventListener('keydown',event=>{if(event.key==='Escape'){workerMore.open=false;workerMore.querySelector('summary').focus();}});
  const modeTabs=[...document.querySelectorAll('[data-mode]')];
  function chooseMode(tab){$('tournamentMode').value=tab.dataset.mode;suiteDefaults();}
  modeTabs.forEach((tab,index)=>{
@@ -45,15 +69,24 @@ export function setupTournaments({roster,readConfig,onTab}) {
  }
  tabs.forEach((tab,index)=>{tab.onclick=()=>selectTab(index);tab.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?1:1-index;selectTab(next);tabs[next].focus();}};});
  function configForRun(){const config=readConfig();const suite=suites.find(s=>s.id===$('benchmarkSuite').value);return $('tournamentMode').value==='benchmark'&&suite?.config?{...config,...suite.config}:config;}
- function plan(){return planTournament({mode:$('tournamentMode').value,entrants:roster(),opponents:suites.find(s=>s.id===$('benchmarkSuite').value)?.warriors,
-  challenger:$('challenger').value,rounds:Number($('tournamentRounds').value),seed:$('tournamentSeed').value,config:configForRun(),selfFights:$('selfFights').checked});}
+ const currentSuite=()=>suites.find(s=>s.id===$('benchmarkSuite').value);
+ const benchmarkPushoff=()=>$('tournamentMode').value==='benchmark'&&$('tournamentRanking').value!=='average';
+ function plan(){
+  const pushoff=benchmarkPushoff();
+  return planTournament({mode:$('tournamentMode').value,entrants:roster(),opponents:currentSuite()?.warriors,
+  challenger:$('challenger').value,rounds:Number($('tournamentRounds').value),seed:$('tournamentSeed').value,config:configForRun(),selfFights:$('selfFights').checked,
+  pushoff,hill:pushoff&&(!hill.data||$('recomputeHill').checked),hillRounds:Number($('hillRounds').value),hillPermutate:$('hillPermutate').checked});
+ }
  function refresh(){
   const mode=$('tournamentMode').value;
   modeTabs.forEach(tab=>{const selected=tab.dataset.mode===mode;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;});
   $('modePanel').setAttribute('aria-labelledby','mode-'+mode);
   $('modeDescription').textContent={'round-robin':'Each selected warrior fights every other selected warrior, one on one.',benchmark:'Test each selected warrior against the opponents in a benchmark suite.',challenge:'One challenger fights each of the other selected warriors, one on one.',melee:'All selected warriors fight together in the same core.'}[mode];
   $('selfFights').disabled=mode==='melee';
-  $('benchmarkSetup').hidden=mode!=='benchmark';$('challengeSetup').hidden=mode!=='challenge';
+  $('benchmarkSetup').hidden=$('suiteField').hidden=mode!=='benchmark';$('challengeSetup').hidden=mode!=='challenge';
+  $('rankingField').hidden=!['round-robin','benchmark'].includes(mode);
+  const ranking=$('tournamentRanking').value;$('rankingHint').hidden=$('rankingField').hidden||ranking==='average';
+  $('rankingHint').textContent={sequential:'Repeatedly removes the warrior with the lowest total score, self fight included. Turn on Self fights to match the Koenigstuhl scripts.',diversity:'Repeatedly removes the warrior with the lowest average × distance to its most similar warrior (Astolfi).','sd-diversity':'Repeatedly removes the warrior with the lowest average × smallest SD-score to another warrior (Ismael 2025).'}[ranking]||'';
   const old=$('challenger').value;$('challenger').replaceChildren(...roster().map(w=>new Option(w.name,w.id)));if(roster().some(w=>w.id===old))$('challenger').value=old;
   const selected=$('benchmarkSuite').value;$('benchmarkSuite').replaceChildren(...suites.map(s=>new Option(s.name,s.id)));if(suites.some(s=>s.id===selected))$('benchmarkSuite').value=selected;
   const suite=suites.find(s=>s.id===$('benchmarkSuite').value);
@@ -63,9 +96,29 @@ export function setupTournaments({roster,readConfig,onTab}) {
    $('benchmarkSummary').textContent=`${suite.name} · ${suite.warriors.length} opponents · default ${suite.rounds} rounds`;
    $('benchmarkMembers').replaceChildren(...suite.warriors.map(w=>{const li=document.createElement('li');li.textContent=w.name+' ('+w.file+')';return li;}));
    $('benchmarkDescriptor').value=JSON.stringify(suite.descriptor,null,2);
+   const hillDefault=defaultHillRounds(suite.config);$('hillRounds').value=hillDefault.rounds;$('hillPermutate').checked=hillDefault.permutate;
   }
+  // Benchmark runs use the suite's own settings; the shared match settings do not apply.
+  const suiteOwned=mode==='benchmark'&&!!suite;
+  $('tournamentSettingsSlot').inert=suiteOwned;$('tournamentSettingsSlot').classList.toggle('suite-owned',suiteOwned);
+  $('suiteSettingsNote').hidden=!suiteOwned;
+  if(suiteOwned)$('suiteSettingsNote').textContent=`This benchmark uses the settings of “${suite.name}”, not the match settings above: ${describeSettings(suite.config)}. Edit them under Suite details.`;
+  const pushing=benchmarkPushoff();$('hillStatus').hidden=!pushing;
+  if(pushing){
+   if(hill.id!==suiteId(suite))lookupHill(suite);
+   const data=hill.id===suiteId(suite)&&hill.data,pairs=suite.warriors.length*(suite.warriors.length+1)/2;
+   $('hillText').textContent=hill.pending?'Looking for hill scores…':data?`Hill scores ${data.source==='suite'?'shipped with the suite':'cached in this browser'}: ${data.permutate?'every starting position':`${data.rounds.toLocaleString()} rounds per pair`}${data.createdAt?`, ${data.createdAt}`:''}. Only the selected warriors fight.`:`${suite.scoresProblem?suite.scoresProblem+' ':''}No hill scores yet: this run also fights the ${pairs.toLocaleString()} hill pairs and caches the result in this browser.`;
+   $('recomputeHillField').hidden=!data;
+   const fighting=!hill.pending&&(!data||$('recomputeHill').checked),positions=permutationRounds(suite.config);$('hillFightSetup').hidden=!fighting;
+   $('hillPermutateLabel').textContent=`All starting positions (${positions.toLocaleString()} rounds per pair)`;
+   if($('hillPermutate').checked)$('hillRounds').value=positions;$('hillRounds').disabled=$('hillPermutate').checked;
+   // Hill fights run once and are reused, so more rounds are worth it, within reason for a browser.
+   const hillRounds=Number($('hillRounds').value)*pairs;$('hillWarning').hidden=!fighting||!(hillRounds>5e6);
+   $('hillWarning').textContent=`That is ${hillRounds.toLocaleString()} rounds of hill fights (${pairs.toLocaleString()} pairs × ${Number($('hillRounds').value).toLocaleString()}). In the browser this can take hours; scripts/precompute-hill.mjs runs it once and ships the result with the suite.`;
+  }
+  $('downloadHillScores').disabled=!(hill.id===suiteId(suite)&&hill.data);
   $('tournamentEntrants').textContent=roster().map(w=>w.name).join(', ')||'Select warriors in the roster above.';
-  try {const c=configForRun();$('tournamentRules').textContent=`${mode==='benchmark'&&suites.find(s=>s.id===$('benchmarkSuite').value)?.config?'Saved suite settings':'Match settings'} · core ${c.coreSize} · cycles ${c.cycles} · processes ${c.tasks} · length ${c.maxLength}${c.permutate?` · permutation: ${2*(c.coreSize-2*(c.distance||c.maxLength)+1)} rounds per full pass`: ""}`;const p=plan();$('tournamentWorkload').textContent=`${p.jobs.length} matchups · ${p.totalRounds.toLocaleString()} rounds`;}
+  try {const c=configForRun();$('tournamentRules').textContent=`${suiteOwned?'Suite settings':'Match settings'} · ${describeSettings(c)}`;const p=plan(),hillJobs=p.jobs.filter(j=>j.kind==='hill').length;$('tournamentWorkload').textContent=`${p.jobs.length.toLocaleString()} matchups${hillJobs?` (${hillJobs.toLocaleString()} between hill warriors)`:''} · ${p.totalRounds.toLocaleString()} rounds`;}
   catch(error){$('tournamentWorkload').textContent=error.message;}
  }
  function dispose(){for(const slot of workers){clearTimeout(slot.timer);slot.worker.terminate();}workers=[];}
@@ -74,14 +127,79 @@ export function setupTournaments({roster,readConfig,onTab}) {
   $('tournamentStart').disabled=!!busy;$('tournamentPause').disabled=!busy;
   $('tournamentPause').textContent=run?.state==='paused'?'Resume':run?.state==='pausing'?'Finishing active matchups…':'Pause';
   $('tournamentPause').disabled=!busy||run.state==='pausing';$('tournamentCancel').disabled=!busy;
-  $('tournamentExport').disabled=!run;
+  $('tournamentExport').disabled=!run;$('tournamentExportKoen').disabled=!scoreMatrix();
   $('tournamentSetup').disabled=!!busy;$('parallelSetup').disabled=!!busy;
  }
  function resultRows(){
   if(!run)return [];
   const totals=run.plan.entrants.filter(w=>!run.excluded.some(e=>e.source===w.source)).map(w=>({...w,wins:0,ties:0,losses:0,score:0,rounds:0}));
-  for(const result of run.results){const job=run.plan.jobs[result.id];result.warriors.forEach((w,i)=>{const row=totals.find(t=>t.id===job.warriors[i].id);if(!row)return;for(const key of ['wins','ties','losses','score'])row[key]+=w[key];row.rounds+=result.completed;});}
+  for(const result of run.results){const job=run.plan.jobs[result.id];if(job.kind==='self'||job.kind==='hill')continue;result.warriors.forEach((w,i)=>{const row=totals.find(t=>t.id===job.warriors[i].id);if(!row)return;for(const key of ['wins','ties','losses','score'])row[key]+=w[key];row.rounds+=result.completed;});}
   return totals;
+ }
+ // Koenigstuhl score matrix of a complete round robin, or null.
+ function scoreMatrix(){
+  if(!run||run.state!=='complete'||run.plan.mode!=='round-robin'||run.excluded.length)return null;
+  const index=new Map(run.plan.entrants.map((w,i)=>[w.id,i])),n=index.size,v=Array.from({length:n},()=>Array(n).fill(0));
+  for(const result of run.results){
+   const [a,b]=run.plan.jobs[result.id].warriors.map(w=>index.get(w.id)),[x,y]=result.warriors;
+   v[a][b]=koenScore(x.wins,x.ties,result.completed);if(a!==b)v[b][a]=koenScore(y.wins,y.ties,result.completed);
+  }
+  return v;
+ }
+ function pushoffResult(){
+  if(run?.plan.pushoff)return benchmarkResult();
+  const variant=$('tournamentRanking').value,v=variant!=='average'&&scoreMatrix();
+  return v?{variant,...pushoff(v,variant)}:null;
+ }
+ // Hill block of a complete push-off benchmark: from this run's hill fights, or the scores it started with.
+ function runHill(){
+  if(!run.plan.jobs.some(j=>j.kind==='hill'))return run.hillData?.scores??null;
+  const n=run.suite.warriors.length,v=Array.from({length:n},()=>Array(n).fill(null));
+  for(const result of run.results){const job=run.plan.jobs[result.id];if(job.kind!=='hill')continue;const [x,y]=result.warriors;v[job.i][job.j]=koenScore(x.wins,x.ties,result.completed);if(job.i!==job.j)v[job.j][job.i]=koenScore(y.wins,y.ties,result.completed);}
+  return v;
+ }
+ // Each candidate is added to the hill on its own and ranked by the push-off.
+ function benchmarkResult(){
+  if(!run||run.state!=='complete'||!run.plan.pushoff)return null;
+  const variant=run.variant,h=runHill();if(!h)return null;
+  const out=source=>run.excluded.some(e=>e.source===source);
+  const keep=run.suite.warriors.map((w,i)=>i).filter(i=>!out(run.suite.warriors[i].source)&&h[i].every((x,j)=>x!==null||out(run.suite.warriors[j].source)));
+  const candidates=run.plan.entrants.filter(w=>!out(w.source)).map(candidate=>{
+   const row=[],column=[];let self=0;
+   for(const result of run.results){const job=run.plan.jobs[result.id];if(job.warriors[0].id!==candidate.id)continue;const [x,y]=result.warriors;
+    if(job.kind==='self')self=koenScore(x.wins,x.ties,result.completed);
+    else if(job.kind==='candidate'){row[job.opponent]=koenScore(x.wins,x.ties,result.completed);column[job.opponent]=koenScore(y.wins,y.ties,result.completed);}}
+   const names=[...keep.map(i=>run.suite.warriors[i].name),candidate.name],result=pushoff(withCandidate(h,keep,row,column,self),variant),me=keep.length;
+   return {id:candidate.id,name:candidate.name,place:result.ranking.indexOf(me)+1,size:names.length,step:result.steps.find(s=>s.removed===me),names,steps:result.steps};
+  });
+  return {variant,suite:run.suite.name,hill:keep.length,candidates};
+ }
+ const logLines=(steps,names,diverse)=>steps.map(s=>s.size>1?`${String(s.size).padStart(3)}  ${s.values.map(x=>x.toFixed(3).padStart(diverse?8:7)).join('  ')}  ${names[s.removed]}${diverse?`  (nearest: ${names[s.nearest]})`:''}`:`  1  ${names[s.removed]}`).join('\n');
+ function renderBenchmarkPushoff(result){
+  const {columns,label}=rankings[result.variant],diverse=result.variant!=='sequential';
+  $('pushoffTitle').textContent=`${label} · each warrior added to ${result.suite} (${result.hill} warriors)`;
+  $('pushoffHead').replaceChildren(...['Warrior','Place',...columns,...(diverse?['Nearest']:[])].map(text=>{const th=document.createElement('th');th.textContent=text;return th;}));
+  $('pushoffStandings').replaceChildren(...[...result.candidates].sort((a,b)=>a.place-b.place).map(c=>{
+   const tr=document.createElement('tr'),values=c.step.size>1?c.step.values:[];
+   for(const value of [c.name,`${c.place} of ${c.size}`,...columns.map((_,i)=>values[i]===undefined?'—':values[i].toFixed(3)),...(diverse?[c.step.nearest===undefined?'—':c.names[c.step.nearest]]:[])]){const td=document.createElement('td');td.textContent=value;tr.append(td);}
+   tr.firstChild.style.color=warriorColor(run.plan.entrants.findIndex(w=>w.id===c.id));return tr;
+  }));
+  $('pushoffLog').textContent=result.candidates.map(c=>`${c.name} (place ${c.place} of ${c.size})\n`+logLines(c.steps,c.names,diverse)).join('\n\n');
+ }
+ function renderPushoff(){
+  if(run?.plan.pushoff){const result=benchmarkResult();$('pushoffResults').hidden=!result;if(result)renderBenchmarkPushoff(result);return;}
+  const result=run?.plan.mode==='round-robin'&&$('tournamentRanking').value!=='average'?pushoffResult():null;
+  $('pushoffResults').hidden=!result;if(!result)return;
+  const {columns,label}=rankings[result.variant],names=run.plan.entrants.map(w=>w.name),diverse=result.variant!=='sequential';
+  $('pushoffTitle').textContent=label;
+  $('pushoffHead').replaceChildren(...['#','Warrior',...columns,...(diverse?['Nearest']:[]),'Removed'].map(text=>{const th=document.createElement('th');th.textContent=text;return th;}));
+  const steps=[...result.steps].reverse();
+  $('pushoffStandings').replaceChildren(...steps.map((step,place)=>{
+   const tr=document.createElement('tr');
+   for(const [value,cls] of [[place+1,'place'],[names[step.removed]],...columns.map((_,i)=>[step.values[i]===undefined?'—':step.values[i].toFixed(3)]),...(diverse?[[step.nearest===undefined?'—':names[step.nearest]]]:[]),[step.size>1?`at ${step.size}`:'—']]){const td=document.createElement('td');td.textContent=value;if(cls)td.className=cls;tr.append(td);}
+   tr.children[1].style.color=warriorColor(step.removed);return tr;
+  }));
+  $('pushoffLog').textContent=logLines(result.steps,names,diverse);
  }
  function render(){
   pendingRender=null;if(!run)return;
@@ -100,7 +218,13 @@ export function setupTournaments({roster,readConfig,onTab}) {
   });
   $('matchupResults').replaceChildren(...[...run.results].sort((a,b)=>a.id-b.id).map(result=>{
    const row=document.createElement('li');row.textContent=run.plan.jobs[result.id].warriors.map((w,i)=>`${w.name}: ${result.warriors[i].wins} wins, ${result.warriors[i].losses} losses, ${result.warriors[i].ties} ties (${result.warriors[i].score} points)`).join(' / ')+` · ${result.completed} rounds`;return row;
-  }));controls();
+  }));renderPushoff();controls();
+ }
+ function cacheRunHill(){
+  if(!run.plan.pushoff||!run.plan.jobs.some(j=>j.kind==='hill'))return;
+  const scores=runHill();if(scores.some(row=>row.includes(null)))return; // an excluded hill warrior leaves gaps
+  const data={rounds:run.plan.hillRounds,permutate:run.plan.hillPermutate,seed:run.plan.seed,createdAt:new Date().toISOString().slice(0,10),scores,source:'cache'};
+  run.hillData=data;saveCached(run.hillKey,data);if(hill.key===run.hillKey){hill={...hill,data};refresh();}
  }
  function scheduleRender(){if(pendingRender===null)pendingRender=setTimeout(render,100);}
  function fail(message){run.state='failed';run.error=message;dispose();render();}
@@ -113,16 +237,18 @@ export function setupTournaments({roster,readConfig,onTab}) {
   slot.worker.postMessage(job);
  }
  function settle(){
-  if(run.results.length+run.skipped.length===run.plan.jobs.length){run.state='complete';dispose();}
+  if(run.results.length+run.skipped.length===run.plan.jobs.length){run.state='complete';dispose();cacheRunHill();}
   else if(run.state==='pausing'&&workers.every(w=>w.job===null))run.state='paused';
   scheduleRender();controls();
  }
- $('tournamentStart').onclick=()=>{
+ $('tournamentStart').onclick=async()=>{
   try {
+   if(benchmarkPushoff())await lookupHill(currentSuite());
    const next=plan(),count=Number($('tournamentWorkers').value);
    if(!Number.isInteger(count)||count<1||count>processors)throw new Error(`Choose 1–${processors} workers.`);
    dispose();clearTimeout(pendingRender);pendingRender=null;chart.clear();
    run={plan:next,results:[],excluded:[],skipped:[],next:0,state:'running',workers:Math.min(count,next.jobs.length)};
+   if(next.pushoff)Object.assign(run,{variant:$('tournamentRanking').value,suite:{name:currentSuite().name,warriors:currentSuite().warriors},hillKey:hill.key,hillData:next.jobs.some(j=>j.kind==='hill')?null:hill.data});
    for(let i=0;i<run.workers;i++){
     const worker=new Worker(new URL('./tournament-worker.mjs',import.meta.url),{type:'module'}),slot={worker,job:null,timer:null};workers.push(slot);
     worker.onerror=e=>{if(workers.includes(slot))fail(e.message||'Worker failed.');};
@@ -168,8 +294,24 @@ export function setupTournaments({roster,readConfig,onTab}) {
   }catch(error){feedback.dataset.result='failed';feedback.textContent=error.message;}
  };
  $('tournamentExport').onclick=()=>{
-  const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify({...run,standings:resultRows()},null,2)],{type:'application/json'}));
-  a.href=url;a.download='corewar-results.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const result=pushoffResult();
+  download(new Blob([JSON.stringify({...run,standings:resultRows(),...(result&&{pushoff:result})},null,2)],{type:'application/json'}),'corewar-results.json');
+ };
+ $('tournamentExportKoen').onclick=()=>{
+  const v=scoreMatrix();if(!v)return;
+  const format=run.plan.jobs[0]?.config.rules88?'88':'94';
+  const {dat,scores}=writeKoenigstuhl(run.plan.entrants.map(w=>({name:w.name,author:authorOf(w.source),file:w.file,format})),v);
+  download(storeZip([['hill32.dat',dat],['hill32.scores',scores]]),'corewar-scores.zip');
+ };
+ $('tournamentRanking').addEventListener('change',()=>{refresh();if(run&&!run.plan.pushoff)render();});
+ $('recomputeHill').addEventListener('change',refresh);
+ // Unticking all positions restores the round count it replaced.
+ $('hillPermutate').addEventListener('change',()=>{const field=$('hillRounds');if($('hillPermutate').checked)field.dataset.previous=field.value;else field.value=field.dataset.previous||1000;refresh();});
+ $('hillRounds').addEventListener('input',refresh);
+ $('downloadHillScores').onclick=()=>{
+  const suite=currentSuite();if(!hill.data)return;
+  download(new Blob([JSON.stringify(writeHillScores(suite,hill.data))+'\n'],{type:'application/json'}),'hill-scores.json');
+  $('tournamentStatus').textContent='Saved hill-scores.json. Put it next to the suite descriptor and add "scores": "hill-scores.json" to ship it with the suite.';
  };
  function suiteDefaults(){const suite=suites.find(s=>s.id===$('benchmarkSuite').value);if($('tournamentMode').value==='benchmark')$('tournamentRounds').value=suite.rounds;refresh();}
  for(const id of ['benchmarkFiles','benchmarkFolder'])$(id).onchange=async()=>{
@@ -177,7 +319,7 @@ export function setupTournaments({roster,readConfig,onTab}) {
   catch(error){$('tournamentStatus').textContent=error.message;}finally{$(id).value='';}
  };
  $('applyBenchmark').onclick=()=>{
-  try{const old=suites.find(s=>s.id===$('benchmarkSuite').value),updated=readBenchmark(JSON.parse($('benchmarkDescriptor').value),old.files,old.id);suites[suites.indexOf(old)]=updated;suiteDefaults();$('tournamentStatus').textContent='Benchmark updated for this session.';}
+  try{const old=suites.find(s=>s.id===$('benchmarkSuite').value),updated=readBenchmark(JSON.parse($('benchmarkDescriptor').value),old.files,old.id,old.scoresData);suites[suites.indexOf(old)]=updated;suiteDefaults();$('tournamentStatus').textContent='Benchmark updated for this session.';}
   catch(error){$('tournamentStatus').textContent=error.message;}
  };
  $('downloadBenchmarkZip').onclick=()=>{

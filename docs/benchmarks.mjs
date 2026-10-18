@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {defaults,settings} from './settings.mjs';
+import {readHillScores} from './hill-scores.mjs';
 export const benchmarkParameters=['coreSize','cycles','tasks','maxLength','distance','pspace','rules88','noPspace','permutate','formula','rounds'];
 export function benchmarkPath(path){
  if(typeof path!=='string'||!path||path.length>256||path.includes('\\')||path.startsWith('/')||path.split('/').some(p=>!p||p==='.'||p==='..')||/[:\0]/.test(path))throw new Error('Invalid benchmark file path: '+path);
  return path;
 }
-export function readBenchmark(descriptor,files,id='imported'){
+// scoresData: the parsed file named by descriptor.scores (precomputed hill scores), if any.
+export function readBenchmark(descriptor,files,id='imported',scoresData=null){
  if(!descriptor||descriptor.version!==1)throw new Error('Benchmark descriptor must have version: 1.');
  if(typeof descriptor.name!=='string'||!descriptor.name.trim()||descriptor.name.length>100)throw new Error('Benchmark needs a name of 1–100 characters.');
  const parameters=descriptor.parameters??{};
@@ -23,19 +25,28 @@ export function readBenchmark(descriptor,files,id='imported'){
   const source=files[file];if(typeof source!=='string'||new TextEncoder().encode(source).length>65536)throw new Error('Warrior exceeds 64 KiB: '+file);
   return {id:id+'-'+i,file,name:source.match(/^\s*;name\s+([^\r\n]*)/im)?.[1].trim()||file,source};
  });
- return {id,name:descriptor.name.trim(),descriptor:JSON.parse(JSON.stringify(descriptor)),files:{...files},warriors,config,rounds};
+ const suite={id,name:descriptor.name.trim(),descriptor:JSON.parse(JSON.stringify(descriptor)),files:{...files},warriors,config,rounds,scoresData:null,hillScores:null};
+ if(descriptor.scores!==undefined){
+  benchmarkPath(descriptor.scores);
+  if(!scoresData)throw new Error('Missing hill scores file: '+descriptor.scores);
+  // Stale scores (for example after editing the parameters) are reported, not fatal.
+  suite.scoresData=scoresData;try{suite.hillScores=readHillScores(scoresData,suite);}catch(error){suite.scoresProblem=error.message;}
+ }
+ return suite;
 }
 export async function importBenchmarkFiles(input,id){
  const files=Array.from(input);
  if(files.length>1000)throw new Error('Import at most 1,000 files at once.');
- const descriptors=files.filter(f=>f.name.toLowerCase().endsWith('.json'));
+ const json=files.filter(f=>f.name.toLowerCase().endsWith('.json')),named=json.filter(f=>f.name.toLowerCase().endsWith('.benchmark.json'));
+ const descriptors=named.length?named:json;
  if(descriptors.length!==1)throw new Error('Select one benchmark JSON descriptor together with its warrior files.');
  if(descriptors[0].size>1048576)throw new Error('Descriptor exceeds 1 MiB.');
  const descriptor=JSON.parse((await descriptors[0].text()).replace(/^\uFEFF/,''));
  const descriptorPath=descriptors[0].webkitRelativePath||descriptors[0].name;
- const base=descriptorPath.slice(0,descriptorPath.lastIndexOf('/')+1),sources=Object.create(null);
+ const base=descriptorPath.slice(0,descriptorPath.lastIndexOf('/')+1),sources=Object.create(null),scoreFiles=Object.create(null);
  for(const f of files){
   if(f===descriptors[0])continue;
+  if(f.name.toLowerCase().endsWith('.json')){const path=f.webkitRelativePath||f.name;if(path.startsWith(base))scoreFiles[path.slice(base.length)]=f;continue;}
   if(f.size>65536)throw new Error('Warrior exceeds 64 KiB: '+f.name);
   const path=f.webkitRelativePath||f.name;
   if(!path.startsWith(base))continue;
@@ -43,5 +54,6 @@ export async function importBenchmarkFiles(input,id){
   if(Object.hasOwn(sources,relative))throw new Error('Duplicate filename: '+relative);
   sources[relative]=await f.text();
  }
- return readBenchmark(descriptor,sources,id);
+ const scores=descriptor.scores!==undefined&&scoreFiles[descriptor.scores]?JSON.parse((await scoreFiles[descriptor.scores].text()).replace(/^\uFEFF/,'')):null;
+ return readBenchmark(descriptor,sources,id,scores);
 }
