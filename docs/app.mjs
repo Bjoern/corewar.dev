@@ -210,7 +210,16 @@ function editors() {
 
   controls();
   legend();
+  listScrollHints();
 }
+// Fade the warrior list's top or bottom edge while more warriors are scrolled out of view there
+function listScrollHints(){
+ const list=$('editors');
+ list.classList.toggle('more-above',list.scrollTop>1);
+ list.classList.toggle('more-below',list.scrollTop+list.clientHeight<list.scrollHeight-1);
+}
+$('editors').addEventListener('scroll',listScrollHints,{passive:true});
+new ResizeObserver(listScrollHints).observe($('editors'));
 function removeWarrior(i){
  if(nativeBusy)return;
  sources.splice(i,1);sourceFiles.splice(i,1);excludedWarriors.splice(i,1);collapsedEditors.splice(i,1);originals.splice(i,1);openTabs=openTabs.filter(x=>x!==i).map(x=>x>i?x-1:x);

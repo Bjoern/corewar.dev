@@ -251,6 +251,8 @@ a.button{display:inline-block;padding:10px 16px;border-radius:6px;font-weight:60
 .sidebar .roster{margin:0;font-size:12px;color:var(--muted)}
 .sidebar .editors{display:flex;flex-direction:column;gap:2px;overflow:auto;min-height:0;align-items:stretch}
 .sidebar .editors>div{min-width:0}
+.sidebar .editors{--fade-top:0px;--fade-bottom:0px;-webkit-mask-image:linear-gradient(to bottom,transparent,#000 var(--fade-top),#000 calc(100% - var(--fade-bottom)),transparent);mask-image:linear-gradient(to bottom,transparent,#000 var(--fade-top),#000 calc(100% - var(--fade-bottom)),transparent)}
+.sidebar .editors.more-above{--fade-top:56px}.sidebar .editors.more-below{--fade-bottom:56px}
 .sidebar .editor-title{display:flex;align-items:center;gap:6px;margin:0;padding:3px 4px;border-radius:6px;outline:0;flex-wrap:nowrap}
 .sidebar .editor-title.editing,.sidebar .editor-title:hover{background:var(--raised)}
 .sidebar .editor-title .warrior{color:inherit;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%}
