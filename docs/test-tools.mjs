@@ -60,6 +60,7 @@ try{
  await page.waitForFunction(()=>/opponents/.test(document.querySelector('.opt-run .tool-form .hint').textContent),null,{timeout:30000});
  await page.waitForFunction(()=>/variable/.test(document.querySelector('#optCheck').textContent),null,{timeout:10000});
  assert.match(await page.locator('#optCheck').textContent(),/exact/i);
+ assert.match(await page.locator('#optCheck').textContent(),/engine exMARS/);
  // A broken marker is reported under the editor.
  const example=await page.inputValue('#optTemplate');
  await page.fill('#optTemplate',example+'\n dat !(5..1), 0');
@@ -74,6 +75,7 @@ try{
  await page.waitForFunction(()=>/Continue/.test([...document.querySelectorAll('.opt-run button.primary')].map(b=>b.textContent).join()));
  await page.getByRole('button',{name:'■ Stop'}).click();
  assert.match(await page.locator('.opt-status').textContent(),/^Stopped\./);
+ assert.equal(await page.locator('.opt-stats dt',{hasText:'Engine'}).locator('xpath=following-sibling::dd[1]').textContent(),'exMARS');
  const evaluations=Number((await page.locator('.opt-stats dd').first().textContent()).replace(/,/g,''));assert.ok(evaluations>0);
  assert.ok(await page.locator('.opt-best mark').count()>0,'tuned values are marked');
  await page.getByRole('button',{name:'Use as template'}).click();

@@ -220,11 +220,18 @@ export function setupTournaments({roster,readConfig,onTab}) {
   }));
   $('pushoffLog').textContent=logLines(result.steps,names,diverse);
  }
+ // Which simulator ran the matchups: exMARS where it gives pMARS's results, pMARS for the rest (exmars.mjs).
+ function engineNote(results){
+  const ex=results.filter(r=>r.engine==='exmars').length,pm=results.length-ex;if(!results.length)return '';
+  const reasons=[...new Set(results.map(r=>r.fallback).filter(Boolean))].slice(0,2).join('; ');
+  if(!pm)return ' · run on exMARS';
+  return (ex?` · exMARS ${ex}, pMARS ${pm}`:' · run on pMARS')+(reasons?` (pMARS for ${reasons})`:'');
+ }
  function render(){
   pendingRender=null;if(!run)return;
   const completed=run.results.length,active=workers.filter(w=>w.job!==null).length;
   $('tournamentProgress').max=run.plan.jobs.length;$('tournamentProgress').value=completed+run.skipped.length;
-  $('tournamentStatus').textContent=run.error||`${run.state[0].toUpperCase()+run.state.slice(1)} · ${completed} / ${run.plan.jobs.length} matchups · ${active} active${run.skipped.length?` · ${run.skipped.length} matchups skipped`:""}`;
+  $('tournamentStatus').textContent=run.error||`${run.state[0].toUpperCase()+run.state.slice(1)} · ${completed} / ${run.plan.jobs.length} matchups · ${active} active${run.skipped.length?` · ${run.skipped.length} matchups skipped`:""}${engineNote(run.results)}`;
   const exclusions=$('tournamentExclusions');exclusions.hidden=!run.excluded.length;
   exclusions.replaceChildren();
   if(run.excluded.length){const title=document.createElement('strong');title.textContent=`${run.excluded.length} warrior(s) excluded from this benchmark`;exclusions.append(title);

@@ -4,7 +4,7 @@
 import {el} from './tools.mjs';
 import {parseTemplate,templateConstants,fromMetcalf} from './optimizer-template.mjs';
 import {Annealing,Genetic,ANNEAL_DEFAULTS,GA_DEFAULTS} from './optimizer-search.mjs';
-import {Evaluator,WorkerPool,scoringMode,SCORING_DEFAULTS,matchConfig} from './optimizer-fitness.mjs';
+import {Evaluator,WorkerPool,scoringMode,SCORING_DEFAULTS,matchConfig,plannedEngine,engineSummary} from './optimizer-fitness.mjs';
 import {examples} from './optimizer-examples.mjs';
 import {benchmarkCatalog} from './benchmark-catalog.mjs';
 import {readBenchmark} from './benchmarks.mjs';
@@ -44,6 +44,7 @@ const TOPICS=[
  ['Check best on new placements','The best score of a search is the best of many noisy samples, so it reads a little high. The check fights the best on 2000 rounds per opponent that the search never saw: compare warriors by that number. With exact scoring the check equals the score.'],
  ['Simulated annealing','The default. It first tries every value of small variables (sweep), then changes one variable at a time, sometimes accepting a worse candidate, more readily the longer it is stuck. When it stalls it restarts from one of its best results.'],
  ['Genetic algorithm','Keeps a population and breeds children from good members, replacing the most similar weaker one. Good at combining values that only pay off together, and at polishing an annealing result: use that result as the template, then run the GA.'],
+ ['Engine','Fights run on exMARS, which gives the same results as pMARS round for round and is several times faster; it stays loaded in each worker, so opponents are assembled once. Settings exMARS does not support (ICWS ’88, a custom score formula or P-space size, more than two warriors) run on pMARS, and the run says so.'],
  ['CPU cores','Each core runs one fight at a time. More cores give more candidates per second; leave one free to keep the browser responsive. The Tournaments tab shares the same processors.'],
  ['Credits','The annealing moves and acceptance rule and the GA’s crowding, BLX-α crossover and immigrants come from John Metcalf’s annealing5.rb and genetic2.rb, used with his permission. Template language, scoring and search are ported from cwopt.']
 ];
@@ -217,12 +218,13 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
   if(!vars.length){check.replaceChildren(el('p',{className:'t-warning',textContent:'No markers yet. Replace a number you want tuned with !, a range such as !(1..79), or a list such as ![#,$].'}));return;}
   const mode=suite?scoringMode(suite.config,[parsed.render(parsed.startIndices().map(v=>v??0)),...suite.warriors.map(w=>w.source)],{mode:scoringSelect.value,rounds:Number(rounds.value)||250}):null;
   check.replaceChildren(
-   el('p',{},el('strong',{textContent:`${vars.length} variable${vars.length===1?'':'s'}`}),` · search space ${big(parsed.searchSpace())} candidates`+(mode?` · ${mode.why}`:'')),
+   el('p',{},el('strong',{textContent:`${vars.length} variable${vars.length===1?'':'s'}`}),` · search space ${big(parsed.searchSpace())} candidates`+(mode?` · ${mode.why} · ${engineLabel(suite.config,mode)}`:'')),
    el('table',{className:'tool-table opt-vars'},el('thead',{},el('tr',{},...['Name','Line','Values','Domain','Start'].map(h=>el('th',{scope:'col',textContent:h})))),
     el('tbody',{},...vars.map(v=>el('tr',{},el('td',{},el('code',{textContent:v.name})),el('td',{className:'num',textContent:String(v.line)}),el('td',{className:'num',textContent:big(v.values.length)}),
      el('td',{},el('code',{textContent:v.values.length<=6?v.values.join(', '):`${v.values.slice(0,3).join(', ')} … ${v.values.slice(-2).join(', ')}`})),
      el('td',{textContent:v.start===null?'random':v.values[v.start]}))))));
  }
+ const engineLabel=(config,mode)=>{const e=plannedEngine(config,mode);return e.engine==='exmars'?'engine exMARS':`engine pMARS (exMARS can’t run ${e.why})`;};
  function markLine(line){
   // Select the line with the error so it is easy to find in the textarea.
   if(document.activeElement===editor)return;
@@ -261,7 +263,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
   run={state:'running',template,templateText:editor.value,pool,evaluator,method,mode,suiteName:suite.name,config,started:Date.now(),elapsed:0,resumedAt:Date.now(),
    deadline:Number(minutes.value)>0?Date.now()+Number(minutes.value)*60000:Infinity,evaluations:0,improvements:0,samples:[],best:null,bestResult:null,log:[]};
   log.replaceChildren();validation.textContent='';opponentsTable.replaceChildren();opponentsBox.hidden=true;shownBest=null;
-  runStatus.textContent=`Running ${methodSelect.value==='ga'?'the genetic algorithm':'simulated annealing'} against ${suite.warriors.length} opponents (${mode.why}).`;
+  runStatus.textContent=`Running ${methodSelect.value==='ga'?'the genetic algorithm':'simulated annealing'} against ${suite.warriors.length} opponents (${mode.why}; ${engineLabel(config,mode)}).`;
   setRunning('running');loop();
  }
  async function loop(){
@@ -308,7 +310,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
   const items=[['Evaluations',r.evaluations.toLocaleString('en-US')],['Per second',fmt(r.evaluations/Math.max(1,elapsed),1)],['Elapsed',`${Math.floor(elapsed/60)}:${String(Math.floor(elapsed%60)).padStart(2,'0')}`],
    ['Best',r.best?fmt(r.best.score,2)+(r.best.se?` ± ${fmt(r.best.se,2)}`:''):'—'],
    ...(r.method instanceof Annealing?[['Current',fmt(summary.current,2)],['Phase',summary.phase],['Restarts',String(summary.restarts)]]:[['Population median',fmt(summary.median,2)],['Children',String(summary.children)]]),
-   ['Raced out',String(ev.raced)],['Invalid',String(ev.invalid)],['Cache hits',String(ev.cached)],...(r.mode.exact?[]:[['Seed set',String(ev.epoch+1)]])];
+   ['Engine',engineSummary(ev.engines)],['Raced out',String(ev.raced)],['Invalid',String(ev.invalid)],['Cache hits',String(ev.cached)],...(r.mode.exact?[]:[['Seed set',String(ev.epoch+1)]])];
   stats.replaceChildren(...items.flatMap(([k,v])=>[el('dt',{textContent:k}),el('dd',{textContent:v})]));
   drawChart(r);
   log.replaceChildren(...r.log.slice(0,8).map(e=>el('li',{textContent:`New best after ${e.at} evaluations: ${fmt(e.score,2)}${e.se?' ± '+fmt(e.se,2):''}`})));

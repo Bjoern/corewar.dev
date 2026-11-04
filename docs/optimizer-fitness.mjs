@@ -7,7 +7,8 @@
 //  sampled: the rounds split into slices with seeded placements. All candidates of one epoch
 //           share the seeds (common random numbers); racing drops a candidate after a slice
 //           when it is more than z standard errors behind the score it has to beat.
-import {Engine} from './engine.mjs';
+import {Engine,settings} from './engine.mjs';
+import {ExmarsRunner,exmarsBlocker,ENGINE_NAMES} from './exmars.mjs';
 import {numericPosition} from './tournament-plan.mjs';
 import {permutationRounds} from './hill-scores.mjs';
 
@@ -16,11 +17,21 @@ export const matchConfig=config=>({coreSize:config.coreSize,cycles:config.cycles
 const PSPACE_RE=/^[^;]*\b(ldp|stp)\b/im;
 export const usesPspace=source=>PSPACE_RE.test(source);
 
-// One match, run to the end: {wins, ties, losses} of the first warrior, or {error}.
-export async function runMatch(job){
- let diagnostics='';
+// One match, run to the end: {wins, ties, losses, engine} of the first warrior, or {error}.
+// exMARS runs it when it gives pMARS's result (exmars.mjs), with one fighter per worker that keeps
+// the opponents loaded; otherwise, and for assembly errors (pMARS's messages), a fresh pMARS engine.
+let exmars=null;
+const jobSettings=job=>({...job.config,warriors:2,rounds:job.rounds,permutate:!!job.permutate,fixedPosition:job.position||'',brief:true,verbose:false,sort:false,fixedSeries:false,assembleOnly:false});
+export async function runMatch(job,{useExmars=true}={}){
+ let diagnostics='',fallback=null;
+ if(useExmars){
+  exmars??=new ExmarsRunner();
+  const r=await exmars.run(jobSettings(job),[job.a,job.b]);
+  if(!r.fallback){const w=r.warriors[0];return {wins:w.wins,ties:w.ties,losses:w.losses,engine:'exmars'};}
+  fallback=r.fallback;
+ }
  try{
-  const engine=await Engine.create({...job.config,warriors:2,rounds:job.rounds,permutate:!!job.permutate,fixedPosition:job.position||'',brief:true,verbose:false,sort:false,fixedSeries:false,assembleOnly:false},
+  const engine=await Engine.create(jobSettings(job),
    {visual:false,log:text=>{diagnostics=(diagnostics+'\n'+text).slice(-4000);}});
   let assembling=0;
   engine.compile([job.a,job.b],()=>{},null,i=>{assembling=i;});
@@ -29,8 +40,20 @@ export async function runMatch(job){
   let done=0;
   while(!done){done=engine.module._web_advance(100000,8);if(done<0)throw new Error('Engine advance failed.');}
   const w=engine.update(true).warriors[0];
-  return {wins:w.wins,ties:w.ties,losses:w.losses};
+  return {wins:w.wins,ties:w.ties,losses:w.losses,engine:'pmars',fallback};
  }catch(error){return {error:error.message,diagnostics:diagnostics.trim(),warrior:error.warriorIndex};}
+}
+// The engine the optimizer will use for these settings, and why not exMARS when it can't.
+export function plannedEngine(config,mode){
+ const blocker=exmarsBlocker(settings({...matchConfig(config),warriors:2,rounds:mode.rounds,permutate:!!mode.exact}));
+ return blocker?{engine:'pmars',why:blocker}:{engine:'exmars',why:''};
+}
+// "exMARS", "pMARS" or "exMARS 97% · pMARS 3%" from the counts of matches each engine ran.
+export function engineSummary(engines){
+ const total=engines.exmars+engines.pmars;if(!total)return '—';
+ if(!engines.pmars)return ENGINE_NAMES.exmars;if(!engines.exmars)return ENGINE_NAMES.pmars;
+ const share=n=>Math.round(n/total*100)+'%';
+ return `${ENGINE_NAMES.exmars} ${share(engines.exmars)} · ${ENGINE_NAMES.pmars} ${share(engines.pmars)}`;
 }
 const points=r=>(3*r.wins+r.ties)/Math.max(1,r.wins+r.ties+r.losses)*100;
 
@@ -48,6 +71,7 @@ export class Evaluator{
  constructor({runJob,config,opponents,options={},seed='1'}){
   this.runJob=runJob;this.config=matchConfig(config);this.opponents=opponents;this.options={...SCORING_DEFAULTS,...options};this.seed=String(seed);
   this.cache=new Map();this.epoch=0;this.evaluations=0;this.cached=0;this.raced=0;this.invalid=0;this.matches=0;
+  this.engines={exmars:0,pmars:0};this.fallback=null;
  }
  setMode(mode){this.mode=mode;}
  position(epoch,slice,opponent){return numericPosition(`opt:${this.seed}:${epoch}:${slice}:${opponent}`,this.config);}
@@ -67,6 +91,7 @@ export class Evaluator{
   return this.check(await Promise.all(list.map(job=>this.runJob(job,token))));
  }
  check(results){
+  for(const r of results)if(r.engine){this.engines[r.engine]++;if(r.fallback)this.fallback=r.fallback;}
   const failed=results.find(r=>r.error);
   if(failed){if(failed.warrior===1)throw new Error('An opponent did not assemble: '+failed.error);this.lastError=failed;return null;}
   return results;
