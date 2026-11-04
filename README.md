@@ -28,6 +28,9 @@ The Library tab searches published warriors from Koenigstuhl snapshots in `koeni
 Each hill folder holds the unpacked archive (`HILL32/*.red`) and the saved ranking pages
 `<hill>_recursive.html` (required), `<hill>_battle_royal.html` and `<hill>_top50.html` (optional).
 An optional `SNAPSHOT` file holds the download date (`2026-11-04`), shown as the library's last update.
+Koenigstuhl can serve warriors whose names differ only by case (Odd's `Salamander.red` and `salamander.red`),
+which macOS and Windows checkouts cannot hold; the fetch stores the later one as `salamander~2.red`
+and lists it in the hill's `RENAMED` file, so rankings and Koenigstuhl links still use the original name.
 `python scripts/fetch_koenigstuhl.py` downloads every hill listed on the Koenigstuhl page into this layout
 (`--only 94nop tiny` limits it to some hills); a hill's folder is replaced only when its download succeeded.
 It always refreshes the ranking pages, but for a hill already on disk fetches only the warriors that are new

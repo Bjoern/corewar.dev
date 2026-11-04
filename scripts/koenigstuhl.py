@@ -2,6 +2,7 @@
 
 Each hill directory holds the unpacked archive (HILL32/*.red) and the saved ranking pages:
 <hill>_recursive.html, <hill>_battle_royal.html and optionally <hill>_top50.html.
+An optional RENAMED file maps stored names to the server's (see scripts/fetch_koenigstuhl.py).
 """
 from pathlib import Path
 import html
@@ -100,21 +101,38 @@ def hill(directory):
     if "rec" not in ranks:
         raise SystemExit("Missing recursive ranking page for hill " + name)
     files = sorted(p for p in archive.iterdir() if p.is_file() and p.suffix.lower() == ".red")
-    warriors = []
+    seen = {}
     for path in files:
+        other = seen.setdefault(path.name.lower(), path.name)
+        if other != path.name:
+            raise SystemExit(f"Hill {name}: {other} and {path.name} differ only by case; "
+                             "rerun scripts/fetch_koenigstuhl.py to store one under another name")
+    renamed = {}
+    if (directory / "RENAMED").exists():
+        for line in read_text(directory / "RENAMED").splitlines():
+            if line.strip():
+                stored, original = line.split("\t")
+                renamed[stored] = original
+    warriors = []
+    originals = set()
+    for path in files:
+        original = renamed.get(path.name, path.name)
+        originals.add(original)
         fields = header(read_text(path))
-        listed = ranks["rec"].get(path.name)
+        listed = ranks["rec"].get(original)
         # The file's own header wins; the ranking page fills in a missing name or author.
         entry = {"file": path.name,
                  "name": fields.get("name") or (listed and listed[3]) or path.stem,
                  "author": fields.get("author") or (listed and listed[4]) or ""}
+        if original != path.name:
+            entry["remote"] = original  # the name on Koenigstuhl
         if fields["strategy"]:
             entry["strategy"] = "\n".join(fields["strategy"]).strip()
         for key, table in ranks.items():
-            if path.name in table:
-                entry[key] = list(table[path.name][:2])
+            if original in table:
+                entry[key] = list(table[original][:2])
         warriors.append(entry)
-    missing = [f for f in ranks["rec"] if not (archive / f).is_file()]
+    missing = [f for f in ranks["rec"] if f not in originals]
     if missing:
         raise SystemExit(f"Hill {name}: ranked warriors missing from HILL32: {', '.join(missing[:5])}")
     warriors.sort(key=lambda w: (w.get("rec", [10**9])[0], w["name"].lower()))

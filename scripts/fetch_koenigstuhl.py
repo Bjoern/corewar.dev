@@ -8,12 +8,19 @@ warriors and writes the layout scripts/koenigstuhl.py expects:
     koenigstuhl/<hill>/<hill>_battle_royal.html  (hill32_iter.html, when listed)
     koenigstuhl/<hill>/<hill>_top50.html         (TOP50/hill32.html, when listed)
     koenigstuhl/<hill>/SNAPSHOT                  (download date, YYYY-MM-DD)
+    koenigstuhl/<hill>/RENAMED                   (renamed warriors, when any)
 
 A hill already on disk only downloads the warriors its new ranking lists that it lacks;
 new hills, many new warriors, or --full download the hill's archive instead, which also
 picks up edited warriors and drops removed ones. A hill's folder is replaced only after
 all of its downloads succeeded; failed hills keep their previous snapshot and make the
-script exit non-zero. Standard library only.
+script exit non-zero.
+
+Koenigstuhl's server tells apart names that differ only by case (Odd has Salamander.red
+and salamander.red); macOS and Windows checkouts cannot. The later name in sort order is
+stored as e.g. salamander~2.red, and RENAMED lists "<stored name><TAB><original name>"
+per line so scripts/koenigstuhl.py can still match rankings and link to the original.
+Standard library only.
 
 Usage: python scripts/fetch_koenigstuhl.py [--full] [--only HILL ...] [--dest DIR]
 """
@@ -38,6 +45,45 @@ HREF = re.compile(r'(href\s*=\s*")([^"]*)(")', re.IGNORECASE)
 AGENT = "corewar.dev-koenigstuhl-snapshot"
 # Above this many new warriors, one archive download beats fetching them one by one.
 ARCHIVE_ABOVE = 25
+RENAMED = "RENAMED"
+
+
+class Names:
+    """Stored file names for one hill's warriors, distinct even where case is ignored."""
+
+    def __init__(self):
+        self.stored = {}  # original name -> stored name
+        self.taken = set()  # stored names, lowercased
+
+    def place(self, original):
+        if original in self.stored:
+            return self.stored[original]
+        path = PurePosixPath(original)
+        name, n = original, 2
+        while name.lower() in self.taken:
+            name, n = f"{path.stem}~{n}{path.suffix}", n + 1
+        self.taken.add(name.lower())
+        self.stored[original] = name
+        return name
+
+    def renamed(self):
+        return {stored: original for original, stored in self.stored.items() if stored != original}
+
+
+def read_renamed(directory):
+    """Map stored name to original name from a hill's RENAMED file."""
+    path = directory / RENAMED
+    if not path.exists():
+        return {}
+    pairs = (line.split("\t") for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+    return {stored: original for stored, original in pairs}
+
+
+def write_renamed(directory, names):
+    renamed = names.renamed()
+    if renamed:
+        lines = "".join(f"{stored}\t{original}\n" for stored, original in sorted(renamed.items()))
+        (directory / RENAMED).write_text(lines, encoding="utf-8")
 
 
 def fetch(url, attempts=3):
@@ -103,12 +149,12 @@ def page(url):
     return f"<!-- saved from url=({len(url):04d}){url} -->\n{text}".encode("latin-1")
 
 
-def unpack(data, target):
+def unpack(data, target, names):
     """Extract the warrior files flat into target, skipping macOS ._ metadata.
 
     Archives hold one folder of warriors, usually HILL32/ (ICWS64 uses HILL/).
     """
-    count = 0
+    found = {}
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
         for member in archive:
             parts = PurePosixPath(member.name).parts
@@ -117,11 +163,12 @@ def unpack(data, target):
             name = parts[1]
             if name.startswith(".") or "/" in name or "\\" in name:
                 continue
-            (target / name).write_bytes(archive.extractfile(member).read())
-            count += 1
-    if not count:
+            found[name] = archive.extractfile(member).read()
+    if not found:
         raise RuntimeError("archive holds no HILL*/ warrior files")
-    return count
+    for name in sorted(found):
+        (target / names.place(name)).write_bytes(found[name])
+    return len(found)
 
 
 def download(name, urls, dest, today, full=False):
@@ -143,14 +190,17 @@ def download(name, urls, dest, today, full=False):
         if not ranked:
             raise RuntimeError("no warriors on the ranking page")
         previous = target / "HILL32"
-        have = {p.name for p in previous.iterdir() if p.is_file()} if previous.is_dir() else set()
+        renamed = read_renamed(target)
+        # Original name -> file in the previous snapshot.
+        have = {renamed.get(p.name, p.name): p for p in previous.iterdir() if p.is_file()} if previous.is_dir() else {}
+        names = Names()
         new = [file for file in ranked if file not in have]
         # The rankings list every warrior, so a known hill only needs its new warriors. The archive
         # is used for new hills, many new warriors, or --full (which also picks up edited warriors).
         if full or not have or len(new) > ARCHIVE_ABOVE:
             how = "archive"
             try:
-                unpack(fetch(urls["archive"]), hill)
+                unpack(fetch(urls["archive"]), hill, names)
             except HTTPError as error:
                 if error.code != 404:
                     raise
@@ -158,20 +208,21 @@ def download(name, urls, dest, today, full=False):
                 how = "archive missing"
         else:
             how = "incremental"
-            for file in have:
-                shutil.copy2(previous / file, hill / file)
+            for file in sorted(have):
+                shutil.copy2(have[file], hill / names.place(file))
             dropped = sorted(set(have) - set(ranked))
             if dropped:
                 print(f"{name}: no longer ranked, kept until the next --full run: {', '.join(dropped)}")
         # Archives occasionally lag behind the rankings; fetch ranked warriors still missing one by one.
         fetched = []
         for file, url in ranked.items():
-            if not (hill / file).exists():
-                (hill / file).write_bytes(fetch(url))
+            if file not in names.stored:
+                (hill / names.place(file)).write_bytes(fetch(url))
                 fetched.append(file)
         if fetched:
             shown = ", ".join(fetched[:10]) + (f" and {len(fetched) - 10} more" if len(fetched) > 10 else "")
             how += f", fetched {len(fetched)} separately: {shown}"
+        write_renamed(staging, names)
         (staging / "SNAPSHOT").write_text(today + "\n", encoding="utf-8")
         old = dest / f".{name}-old"
         if old.exists():

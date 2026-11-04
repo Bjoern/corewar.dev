@@ -204,7 +204,7 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
   const facts=document.createElement('p');facts.className='lib-facts';
   facts.textContent=Object.keys(RANKINGS).filter(k=>w[k]).map(k=>RANKINGS[k]+' '+scoreText(w[k])).join('   ');
   const origin=hillOf(w.hill)?.origin;
-  if(origin){const a=document.createElement('a');a.href=origin+encodeURIComponent(w.file);a.target='_blank';a.rel='noopener';a.textContent=w.file+' on Koenigstuhl';facts.append('   ',a);}
+  if(origin){const a=document.createElement('a');a.href=origin+encodeURIComponent(w.remote??w.file);a.target='_blank';a.rel='noopener';a.textContent=(w.remote??w.file)+' on Koenigstuhl';facts.append('   ',a);}
   const actions=document.createElement('span');actions.className='lib-file-actions';
   const save=document.createElement('button');save.type='button';save.textContent='Download';save.title='Save '+w.file;
   save.onclick=async()=>{try{download(new Blob([await source(w)],{type:'text/plain'}),w.file);}catch(error){notice(error.message,true);}};
