@@ -71,16 +71,14 @@ and `npx playwright install chromium`. With the preview server running, set
 optionally selects an installed browser. `test-options.mjs` requires a native pMARS
 executable argument; native-engine parity remains an upstream responsibility.
 
-## Deployment and domain transfer
+## Deployment
 
+The site is served at <https://corewar.dev> by GitHub Pages from this repository.
 CI builds and checks the static site on pushes and pull requests.
 The Pages workflow deploys `_site/` automatically on pushes to `master`.
 It can also be run manually from the Actions tab.
-No CNAME is shipped and no domain settings are changed by these files.
-Before dispatching, enable GitHub Actions as the Pages publishing source and test
-at the repository's GitHub Pages URL. Keep the existing corewar.dev deployment
-on pmars_experiments until this version is accepted. Then transfer the custom
-domain in GitHub Pages settings; inspect existing DNS before changing it.
+The custom domain is set in the repository's Pages settings; no CNAME file is
+shipped and these files change no domain or DNS settings.
 An optional pmars.corewar.dev site is documentation/downloads only, not a dependency.
 
 ## Updating pMARS
