@@ -284,8 +284,10 @@ function renderCenterTabs(){
   ? '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16 5l3.5-1 3 15.5-3.5 1z"/></svg> '
   : mode==='tournament'
   ? '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h4v4H4zM4 15h4v4H4zM8 7h4v10H8M12 12h8"/></svg> '
+  : mode==='tools'
+  ? '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M20 7.5a4.5 4.5 0 0 1-6.2 4.2L6 19.5a1.8 1.8 0 0 1-2.5-2.5l7.8-7.8A4.5 4.5 0 0 1 16.5 3l-2.8 2.8.5 2 2 .5z"/></svg> '
   : '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg> ';
- const coreLabel=document.createElement('span');coreLabel.textContent={tournament:'Tournament',library:'Library'}[mode]||'Battle';core.append(coreLabel);
+ const coreLabel=document.createElement('span');coreLabel.textContent={tournament:'Tournament',library:'Library',tools:'Tools'}[mode]||'Battle';core.append(coreLabel);
  if(mode==='battle' && active>=0 && engine && total>0 && state!=='done'){const paused=document.createElement('span');paused.className='tab-note';paused.textContent=' · paused';core.append(paused);}
  core.onclick=()=>showCore();tabs.push(core);
  for(const i of openTabs){

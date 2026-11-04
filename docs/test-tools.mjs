@@ -19,6 +19,7 @@ try{
  await page.locator('#toolsTab').click();await settle();
  assert.equal(await hash(),'#tools');assert.equal(await visibleTool(),'');
  assert.equal(await page.locator('.tools-card[data-tool]').count(),2);
+ assert.equal((await page.locator('.core-tab').first().textContent()).trim(),'Tools'); // The view tab beside the editors names the mode.
  await page.locator('.tools-card[data-tool="step-finder"]').click();await settle();
  assert.equal(await hash(),'#tools/step-finder');assert.equal(await visibleTool(),'step-finder');
  await page.locator('.tools-nav-item[data-tool="optimizer"]').click();await settle();
