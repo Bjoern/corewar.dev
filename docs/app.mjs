@@ -284,7 +284,7 @@ function renderCenterTabs(){
   : mode==='tournament'
   ? '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h4v4H4zM4 15h4v4H4zM8 7h4v10H8M12 12h8"/></svg> '
   : '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg> ';
- const coreLabel=document.createElement('span');coreLabel.textContent={tournament:'Tournament',library:'Library'}[mode]||'Core';core.append(coreLabel);
+ const coreLabel=document.createElement('span');coreLabel.textContent={tournament:'Tournament',library:'Library'}[mode]||'Battle';core.append(coreLabel);
  if(mode==='battle' && active>=0 && engine && total>0 && state!=='done'){const paused=document.createElement('span');paused.className='tab-note';paused.textContent=' · paused';core.append(paused);}
  core.onclick=()=>showCore();tabs.push(core);
  for(const i of openTabs){
@@ -301,8 +301,8 @@ function renderCenterTabs(){
   tab.append(open,close);tabs.push(tab);
  }
  $('centerTabs').replaceChildren(...tabs);
- // Library and Tournaments name themselves in the mode tabs; their tab here only matters as the way back from an open editor.
- $('centerTabs').hidden=(mode==='library'||mode==='tournament')&&tabs.length===1;
+ // Each mode names itself in the mode tabs; its tab here only matters as the way back from an open editor.
+ $('centerTabs').hidden=tabs.length===1;
 }
 $('toggleEditors').onclick=()=>showCore();
 $('validateActive').onclick=()=>{const i=activeEditor();if(i>=0)checkWarrior(i);};
@@ -1160,7 +1160,7 @@ tournaments=setupTournaments({
   MODES.filter(m=>m.panel).forEach((m,i)=>{if(i===index)$(m.id).setAttribute('aria-current','page');else $(m.id).removeAttribute('aria-current');});
   if(name!=='battle' && state==='running')pause();
   mode=name;document.body.dataset.mode=mode;
-  $('phoneBar').querySelector('[data-pane=core]').textContent={tournament:'Tournament',library:'Library'}[name]||'Core';
+  $('phoneBar').querySelector('[data-pane=core]').textContent={tournament:'Tournament',library:'Library'}[name]||'Battle';
   if(name!=='battle' && ['debug','output'].includes(document.body.dataset.pane))setPane('core');
   editorVisibility();
   if(name==='library')library.show();else library.hide();
