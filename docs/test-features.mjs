@@ -1,4 +1,4 @@
-import {loadTestWarriors} from './test-fixtures.mjs';
+import {loadTestWarriors,editWarrior,showCore,viewOptions} from './test-fixtures.mjs';
 // SPDX-License-Identifier: GPL-2.0-or-later
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
@@ -12,22 +12,27 @@ try{
  await page.goto(process.env.PMARS_URL||'http://127.0.0.1:8765/docs/');
  await loadTestWarriors(page);
  assert(await page.locator('#first').isHidden());assert(await page.locator('#second').isHidden());
- await page.getByRole('button',{name:'Edit or collapse warrior 1',exact:true}).click();
+ // One warrior editor is open at a time; Close editor returns to the battle.
+ await page.getByRole('button',{name:'Edit warrior 1',exact:true}).click();
  assert(await page.locator('#first').isVisible());assert(await page.locator('#second').isHidden());
- await page.locator('#toggleEditors').click();await page.locator('#toggleEditors').click();assert(await page.locator('#second').isVisible());
+ await page.getByRole('button',{name:'Edit warrior 2',exact:true}).click();
+ assert(await page.locator('#second').isVisible());assert(await page.locator('#first').isHidden());
+ await showCore(page);assert(await page.locator('#second').isHidden());
  await page.locator('#core').evaluate(c=>{
   const r=c.getBoundingClientRect();
   c.dispatchEvent(new PointerEvent('pointermove',{clientX:r.left+20,clientY:r.top+28}));
  });
- assert.equal(await page.locator('#hoverAddress').textContent(),'Cell: '+String(3*Number(await page.locator('#core').getAttribute('data-columns'))+2).padStart(4,'0'));
+ // The hovered cell follows the canvas's current cell size and scroll offset.
+ const hovered=await page.locator('#core').evaluate(c=>{const d=c.dataset,size=Number(d.cellSize);return Math.floor((28+Number(d.offsetY||0))/size)*Number(d.columns)+Math.floor((20+Number(d.offsetX||0))/size);});
+ assert.equal(await page.locator('#hoverAddress').textContent(),'Cell: '+String(hovered).padStart(4,'0'));
  await page.locator('#core').dispatchEvent('pointerleave');
  assert.equal(await page.locator('#hoverAddress').textContent(),'Cell: —');
+ // The roster lists the warriors, then the New warrior button, then the drop zone.
  const layout=await page.evaluate(()=>{
   const editors=document.querySelector('#editors').getBoundingClientRect(),drop=document.querySelector('#dropZone').getBoundingClientRect(),button=document.querySelector('#newWarrior').getBoundingClientRect();
-  const h=document.querySelector('header h1').getBoundingClientRect(),p=document.querySelector('header p').getBoundingClientRect();
-  return {below:drop.top>=editors.bottom,sameRow:button.left>=drop.right,inline:p.left>=h.right};
+  return {buttonBelowList:button.top>=editors.bottom,dropBelowButton:drop.top>=button.bottom};
  });
- assert.deepEqual(layout,{below:true,sameRow:true,inline:true});
+ assert.deepEqual(layout,{buttonBelowList:true,dropBelowButton:true});
  assert(await page.locator('#fast').isVisible());
  assert(await page.locator('#rounds').isVisible());
  assert(await page.locator('#settingsSummary').isVisible());
@@ -35,14 +40,14 @@ try{
  await page.locator('#newWarrior').click();
  assert(await page.locator('#warrior-2').isVisible(),'New warriors open for editing');
  await page.getByRole('button',{name:'Remove warrior 3',exact:true}).click();
+ await showCore(page);
+ // Each roster row keeps its name and actions (edit, validate, download, remove) on one line.
  const compact=await page.evaluate(()=>{
-  const row=document.querySelector('.editor-title').getBoundingClientRect();
-  const actions=[...document.querySelectorAll('.editor-title:first-child button')].slice(0,4).map(e=>e.getBoundingClientRect());
-  const toolbar=document.querySelector('.page-layout').getBoundingClientRect(),theme=document.querySelector('.arena-theme').getBoundingClientRect();
-  const summary=document.querySelector('#consoleWindow summary').getBoundingClientRect(),clear=document.querySelector('#clearConsole').getBoundingClientRect();
-  return {oneRow:actions.every(r=>r.top>=row.top && r.bottom<=row.bottom+1),themeRight:Math.abs(theme.right-toolbar.right)<2,clearInline:clear.top>=summary.top && clear.bottom<=summary.bottom+1};
+  const title=document.querySelector('#editors .editor-title'),row=title.getBoundingClientRect();
+  const actions=[...title.querySelectorAll('button')].map(e=>e.getBoundingClientRect());
+  return {oneRow:actions.length>=5&&actions.every(r=>r.top>=row.top && r.bottom<=row.bottom+1)};
  });
- assert.deepEqual(compact,{oneRow:true,themeRight:true,clearInline:true});
+ assert.deepEqual(compact,{oneRow:true});
  await page.locator('#warriorFiles').setInputFiles(['Uploaded A','Uploaded B'].map(n=>({name:n+'.red',mimeType:'text/plain',buffer:Buffer.from(code(n))})));
  await page.waitForFunction(()=>document.querySelectorAll('#editorViews .cm-content').length===4);
  assert((await page.locator('#editors').textContent()).includes('Uploaded A'));
@@ -55,7 +60,7 @@ try{
  assert.equal(Buffer.concat(chunks).toString(),code('Dropped'));
  assert.equal(download.suggestedFilename(),'Dropped.red');
  for(let i=5;i>2;i--)await page.getByRole('button',{name:'Remove warrior '+i,exact:true}).click();
- await page.locator('#first').fill(code('One'));await page.locator('#second').fill(code('Two'));
+ await editWarrior(page,'#first',code('One'));await editWarrior(page,'#second',code('Two'));
  await page.locator('#preset').selectOption('nano');
  await page.locator('#editSettings').click();
  assert.equal(await page.locator('#coreSize').inputValue(),'80');
@@ -64,9 +69,10 @@ try{
  await page.locator('#fast').click();await ready('Battle complete');
  assert((await page.locator('#battleTotals').textContent()).includes('1,001'));
  assert((await page.locator('#diagnosticsTitle').textContent()).includes('1,001'));
- await page.locator('#consoleWindow summary').click();
+ await page.locator('#outputTab').click();
  await page.waitForFunction(()=>document.querySelector('#consoleOutput').textContent.includes('scores'));
  assert((await page.locator('#consoleOutput').textContent()).includes('Program "One"'));
+ await page.locator('#inspectorTabs .console-tab').first().click();assert(await page.locator('#command').isVisible());
 
  await page.locator('#rounds').fill('1');await page.locator('#cycles').fill('1000');
  await page.locator('#reset').click();await ready('Paused before');
@@ -86,9 +92,9 @@ try{
  await page.locator('#command').fill('l0,3');await page.locator('#command').press('Enter');
  await page.waitForFunction(()=>document.querySelector('#commandOutput').textContent==='Ready.');
  assert.equal(await page.locator('#instruction .listing-line').count(),4);
- await page.locator('#theme').selectOption('accessible');
+ await viewOptions(page,'#theme');await page.locator('#theme').selectOption('accessible');
  assert.equal(await page.locator('body').getAttribute('data-theme'),'accessible');
- await page.locator('#theme').selectOption('classic');
+ await viewOptions(page,'#theme');await page.locator('#theme').selectOption('classic');
  assert.equal(await page.locator('body').getAttribute('data-theme'),'classic');
  // Verify native per-quadrant event semantics retain the other owner's marks.
  const cells=await page.evaluate(async()=>{
@@ -105,7 +111,7 @@ try{
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile overflow');
  await page.screenshot({path:'docs/test-output/features-mobile.png',fullPage:true});
  await page.setViewportSize({width:1280,height:1100});
- await page.locator('#theme').selectOption('modern');
+ await viewOptions(page,'#theme');await page.locator('#theme').selectOption('modern');
  await page.screenshot({path:'docs/test-output/features-desktop.png',fullPage:true});
  assert.deepEqual(errors,[]);
  console.log('PASS: multi-file upload, drop, save, presets, 1001-round worker series, battle totals, native console, independent/global pause, debugger feedback, themes, quadrant retention, assemble-only, mobile.');

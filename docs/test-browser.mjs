@@ -1,7 +1,7 @@
-import {loadTestWarriors} from './test-fixtures.mjs';
+import {loadTestWarriors,editWarrior,showCore} from './test-fixtures.mjs';
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Serve repository root; install Playwright or set PLAYWRIGHT_MODULE to its index.mjs.
-// BROWSER_CHANNEL=msedge node web/test-browser.mjs
+// BROWSER_CHANNEL=msedge node docs/test-browser.mjs
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
@@ -19,7 +19,6 @@ const count = async () => Number(await page.locator('#timing').getAttribute('dat
 try {
   await page.goto(process.env.PMARS_URL || 'http://127.0.0.1:8765/docs/');
  await loadTestWarriors(page);
- await page.locator('#toggleEditors').click();
   await page.locator('#step').click();
   await ready('Paused after');
   assert.equal(await count(), 1);
@@ -37,8 +36,8 @@ try {
 
   // Sustained maximum-speed visualization while measuring page heartbeat.
   const imp = ';redcode-94\n;assert 1\nmov.i 0,1\n';
-  await page.locator('#first').fill(imp);
-  await page.locator('#second').fill(imp);
+  await editWarrior(page,'#first',imp);
+  await editWarrior(page,'#second',imp);
   await page.locator('#editSettings').click();
   await page.locator('#cycles').fill('10000000');
   await page.locator('#speed').fill('5');
@@ -65,15 +64,15 @@ try {
   await page.locator('#rounds').fill('100');
   await page.locator('#fast').click();
   await ready('Battle complete');
-  assert((await page.locator('#scores').textContent()).includes('100 ties'));
+  assert.deepEqual(await page.locator('#scores tbody td:nth-child(2)').allTextContents(),['0 / 100 / 0','0 / 100 / 0'],'Two imps tie all 100 rounds');
 
   await page.locator('#reset').click(); await ready('Paused before');
   // Malformed assembly must recover; long compilation remains cancellable.
-  await page.locator('#first').fill(';redcode-94\n;assert 1\ninvalid 0,0\n');
+  await editWarrior(page,'#first',';redcode-94\n;assert 1\ninvalid 0,0\n');
   await page.locator('#run').click();
   await ready('error');
   assert((await page.locator('#log').textContent()).length > 0);
-  await page.locator('#first').fill(imp);
+  await editWarrior(page,'#first',imp);
   await page.locator('#step').click();
   await ready('Paused after');
   assert.equal(await count(),1);

@@ -1,8 +1,8 @@
-import {loadTestWarriors} from './test-fixtures.mjs';
+import {loadTestWarriors,editWarrior,showCore,viewOptions} from './test-fixtures.mjs';
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
-const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
-const browser=await chromium.launch({headless:true,channel:process.env.BROWSER_CHANNEL||'msedge'});
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.BROWSER_CHANNEL?{channel:process.env.BROWSER_CHANNEL}:{})});
 const page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 const source=';redcode\n;name Loop\n;assert WARRIORS == 2\njmp 0\n';
@@ -10,34 +10,34 @@ const compiled=()=>page.waitForFunction(()=>document.querySelector('.compile-war
 try {
  await page.goto(process.env.PMARS_URL || 'http://127.0.0.1:8765/docs/');
  await loadTestWarriors(page);
- await page.locator('#toggleEditors').click();
  await page.waitForFunction(()=>Array.from(document.querySelectorAll('.compile-warrior')).every(e=>e.dataset.result==='ok'));
- assert.equal(await page.locator('#consoleWindow').evaluate(e=>e.open),false);
+ assert.equal(await page.locator('#consolePanel').getAttribute('data-tab'),'cdb','automatic validation leaves the inspector alone');
  let validationWorkers=0;page.on('worker',()=>validationWorkers++);
  for(let i=0;i<3;i++){
-  await page.locator('#first').fill(source+';edit '+i);
+  await editWarrior(page,'#first',source+';edit '+i,{keepOpen:true});
   await page.waitForTimeout(100);
  }
  assert.equal(validationWorkers,0,'Typing should not trigger immediate validation');
  await page.waitForFunction(()=>Array.from(document.querySelectorAll('.compile-warrior')).every(e=>e.dataset.result==='ok'));
  assert.equal(validationWorkers,2,'One validation per warrior after the editing pause');
- assert.equal(await page.locator('#consoleWindow').evaluate(e=>e.open),false);
+ await showCore(page);
+ assert.equal(await page.locator('#consolePanel').getAttribute('data-tab'),'cdb','automatic validation leaves the inspector alone');
  await page.getByRole('button',{name:'Validate warrior 1',exact:true}).click();await compiled();
- assert(await page.locator('#consoleWindow').evaluate(e=>e.open));
- await page.locator('#cellSize').selectOption('4');
+ assert.equal(await page.locator('#consolePanel').getAttribute('data-tab'),'output','Validate shows the assembler output');
+ await viewOptions(page);await page.locator('#cellSize').selectOption('4');
  assert.equal(await page.locator('#core').evaluate(c=>Number(c.dataset.cellSize)),4);
- await page.locator('#cellSize').selectOption('6');
+ await viewOptions(page);await page.locator('#cellSize').selectOption('6');
  assert.equal(await page.locator('#core').evaluate(c=>Number(c.dataset.cellSize)),6);
 
  assert(await page.getByRole('button',{name:'Validate warrior 1',exact:true}).isVisible());
  assert(await page.getByRole('button',{name:'Validate warrior 2',exact:true}).isVisible());
- await page.locator('#cellSize').selectOption('24');
- await page.locator('#arenaLayout').selectOption('fill');
+ await viewOptions(page);await page.locator('#cellSize').selectOption('24');
+ await viewOptions(page);await page.locator('#arenaLayout').selectOption('fill');
  assert(await page.locator('.arena-viewport').evaluate(e=>e.dataset.layout==='fill'));
  assert(await page.locator('.arena-viewport').evaluate(e=>e.clientHeight>innerHeight*.65));
- await page.locator('#arenaLayout').selectOption('vertical');
+ await viewOptions(page);await page.locator('#arenaLayout').selectOption('vertical');
  assert(await page.locator('.arena-viewport').evaluate(e=>e.clientHeight<=innerHeight*.65));
- await page.locator('#arenaLayout').selectOption('fill');
+ await viewOptions(page);await page.locator('#arenaLayout').selectOption('fill');
  assert(await page.locator('#core').evaluate(c=>c.clientWidth<=c.parentElement.clientWidth));
  assert(await page.locator('#core').evaluate(c=>c.clientHeight>1000));
  const wrapAddress=await page.locator('#core').evaluate(c=>{
@@ -46,9 +46,9 @@ try {
   return String(columns+1).padStart(4,'0');
  });
  assert.equal(await page.locator('#hoverAddress').textContent(),'Cell: '+wrapAddress);
- await page.locator('#arenaLayout').selectOption('vertical');
- await page.locator('#cellSize').selectOption('8');
- await page.locator('#first').fill(source);await page.locator('#second').fill(source);
+ await viewOptions(page);await page.locator('#arenaLayout').selectOption('vertical');
+ await viewOptions(page);await page.locator('#cellSize').selectOption('8');
+ await editWarrior(page,'#first',source);await editWarrior(page,'#second',source);
  await page.locator('#editSettings').click();assert.equal(await page.locator('#editSettings').getAttribute('aria-expanded'),'true');
  await page.locator('#editSettings').click();assert(await page.locator('#settingsFields').isHidden());
  for(const preset of ['94nop','88','nano','tiny','tinylp','94x']) {
@@ -59,16 +59,16 @@ try {
  await page.locator('#editSettings').click();await page.locator('#cycles').fill('10');
  await page.locator('#brief').check();
  await page.getByRole('button',{name:'Validate warrior 1',exact:true}).click();await compiled();
- assert(await page.locator('#consoleWindow').evaluate(e=>e.open));
+ assert.equal(await page.locator('#consolePanel').getAttribute('data-tab'),'output','Validate shows the assembler output');
  assert((await page.locator('#consoleOutput').textContent()).includes('JMP'));
- await page.locator('#second').fill(';redcode\n;assert 1\ninvalid 0,0\n');
+ await editWarrior(page,'#second',';redcode\n;assert 1\ninvalid 0,0\n');
  await page.getByRole('button',{name:'Validate warrior 2',exact:true}).click();
  await page.waitForFunction(()=>document.querySelectorAll('.compile-warrior')[1].dataset.result==='failed');
  await page.locator('#run').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('error'));
  assert.equal(await page.locator('.compile-warrior').nth(1).getAttribute('data-result'),'failed');
- assert(await page.locator('#consoleWindow').evaluate(e=>e.open));
- await page.locator('#second').fill(source);
+ assert.equal(await page.locator('#consolePanel').getAttribute('data-tab'),'output','Validate shows the assembler output');
+ await editWarrior(page,'#second',source);
  assert.equal(await page.locator('.compile-warrior').nth(1).textContent(),'↻ Validate');
  await page.locator('#reset').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Paused before'));

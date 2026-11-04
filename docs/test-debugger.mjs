@@ -1,4 +1,4 @@
-import {loadTestWarriors} from './test-fixtures.mjs';
+import {loadTestWarriors,editWarrior,showCore,viewOptions} from './test-fixtures.mjs';
 // SPDX-License-Identifier: GPL-2.0-or-later
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
@@ -15,9 +15,9 @@ const command = async text => { await page.locator('#command').fill(text); await
 try {
   await page.goto(process.env.PMARS_URL || 'http://127.0.0.1:8765/docs/');
  await loadTestWarriors(page);
- await page.locator('#toggleEditors').click();
-  await page.locator('#first').fill(';redcode-94\n;name Alpha\n;assert 1\nmov.i 0,1\n');
-  assert((await page.locator('label[for=first]').textContent()).includes('Alpha'));
+  await editWarrior(page,'#first',';redcode-94\n;name Alpha\n;assert 1\nmov.i 0,1\n');
+  await showCore(page);
+  assert((await page.locator('#editors .warrior').first().textContent()).includes('Alpha'));
   await page.locator('#reset').click(); await ready('Paused before');
   assert.equal(await count(),0);
   assert.equal(await page.locator('#instruction .listing-line').count(),0);
@@ -27,7 +27,7 @@ try {
   assert.equal(await count(),1);
   // Resizing an active arena preserves execution and cell inspection after scrolling.
   const listingBeforeZoom = await page.locator('#instruction').textContent();
-  await page.locator('#cellSize').selectOption('24');
+  await viewOptions(page);await page.locator('#cellSize').selectOption('24');
   assert.equal(await count(),1);
   assert.equal(await page.locator('#instruction').textContent(),listingBeforeZoom);
   await page.locator('.arena-viewport').scrollIntoViewIfNeeded();
@@ -39,9 +39,9 @@ try {
   });
   await page.mouse.click(point.x,point.y);
   assert.equal(Number(await page.locator('#instruction .listing-line').first().getAttribute('data-address')),point.address);
-  await page.locator('#cellSize').selectOption('0');
+  await viewOptions(page);await page.locator('#cellSize').selectOption('0');
   assert(await page.locator('#core').evaluate(c=>c.clientWidth<=c.parentElement.clientWidth && Number(c.dataset.cellSize)%2===0));
-  await page.locator('#cellSize').selectOption('8');
+  await viewOptions(page);await page.locator('#cellSize').selectOption('8');
 
   assert((await page.locator('.tracker pre').first().textContent()).includes('0000  MOV.I'));
   const beforeWorkers = workers;
@@ -68,11 +68,14 @@ try {
   assert((await page.locator('#instruction').textContent()).includes('2'));
   await page.locator('.tracker select').first().selectOption('all');
   assert.equal(await page.locator('.tracker').first().locator('.instruction-row').count(),2);
+  // Clicking a cell lists the core from that cell, filling the listing's height.
   await page.locator('#core').click({position:{x:40,y:30}});
-  assert.equal(await page.locator('#instruction .listing-line').count(),10);
+  const clicked=(await page.locator('#hoverAddress').textContent()).replace('Cell: ','');
+  assert((await page.locator('#instruction .listing-line').first().textContent()).startsWith(clicked));
+  assert(await page.locator('#instruction .listing-line').count()>=10);
 
-  await page.locator('#first').fill(';redcode-94\n;NAME Beta\n;assert 1\nadd.ab #1,0\njmp -1\n');
-  assert((await page.locator('label[for=first]').textContent()).includes('Beta'));
+  await editWarrior(page,'#first',';redcode-94\n;NAME Beta\n;assert 1\nadd.ab #1,0\njmp -1\n');
+  assert((await page.locator('#editors .warrior').first().textContent()).includes('Beta'));
   assert((await page.locator('#changed').textContent()).includes('Reset applies'));
   await page.getByRole('button',{name:'Remove warrior 2',exact:true}).click();
   assert.equal(await page.locator('#editorViews .cm-content').count(),1);
@@ -82,9 +85,10 @@ try {
   assert.match(trace,/ADD.AB\s+#\s*1,\s*\$\s*0/);
   await command('list 0');
   assert.match(await page.locator('#instruction').textContent(),/ADD.AB\s+#\s*1,\s*\$\s*1/);
-  assert((await page.locator('#scores').textContent()).includes('survived'));
+  // A single warrior is scored by survival instead of wins, ties and losses.
+  assert.equal(await page.locator('#scores thead th').nth(1).textContent(),'Surv. / Term.');
 
-  await page.locator('#newWarrior').click(); await page.locator('#newWarrior').click();
+  await page.locator('#newWarrior').click(); await page.locator('#newWarrior').click(); await showCore(page);
 
   await page.locator('#reset').click(); await ready('Paused before');
   await page.locator('#addConsole').click();await page.locator('#addConsole').click();

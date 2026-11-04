@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 import {loadTestWarriors} from './test-fixtures.mjs';
-const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
-const browser=await chromium.launch({headless:true,channel:'msedge'}),page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.BROWSER_CHANNEL?{channel:process.env.BROWSER_CHANNEL}:{})}),page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 const sel=(panel,v)=>panel.locator('select').evaluate((el,v)=>{el.value=v;el.dispatchEvent(new Event('change'));},v);
 const press=(panel,name)=>panel.locator('button[aria-label="'+name+'"]').evaluate(e=>e.click());

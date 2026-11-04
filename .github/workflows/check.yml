@@ -45,3 +45,15 @@ jobs:
           node docs/test-workspace.mjs
           node docs/test-routing.mjs
           node docs/test-library.mjs
+          node docs/test-browser.mjs
+          node docs/test-controls.mjs
+          node docs/test-debugger.mjs
+          node docs/test-breakpoints.mjs
+          node docs/test-console-separation.mjs
+          node docs/test-consoles.mjs
+          node docs/test-editor.mjs
+          node docs/test-features.mjs
+          node docs/test-feedback.mjs
+          node docs/test-fast-debug.mjs
+          node docs/test-layout.mjs
+          node docs/test-native-cdb-browser.mjs

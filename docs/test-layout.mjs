@@ -1,8 +1,8 @@
 import {loadTestWarriors} from './test-fixtures.mjs';
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
-const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
-const browser=await chromium.launch({headless:true,channel:process.env.BROWSER_CHANNEL||'msedge'});
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.BROWSER_CHANNEL?{channel:process.env.BROWSER_CHANNEL}:{})});
 try {
  for(const scale of [1,2]){
   const page=await browser.newPage({viewport:{width:1280,height:900},deviceScaleFactor:scale});

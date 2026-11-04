@@ -15,8 +15,8 @@ for(const budget of [1,100000]) {
  do {u=e.advance(budget,4);steps+=u.executed;}while(u.debugHit<0&&!u.done);
  assert.equal(steps,2);
 }
-const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
-const browser=await chromium.launch({headless:true,channel:process.env.BROWSER_CHANNEL||'msedge'});
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.BROWSER_CHANNEL?{channel:process.env.BROWSER_CHANNEL}:{})});
 const page=await browser.newPage({viewport:{width:1400,height:1000}}),errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 const ready=t=>page.waitForFunction(t=>document.querySelector('#status').textContent.includes(t),t);

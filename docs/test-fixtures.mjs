@@ -8,3 +8,19 @@ export async function loadTestWarriors(page) {
  }
  await page.locator('#toggleEditors').click();
 }
+// Only one warrior editor is open at a time: open warrior #first, #second or #warrior-N (from the roster), replace its
+// source and, unless keepOpen is set, close the editor again so the battle controls are back in view.
+export async function editWarrior(page, id, source, {keepOpen=false}={}) {
+ const index = id==='#first' ? 0 : id==='#second' ? 1 : Number(id.replace('#warrior-',''));
+ if (!await page.locator(id).isVisible()) await page.locator('#editors .warrior').nth(index).click();
+ await page.locator(id).fill(source);
+ if (!keepOpen) await showCore(page);
+}
+// Close the open editor, if any, to get back to the battle view with its controls.
+export async function showCore(page) {
+ if (await page.locator('#toggleEditors').isVisible()) await page.locator('#toggleEditors').click();
+}
+// Cell size, arena layout and the color theme live in the View menu; open it when the control is not on screen.
+export async function viewOptions(page, control='#cellSize') {
+ if (!await page.locator(control).isVisible()) await page.locator('#viewBtn').click();
+}

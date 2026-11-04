@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import assert from 'node:assert/strict';import {pathToFileURL} from 'node:url';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
-const browser=await chromium.launch({headless:true,channel:process.env.BROWSER_CHANNEL||'msedge'}),page=await browser.newPage(),errors=[];
+const browser=await chromium.launch({headless:true,...(process.env.BROWSER_CHANNEL?{channel:process.env.BROWSER_CHANNEL}:{})}),page=await browser.newPage(),errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 const send=async text=>{await page.locator('#command').fill(text);await page.locator('#command').press('Enter');};
 const idle=()=>page.waitForFunction(()=>document.querySelector('#commandOutput').textContent==='Ready.');

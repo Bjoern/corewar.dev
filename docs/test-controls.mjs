@@ -1,4 +1,4 @@
-import {loadTestWarriors} from './test-fixtures.mjs';
+import {loadTestWarriors,editWarrior,showCore} from './test-fixtures.mjs';
 // SPDX-License-Identifier: GPL-2.0-or-later
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
@@ -14,9 +14,8 @@ const count = async () => Number(await page.locator('#timing').getAttribute('dat
 try {
   await page.goto(process.env.PMARS_URL || 'http://127.0.0.1:8765/docs/');
  await loadTestWarriors(page);
- await page.locator('#toggleEditors').click();
   const loop = ';redcode-94\n;name Loop\n;assert 1\njmp 0\n';
-  await page.locator('#first').fill(loop); await page.locator('#second').fill(loop);
+  await editWarrior(page,'#first',loop); await editWarrior(page,'#second',loop); await showCore(page);
   await page.locator('#editSettings').click();
   await page.locator('#speed').fill('5');
   await page.locator('#cycles').fill('10');
@@ -45,7 +44,7 @@ try {
   await page.locator('#reset').click(); await ready('Paused before');
   await page.locator('#rounds').fill('100');
   await page.locator('#fast').click(); await ready('Battle complete');
-  assert((await page.locator('#scores').textContent()).includes('100 ties'));
+  assert.deepEqual(await page.locator('#scores tbody td:nth-child(2)').allTextContents(),['0 / 100 / 0','0 / 100 / 0'],'Two imps tie all 100 rounds');
   assert.equal(await count(),400);
   assert.deepEqual(errors,[]);
   console.log('PASS: exact cycle-limit completion, Run after Reset, edited startup settings, preserved resume settings, 100-round Fast match.');
