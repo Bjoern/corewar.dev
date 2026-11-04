@@ -301,6 +301,8 @@ function renderCenterTabs(){
   tab.append(open,close);tabs.push(tab);
  }
  $('centerTabs').replaceChildren(...tabs);
+ // The Library names itself in the mode tabs; its tab here only matters as the way back from an open editor.
+ $('centerTabs').hidden=mode==='library'&&tabs.length===1;
 }
 $('toggleEditors').onclick=()=>showCore();
 $('validateActive').onclick=()=>{const i=activeEditor();if(i>=0)checkWarrior(i);};

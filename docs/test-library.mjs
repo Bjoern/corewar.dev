@@ -20,6 +20,7 @@ try{
  // A fresh library searches every hill; choosing hills narrows it and turning the last one off widens it again.
  await page.waitForFunction(()=>/warriors/.test(document.querySelector('#libraryCount').textContent));
  assert.deepEqual(await pressed(),['All hills']);
+ assert(await page.locator('#centerTabs').isHidden(),'no workspace tab strip without an open editor');
  assert.equal(await count(),total.toLocaleString('en-US')+' warriors');
  assert(await page.locator('#libraryReset').isHidden());
  await chip(a.id).click();await page.waitForFunction(n=>document.querySelector('#libraryCount').textContent===n,a.count.toLocaleString('en-US')+' warriors');
@@ -63,6 +64,9 @@ try{
  await page.locator('#libraryAddSelected').click();
  await page.waitForFunction(()=>/3 warriors added/.test(document.querySelector('#libraryNotice').textContent));
  assert.equal(await page.locator('.lib-row .lib-add[disabled]').count(),3);
+ // Opening a warrior's editor brings back the tab strip, with the Library tab as the way back.
+ await page.locator('.edit-source').first().click();assert(await page.locator('#centerTabs').isVisible());
+ await page.locator('#centerTabs .tab-close').first().click();assert(await page.locator('#centerTabs').isHidden());
  const [zip]=await Promise.all([page.waitForEvent('download'),page.locator('#libraryZip').click()]);
  assert.equal(zip.suggestedFilename(),'koenigstuhl-'+a.id+'-3.zip');
 
