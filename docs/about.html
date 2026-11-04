@@ -69,6 +69,7 @@ footer{max-width:880px;margin:auto;padding:20px 32px 40px;border-top:1px solid v
 <div><strong>Debug</strong><span>Use the original pMARS <code>cdb</code> debugger with breakpoints, macros and a native command line.</span></div>
 <div><strong>Edit</strong><span>Write warriors in an editor with Redcode highlighting and check them with the real pMARS assembler.</span></div>
 <div><strong>Tournaments</strong><span>Run round robins, melees, challenges and benchmarks against well-known warrior suites, with several workers in parallel.</span></div>
+<div><strong>Tools</strong><span>Tune a warrior’s constants against a benchmark with simulated annealing or a genetic algorithm, and rank step sizes for any core size.</span></div>
 </div>
 <p>Match settings come from the presets of the classic hills (’94 standard, ’88, tiny, nano, limited process and more), and every value stays editable.</p>
 
@@ -82,6 +83,7 @@ footer{max-width:880px;margin:auto;padding:20px 32px 40px;border-top:1px solid v
 <h2 id="credits">Built on pMARS</h2>
 <p>The engine is <strong>pMARS 0.9.6</strong>, the portable Memory Array Redcode Simulator, by Albert Ma, Nandor Sieben, Stefan Strack and Mintardjo Wangsaw, with contributions from Alex Macaulay, Martin Maierhofer, Nathan Summers, Ken Espiritu, Ilmari Karonen, Joonas Pihlaja and others. corewar.dev compiles its simulator, assembler and debugger to WebAssembly, so battles play out as they do in the native program.</p>
 <p>The editor is built with <a href="https://codemirror.net/" target="_blank" rel="noopener">CodeMirror</a>. The demo warriors and benchmark suites were written by the Core War community over many years.</p>
+<p>The constant optimizer builds on John Metcalf’s simulated annealing and genetic algorithm optimizers, used with his permission. The step finder’s gap sequence, classic optima score and Euclid count follow the community’s work on optima numbers, including Nándor Sieben’s score and Andy Pierce’s Fibonacci idea.</p>
 
 <h2 id="source">Free software</h2>
 <p>corewar.dev is licensed under the <a href="COPYING">GNU General Public License, version 2 or later</a>, like pMARS itself. You can download the <a href="pmars-source.zip">engine source</a> and the <a href="app-source.zip">app source</a> that this site was built from, or browse the code on <a href="https://github.com/Bjoern/corewar.dev" target="_blank" rel="noopener">GitHub</a>. Bug reports and ideas are welcome there.</p>

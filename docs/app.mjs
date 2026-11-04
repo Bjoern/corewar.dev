@@ -1,6 +1,7 @@
 import {warriorFilename} from './warrior-files.mjs';
 import {setupTournaments} from './tournaments.mjs';
 import {setupLibrary} from './library.mjs';
+import {setupTools} from './tools.mjs';
 import {bundledWarriors} from './demo-warriors.mjs?v=bd68579c2c000dd9';
 import {createEditor} from './dist/editor.mjs?v=bd68579c2c000dd9';
 // SPDX-License-Identifier: GPL-2.0-or-later
@@ -15,7 +16,7 @@ const MODES=[
  {id:'emulatorTab',label:'Battle',panel:'emulatorPanel'},
  {id:'tournamentTab',label:'Tournaments',panel:'tournamentPanel'},
  {id:'libraryTab',label:'Library',panel:'libraryPanel'},
- {id:'toolsTab',label:'Tools',hidden:true},
+ {id:'toolsTab',label:'Tools',panel:'toolsPanel'},
  {id:'trialsTab',label:'Trials',soon:true}
 ];
 $('modeTabs').replaceChildren(...MODES.filter(m=>!m.hidden).map((m,i)=>{
@@ -39,7 +40,7 @@ let lastText = 0, dirty = false, stepping = false, stepEpoch = 0;
 let collapsedEditors=[], scoreViewKey=null, openTabs=[], originals=[], welcomeDismissed=false, pausedByEditor=false, inspectorActive=null;
 let sourceEditors=[], compileIssues=[];
 const demoSources = [";redcode-94\n;name Imp\n;author A. K. Dewdney\n;assert 1\nmov.i 0, 1\nend\n", ";redcode-94\n;name Dwarf\n;author A. K. Dewdney\n;assert 1\nadd.ab #4, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat.f #0, #0\nend\n"];
-let tournaments=null,library=null;
+let tournaments=null,library=null,tools=null;
 let persistTimer=null, persistReady=false, persistWarned=false;
 let sources = [], sourceFiles = [];
 let excludedWarriors = [];
@@ -252,7 +253,7 @@ function editorVisibility(){
   if(!area.hidden)sourceEditors[i].view.requestMeasure();
  });
  const view=active>=0?'editor':mode==='battle'?'core':mode;
- $('sharedEditor').hidden=active<0;$('coreView').hidden=view!=='core';$('tournamentPanel').hidden=view!=='tournament';$('libraryPanel').hidden=view!=='library';
+ $('sharedEditor').hidden=active<0;$('coreView').hidden=view!=='core';$('tournamentPanel').hidden=view!=='tournament';$('libraryPanel').hidden=view!=='library';$('toolsPanel').hidden=view!=='tools';
  $('coreInspector').hidden=view!=='core';$('editorInspector').hidden=active<0;
  document.body.dataset.view=view;
  $('runFromEditor').textContent=mode==='tournament'?'▶ Run tournament':'▶ Run battle';
@@ -1083,15 +1084,17 @@ function closeReference(){
  if(referenceFromHash)window.history.back();
  else{pendingMode=null;window.history.replaceState(null,'',modeUrl(shownMode()));showReference();}
 }
-// Each mode has an address: #battle (or no hash), #tournaments and #library. The history keeps at most one entry per mode:
+// Each mode has an address: #battle (or no hash), #tournaments, #library and #tools. The history keeps at most one entry per mode:
 // choosing the mode of the entry underneath steps Back instead of adding an entry.
-const MODE_HASHES=['battle','tournaments','library'];
-const MODE_NAMES=['battle','tournament','library'];
+const MODE_HASHES=['battle','tournaments','library','tools'];
+const MODE_NAMES=['battle','tournament','library','tools'];
 let routing=false, pendingMode=null;
 const shownMode=()=>Math.max(0,MODE_NAMES.indexOf(mode));
-const hashMode=()=>{const i=MODE_HASHES.indexOf(location.hash.slice(1));return i<0?null:i;};
+// #tools/<tool> opens a tool inside the Tools mode.
+const hashMode=()=>{const i=MODE_HASHES.indexOf(location.hash.slice(1).split('/')[0]);return i<0?null:i;};
 const modeUrl=index=>'#'+MODE_HASHES[index];
-function showMode(index){if(index===shownMode())return;routing=true;try{tournaments.selectTab(index);}finally{routing=false;}schedulePersist();} // Back and Forward fire no click, so save here.
+function showMode(index){if(index===shownMode()){if(MODE_NAMES[index]==='tools')tools.show();return;} // #tools/a to #tools/b changes only the tool.
+ routing=true;try{tournaments.selectTab(index);}finally{routing=false;}schedulePersist();} // Back and Forward fire no click, so save here.
 function stepToMode(from,to){
  if(window.history.state?.below===to)window.history.back();
  else if(from!==to)window.history.pushState({below:from},'',modeUrl(to));
@@ -1147,14 +1150,21 @@ $('modeTabs').addEventListener('click',event=>{
  if(activeEditor()>=0)showCore();
 });
 // Adding from the library appends a warrior like an upload does, keeping its Koenigstuhl file name.
+function addRosterWarrior(source,file){
+ if(sources.length>=36)throw new Error('At most 36 warriors can be loaded. Remove some before adding more.');
+ sources.push(source);originals.push(source);sourceFiles.push(file);markDirty();editors();
+}
 library=setupLibrary({
- addWarrior(source,file){
-  if(sources.length>=36)throw new Error('At most 36 warriors can be loaded. Remove some before adding more.');
-  sources.push(source);originals.push(source);sourceFiles.push(file);markDirty();editors();
- },
+ addWarrior:addRosterWarrior,
  loadedFiles:()=>sourceFiles.filter(Boolean),
  // Benchmarks made in the library open in Tournaments, Benchmark mode.
  addBenchmark(descriptor,files){const suite=tournaments.addSuite(descriptor,files);tournaments.selectTab(1);return suite;}
+});
+// Tools get the roster and can add a warrior to it, as the library does.
+tools=setupTools({
+ roster:()=>sources.map((source,i)=>({name:draftName(source,i),source})),
+ addWarrior:addRosterWarrior,
+ readConfig:()=>readSettings({warriors:2})
 });
 tournaments=setupTournaments({
  roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),
@@ -1166,10 +1176,11 @@ tournaments=setupTournaments({
   MODES.filter(m=>m.panel).forEach((m,i)=>{if(i===index)$(m.id).setAttribute('aria-current','page');else $(m.id).removeAttribute('aria-current');});
   if(name!=='battle' && state==='running')pause();
   mode=name;document.body.dataset.mode=mode;
-  $('phoneBar').querySelector('[data-pane=core]').textContent={tournament:'Tournament',library:'Library'}[name]||'Battle';
+  $('phoneBar').querySelector('[data-pane=core]').textContent={tournament:'Tournament',library:'Library',tools:'Tools'}[name]||'Battle';
   if(name!=='battle' && ['debug','output'].includes(document.body.dataset.pane))setPane('core');
   editorVisibility();
   if(name==='library')library.show();else library.hide();
+  if(name==='tools')tools.show();else tools.hide();
   if(name==='battle' && activeEditor()<0){display.redraw();processChart.draw();scoreChart.draw();}
   if(!routing)modeChosen(from,index);
  }

@@ -1,5 +1,12 @@
 # Constant optimizers for the Tools tab (handoff)
 
+> **Status (2026-11-04):** ported to the Tools tab. See `docs/README.md` § Tools:
+> `docs/optimizer-template.mjs`, `optimizer-search.mjs`, `optimizer-fitness.mjs`,
+> `tool-optimizer.mjs`. Fights run on the site's pMARS Wasm (a fresh engine per
+> match, all positions in one permutation match for exact mode); the exMARS
+> persistent API of §11 is not built yet and would be the next speed-up.
+> Checkpoint download and an IndexedDB score cache are not ported yet.
+
 This folder holds copies of the warrior constant optimizers from the `corewar_evolver`
 project (origin `https://dev.blinker.net/bjoern/corewar_optimizer.git`, copied on
 2026-11-04). They are here as reference material for porting an optimizer into
