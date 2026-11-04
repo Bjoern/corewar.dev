@@ -60,6 +60,13 @@ export function setupLibrary({addWarrior,loadedFiles}){
   }));
   const top50=[...chosen].some(id=>libraryCatalog.find(h=>h.id===id)?.rankings.includes('top50'));
   $('libraryTop50Label').hidden=!top50;
+  updated();
+ }
+ // The snapshot date of the chosen hills, as one date or the oldest and newest when they differ.
+ function updated(){
+  const dates=[...new Set(libraryCatalog.filter(h=>chosen.has(h.id)&&h.updated).map(h=>h.updated))].sort();
+  const day=iso=>new Date(iso+'T12:00:00Z').toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+  $('libraryUpdated').textContent=!dates.length?'':dates.length===1?'Last updated '+day(dates[0])+'.':'Last updated between '+day(dates[0])+' and '+day(dates.at(-1))+'.';
  }
  // Column headers sort the results; choosing the current column again reverses the order.
  function columnHeaders(){

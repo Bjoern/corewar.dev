@@ -85,7 +85,12 @@ def hill(directory):
     warriors.sort(key=lambda w: (w.get("rec", [10**9])[0], w["name"].lower()))
     # Koenigstuhl serves each warrior next to the others; keep that folder to link to the originals.
     folders = {row[2].rsplit("/", 1)[0] for row in ranks["rec"].values()}
-    meta = {"id": name, "label": name, "count": len(warriors), "rankings": sorted(ranks),
+    # SNAPSHOT holds the download date (YYYY-MM-DD); the ranking pages themselves carry none.
+    stamp = directory / "SNAPSHOT"
+    updated = stamp.read_text(encoding="utf-8").strip() if stamp.exists() else ""
+    if updated and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", updated):
+        raise SystemExit(f"Hill {name}: SNAPSHOT must hold a date like 2026-11-04, not {updated!r}")
+    meta = {"id": name, "label": name, "count": len(warriors), "rankings": sorted(ranks), "updated": updated,
             "origin": folders.pop() + "/" if len(folders) == 1 else ""}
     return meta, warriors, files
 

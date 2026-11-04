@@ -27,6 +27,7 @@ The editor bundle is committed. To rebuild it after editor changes, run
 The Library tab searches published warriors from Koenigstuhl snapshots in `koenigstuhl/<hill>/`.
 Each hill folder holds the unpacked archive (`HILL32/*.red`) and the saved ranking pages
 `<hill>_recursive.html` (required), `<hill>_battle_royal.html` and `<hill>_top50.html` (optional).
+An optional `SNAPSHOT` file holds the download date (`2026-11-04`), shown as the library's last update.
 To update a hill, replace its folder contents with a new download and rebuild.
 `scripts/koenigstuhl.py` reads the `;name`, `;author` and `;strategy` headers and the rankings;
 the build writes one search index per hill to `_site/library/`, named by content hash,
