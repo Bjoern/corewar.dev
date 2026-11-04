@@ -38,7 +38,9 @@ export function setupTools(context){
   for(const b of nav.querySelectorAll('[data-tool]')){if(b.dataset.tool===current)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}
   overview.hidden=!!tool;
   for(const [key,view] of mounted)view.root.hidden=key!==current;
-  if(chosen){saveToolState('_last',current);if(active)history.replaceState(history.state,'','#tools'+(current?'/'+current:''));}
+  // Remember the tool last shown, also one opened by address, so a bare #tools reopens it.
+  if(active||chosen)saveToolState('_last',current);
+  if(chosen&&active)history.replaceState(history.state,'','#tools'+(current?'/'+current:''));
   if(!tool)return;
   if(!mounted.has(tool.id)){
    const root=el('section',{className:'tool-view'});root.dataset.tool=tool.id;
