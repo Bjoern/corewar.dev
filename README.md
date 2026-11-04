@@ -22,6 +22,16 @@ it is selected and prefetches the rest once the page is idle, unless the browser
 The editor bundle is committed. To rebuild it after editor changes, run
 `npm ci` and `npm run build:editor` before the Python build.
 
+## Warrior library
+
+The Library tab searches published warriors from Koenigstuhl snapshots in `koenigstuhl/<hill>/`.
+Each hill folder holds the unpacked archive (`HILL32/*.red`) and the saved ranking pages
+`<hill>_recursive.html` (required), `<hill>_battle_royal.html` and `<hill>_top50.html` (optional).
+To update a hill, replace its folder contents with a new download and rebuild.
+`scripts/koenigstuhl.py` reads the `;name`, `;author` and `;strategy` headers and the rankings;
+the build writes one search index per hill to `_site/library/`, named by content hash,
+and copies the warrior files beside it so the app fetches a source only when it is opened or added.
+
 ## Match presets
 
 The dropdown is generated during the build from `docs/config/*.opt`.

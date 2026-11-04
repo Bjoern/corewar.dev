@@ -1,5 +1,6 @@
 import {warriorFilename} from './warrior-files.mjs';
 import {setupTournaments} from './tournaments.mjs';
+import {setupLibrary} from './library.mjs';
 import {bundledWarriors} from './demo-warriors.mjs?v=bd68579c2c000dd9';
 import {createEditor} from './dist/editor.mjs?v=bd68579c2c000dd9';
 // SPDX-License-Identifier: GPL-2.0-or-later
@@ -13,6 +14,7 @@ const $ = id => document.getElementById(id);
 const MODES=[
  {id:'emulatorTab',label:'Battle',panel:'emulatorPanel'},
  {id:'tournamentTab',label:'Tournaments',panel:'tournamentPanel'},
+ {id:'libraryTab',label:'Library',panel:'libraryPanel'},
  {id:'toolsTab',label:'Tools',hidden:true},
  {id:'trialsTab',label:'Trials',soon:true}
 ];
@@ -37,7 +39,7 @@ let lastText = 0, dirty = false, stepping = false, stepEpoch = 0;
 let collapsedEditors=[], scoreViewKey=null, openTabs=[], originals=[], welcomeDismissed=false, pausedByEditor=false, inspectorActive=null;
 let sourceEditors=[], compileIssues=[];
 const demoSources = [";redcode-94\n;name Imp\n;author A. K. Dewdney\n;assert 1\nmov.i 0, 1\nend\n", ";redcode-94\n;name Dwarf\n;author A. K. Dewdney\n;assert 1\nadd.ab #4, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat.f #0, #0\nend\n"];
-let tournaments=null;
+let tournaments=null,library=null;
 let persistTimer=null, persistReady=false, persistWarned=false;
 let sources = [], sourceFiles = [];
 let excludedWarriors = [];
@@ -216,6 +218,7 @@ function editors() {
   controls();
   legend();
   listScrollHints();
+  library?.refresh();
 }
 // Fade the warrior list's top or bottom edge while more warriors are scrolled out of view there
 function listScrollHints(){
@@ -248,8 +251,8 @@ function editorVisibility(){
   label.parentElement.parentElement.classList.toggle('editing',!area.hidden);
   if(!area.hidden)sourceEditors[i].view.requestMeasure();
  });
- const view=active>=0?'editor':mode==='tournament'?'tournament':'core';
- $('sharedEditor').hidden=active<0;$('coreView').hidden=view!=='core';$('tournamentPanel').hidden=view!=='tournament';
+ const view=active>=0?'editor':mode==='battle'?'core':mode;
+ $('sharedEditor').hidden=active<0;$('coreView').hidden=view!=='core';$('tournamentPanel').hidden=view!=='tournament';$('libraryPanel').hidden=view!=='library';
  $('coreInspector').hidden=view!=='core';$('editorInspector').hidden=active<0;
  document.body.dataset.view=view;
  $('runFromEditor').textContent=mode==='tournament'?'▶ Run tournament':'▶ Run battle';
@@ -274,12 +277,14 @@ function showCore(skipResume=false){
 }
 function renderCenterTabs(){
  const active=activeEditor(),tabs=[];
- const core=document.createElement('button');core.type='button';core.setAttribute('role','tab');core.className='tab core-tab';core.dataset.tab=mode==='tournament'?'tournament':'core';
+ const core=document.createElement('button');core.type='button';core.setAttribute('role','tab');core.className='tab core-tab';core.dataset.tab=mode==='battle'?'core':mode;
  core.setAttribute('aria-selected',String(active<0));
- core.innerHTML=mode==='tournament'
+ core.innerHTML=mode==='library'
+  ? '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16 5l3.5-1 3 15.5-3.5 1z"/></svg> '
+  : mode==='tournament'
   ? '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h4v4H4zM4 15h4v4H4zM8 7h4v10H8M12 12h8"/></svg> '
   : '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg> ';
- const coreLabel=document.createElement('span');coreLabel.textContent=mode==='tournament'?'Tournament':'Core';core.append(coreLabel);
+ const coreLabel=document.createElement('span');coreLabel.textContent={tournament:'Tournament',library:'Library'}[mode]||'Core';core.append(coreLabel);
  if(mode==='battle' && active>=0 && engine && total>0 && state!=='done'){const paused=document.createElement('span');paused.className='tab-note';paused.textContent=' · paused';core.append(paused);}
  core.onclick=()=>showCore();tabs.push(core);
  for(const i of openTabs){
@@ -304,6 +309,7 @@ $('removeActive').onclick=()=>{const i=activeEditor();if(i>=0)removeWarrior(i);}
 $('clearAsm').onclick=()=>{consoleText='';$('consoleOutput').textContent='';$('asmOutput').textContent='';compileIssues=[];refreshDiagnostics();};
 $('runFromEditor').onclick=safe(async()=>{
  if(mode==='tournament'){showCore();$('tournamentStart').click();return;}
+ if(mode==='library')tournaments.selectTab(0); // Run shows the battle, so leave the library for it.
  showCore(true);pausedByEditor=false;
  if(state==='running' || state==='series')return;
  await run();
@@ -896,7 +902,7 @@ async function startDemo(selected){
  $('rounds').value='1';$('debugEnabled').checked=false;
  $('speed').value='3';$('speed').oninput();
  markDirty();editors();
- if($('tournamentTab').getAttribute('aria-selected')==='true')return;
+ if(mode!=='battle')return;
  if(await load())resume();
 }
 $('demo').onclick=safe(()=>startDemo(demoSources));
@@ -975,7 +981,7 @@ function applyTournamentWorkspace(w){
  if(t.seed!==undefined)$('tournamentSeed').value=t.seed;
  if(t.selfFights!==undefined)$('selfFights').checked=t.selfFights;
  tournaments.refresh();
- if(w.mode!==mode)tournaments.selectTab(w.mode==='tournament'?1:0);
+ if(w.mode!==mode)tournaments.selectTab(MODE_NAMES.indexOf(w.mode));
 }
 let restoredWorkspace=null;
 try{const saved=localStorage.getItem(WORKSPACE_KEY);if(saved!==null)restoredWorkspace=parseWorkspace(saved);}
@@ -1069,11 +1075,12 @@ function closeReference(){
  if(referenceFromHash)window.history.back();
  else{pendingMode=null;window.history.replaceState(null,'',modeUrl(shownMode()));showReference();}
 }
-// Each mode has an address: #battle (or no hash) and #tournaments. The history keeps at most one entry per mode:
+// Each mode has an address: #battle (or no hash), #tournaments and #library. The history keeps at most one entry per mode:
 // choosing the mode of the entry underneath steps Back instead of adding an entry.
-const MODE_HASHES=['battle','tournaments'];
+const MODE_HASHES=['battle','tournaments','library'];
+const MODE_NAMES=['battle','tournament','library'];
 let routing=false, pendingMode=null;
-const shownMode=()=>mode==='tournament'?1:0;
+const shownMode=()=>Math.max(0,MODE_NAMES.indexOf(mode));
 const hashMode=()=>{const i=MODE_HASHES.indexOf(location.hash.slice(1));return i<0?null:i;};
 const modeUrl=index=>'#'+MODE_HASHES[index];
 function showMode(index){if(index===shownMode())return;routing=true;try{tournaments.selectTab(index);}finally{routing=false;}schedulePersist();} // Back and Forward fire no click, so save here.
@@ -1131,10 +1138,31 @@ $('modeTabs').addEventListener('click',event=>{
  if(!event.target.closest('button[role=tab]:not(:disabled)'))return;
  if(activeEditor()>=0)showCore();
 });
+// Adding from the library appends a warrior like an upload does, keeping its Koenigstuhl file name.
+library=setupLibrary({
+ addWarrior(source,file){
+  if(sources.length>=36)throw new Error('At most 36 warriors can be loaded. Remove some before adding more.');
+  sources.push(source);originals.push(source);sourceFiles.push(file);markDirty();editors();
+ },
+ loadedFiles:()=>sourceFiles.filter(Boolean)
+});
 tournaments=setupTournaments({
  roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),
  readConfig:()=>readSettings({warriors:2}),
- onTab:index=>{const from=shownMode();if(index===1)$('tournamentSettingsSlot').append($('settingsDock'));else $('settingsDock').closest('#tournamentSettingsSlot')&&document.querySelector('.core-view .arena-foot').prepend($('settingsDock'));for(const [i,id] of ['emulatorTab','tournamentTab'].entries()){if(i===index)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');}if(index===1 && state==='running')pause();mode=index===1?'tournament':'battle';document.body.dataset.mode=mode;$('phoneBar').querySelector('[data-pane=core]').textContent=index===1?'Tournament':'Core';if(index===1 && ['debug','output'].includes(document.body.dataset.pane))setPane('core');editorVisibility();if(index===0 && activeEditor()<0){display.redraw();processChart.draw();scoreChart.draw();}if(!routing)modeChosen(from,index);}
+ onTab:index=>{
+  const from=shownMode(),name=MODE_NAMES[index];
+  // The match settings move into the tournament view and back out to the battle view.
+  if(name==='tournament')$('tournamentSettingsSlot').append($('settingsDock'));else $('settingsDock').closest('#tournamentSettingsSlot')&&document.querySelector('.core-view .arena-foot').prepend($('settingsDock'));
+  MODES.filter(m=>m.panel).forEach((m,i)=>{if(i===index)$(m.id).setAttribute('aria-current','page');else $(m.id).removeAttribute('aria-current');});
+  if(name!=='battle' && state==='running')pause();
+  mode=name;document.body.dataset.mode=mode;
+  $('phoneBar').querySelector('[data-pane=core]').textContent={tournament:'Tournament',library:'Library'}[name]||'Core';
+  if(name!=='battle' && ['debug','output'].includes(document.body.dataset.pane))setPane('core');
+  editorVisibility();
+  if(name==='library')library.show();else library.hide();
+  if(name==='battle' && activeEditor()<0){display.redraw();processChart.draw();scoreChart.draw();}
+  if(!routing)modeChosen(from,index);
+ }
 });
 if(restoredWorkspace){
  routing=true;try{applyTournamentWorkspace(restoredWorkspace);}finally{routing=false;}

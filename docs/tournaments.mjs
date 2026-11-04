@@ -76,13 +76,13 @@ export function setupTournaments({roster,readConfig,onTab}) {
    chooseMode(modeTabs[next]);modeTabs[next].focus();
   };
  });
- const tabs=[$('emulatorTab'),$('tournamentTab')];
+ const tabs=[$('emulatorTab'),$('tournamentTab'),$('libraryTab')];
  function selectTab(index){
   tabs.forEach((tab,i)=>{tab.setAttribute('aria-selected',String(i===index));tab.tabIndex=i===index?0:-1;});
-  $('changed').hidden=index===1;
+  $('changed').hidden=index!==0;
   onTab(index);if(index===1){refresh();chart.draw();}
  }
- tabs.forEach((tab,index)=>{tab.onclick=()=>selectTab(index);tab.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?1:1-index;selectTab(next);tabs[next].focus();}};});
+ tabs.forEach((tab,index)=>{tab.onclick=()=>selectTab(index);tab.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(index+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length;selectTab(next);tabs[next].focus();}};});
  function configForRun(){const config=readConfig();const suite=suites.find(s=>s.id===$('benchmarkSuite').value);return $('tournamentMode').value==='benchmark'&&suite?.config?{...config,...suite.config}:config;}
  const currentSuite=()=>suites.find(s=>s.id===$('benchmarkSuite').value);
  const benchmarkPushoff=()=>$('tournamentMode').value==='benchmark'&&$('tournamentRanking').value!=='average';

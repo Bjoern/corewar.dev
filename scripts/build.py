@@ -7,6 +7,7 @@ import shutil
 import zipfile
 from benchmark_catalog import catalog
 from option_presets import write_presets
+from koenigstuhl import library as koenigstuhl_library
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "docs"
@@ -40,6 +41,19 @@ for entry in catalog(ROOT):
     (OUT / name).write_bytes(data)
     index.append({"id": entry["id"], "descriptor": entry["descriptor"], "data": name})
 (OUT / "benchmark-catalog.mjs").write_text("// Generated from warriors_public descriptors.\nexport const benchmarkCatalog = " + json.dumps(index, ensure_ascii=True) + ";\n", encoding="utf-8")
+# The warrior library: a small catalog of hills, one search index per hill (named by content hash)
+# and the warrior files themselves, fetched one at a time when a warrior is opened or added.
+(OUT / "library").mkdir()
+hills = []
+for meta, warriors, files in koenigstuhl_library(ROOT):
+    data = json.dumps(warriors, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    name = "library/" + meta["id"] + "-" + hashlib.sha256(data).hexdigest()[:16] + ".json"
+    (OUT / name).write_bytes(data)
+    (OUT / "library" / meta["id"]).mkdir()
+    for path in files:
+        shutil.copy2(path, OUT / "library" / meta["id"] / path.name)
+    hills.append({**meta, "index": name})
+(OUT / "library-catalog.mjs").write_text("// Generated from the koenigstuhl/ snapshots.\nexport const libraryCatalog = " + json.dumps(hills, ensure_ascii=True) + ";\n", encoding="utf-8")
 write_presets(WEB / "config", OUT / "presets.mjs")
 text_paths = sorted(OUT.glob("*.mjs")) + [OUT / "index.html", OUT / "style.css", OUT / "favicon.svg"]
 normalized = {p: re.sub(r"\?v=[A-Za-z0-9_-]+", "", p.read_text(encoding="utf-8")) for p in text_paths}
