@@ -205,8 +205,7 @@ function editors() {
   document.body.dataset.welcome=String(!welcomeDismissed && sources.length===0);
   editorVisibility();refreshCompileButtons();
   rosterCount();tournaments?.refresh();
-  $('newWarrior').disabled = sources.length >= 36;
-  $('newWarriorTile').disabled=$('welcomeNew').disabled=sources.length>=36;
+  $('newWarrior').disabled=$('welcomeNew').disabled=sources.length>=36;
   $('dropZoneHint').textContent=sources.length>=36?'36 warriors loaded, the maximum':'or click to browse';
 
   controls();
@@ -874,8 +873,7 @@ $('newWarrior').onclick=()=>{
  sources.push(fresh);originals.push(fresh);
  markDirty();editors();
 };
-$('uploadBtn').onclick=()=>$('warriorFiles').click();
-$('newWarriorTile').onclick=$('welcomeNew').onclick=()=>$('newWarrior').click();
+$('welcomeNew').onclick=()=>$('newWarrior').click();
 $('welcomeUpload').onclick=()=>$('warriorFiles').click();
 async function startDemo(selected){
  if(sources.length && !(await askUser('Replace the '+sources.length+' loaded warrior'+(sources.length===1?'':'s')+' with this example?','Replace')))return;
