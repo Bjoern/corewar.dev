@@ -23,12 +23,12 @@ values filled in.
 
 | Path | What it is | Origin | Licence |
 |---|---|---|---|
-| `metcalf/annealing5.rb` | Simulated Annealing Core War Optimizer v0.5 | John Metcalf, <https://corewar.co.uk/metcalf/annealing5.rb> | none stated (see §9) |
-| `metcalf/genetic2.rb` | Steady-State Genetic Algorithm Core War Optimizer v0.2 | John Metcalf, <https://corewar.co.uk/metcalf/genetic2.rb> | none stated (see §9) |
+| `metcalf/annealing5.rb` | Simulated Annealing Core War Optimizer v0.5 | John Metcalf, <https://corewar.co.uk/metcalf/annealing5.rb> | no licence stated; permission from John Metcalf (see §9) |
+| `metcalf/genetic2.rb` | Steady-State Genetic Algorithm Core War Optimizer v0.2 | John Metcalf, <https://corewar.co.uk/metcalf/genetic2.rb> | no licence stated; permission from John Metcalf (see §9) |
 | `cwopt/` | **cwopt**: template language, exact and sampled fitness, score cache, sweep + annealing + restarts, hill mode, pause/resume, CLI, local web UI | written by Claude (Anthropic) for Bjoern in corewar_evolver, Oct 2026; the annealing step and its temperature scale are adapted from `annealing5.rb` | none yet, owner's to choose |
 | `OPTIMIZER_SPEC.md` | the implementation brief cwopt was built from | written for the owner, Oct 2026 | as cwopt |
 | `scripts/ga.py` | generational GA over cwopt templates (uses cwopt for fitness) | Claude for Bjoern, Oct 2026 | as cwopt |
-| `scripts/genetic2.rb` | port of Metcalf's `genetic2.rb` to the exMARS Ruby binding and cwopt templates; algorithm unchanged | Claude for Bjoern, Nov 2026, derived from `metcalf/genetic2.rb` | derivative of Metcalf's code |
+| `scripts/genetic2.rb` | port of Metcalf's `genetic2.rb` to the exMARS Ruby binding and cwopt templates; algorithm unchanged | Claude for Bjoern, Nov 2026, derived from `metcalf/genetic2.rb` | derivative of Metcalf's code, covered by his permission |
 | `scripts/export_template.py` | prints a cwopt template as JSON so non-Python optimizers can use it | Claude for Bjoern, Nov 2026 | as cwopt |
 | `tests/test_template.py`, `tests/test_runs.py`, `tests/acceptance.py` | cwopt tests: template parser, run/resume determinism, engine vs pMARS acceptance | as cwopt | as cwopt |
 | `examples/alcoholism.red` | nano template made from Dave Hillis's *Alcoholism Malt* | warrior by Dave Hillis, markers added for the cwopt example | published hill warrior |
@@ -266,40 +266,61 @@ started from).
 - None of the optimizers changes code structure. Constants only.
 - No controlled comparison of the algorithms at equal budget has been run yet (§5.5).
 
-## 9. Licences: to settle before shipping
+## 9. Licences
 
 - **John Metcalf's scripts** carry no licence statement, and corewar.co.uk states none
-  for code. Before shipping them or code derived from them (the `genetic2.rb` port, and
-  arguably cwopt's annealing step and scale), ask John Metcalf for permission or a
-  licence compatible with corewar.dev's GPL-2.0-or-later. A JS reimplementation of the
-  published *algorithm* is a separate question from copying code, but credit him either
-  way.
+  for code. John Metcalf has given the owner permission to use them (reported by the
+  owner, 2026-11-04). That covers the copies here, the `genetic2.rb` port and cwopt's
+  annealing step and scale. It is worth getting the permission in writing (an email or
+  a licence line in the scripts) and recording here which licence corewar.dev may ship
+  derived code under, since the site is GPL-2.0-or-later. Credit him in the Tools tab
+  and in the source.
 - **cwopt, `ga.py`, `export_template.py`, the port's new code and the spec** were written
   for the owner and have no licence file. Pick one before merging. GPL-2.0-or-later
   matches the rest of corewar.dev.
 - **Example warriors** belong to their authors (Dave Hillis; Bjoern).
 
-## 10. Recommendation: one optimizer, two search strategies
+## 10. Recommendation: one optimizer, two search methods
 
-Offering the three scripts as three separate tools would expose their differences in
-**fitness evaluation**, which matter more than the search algorithm itself: a fixed
-series overfits, while seeded slices with a held-out check give honest scores. One
-optimizer with a shared core and a strategy setting is better for users and less code:
+Offering the scripts as separate tools would expose their differences in **scoring**,
+which matter more than the search method: a fixed position series overfits, while
+seeded slices with a held-out check give honest scores. One optimizer with a shared
+core and a choice of method is better for users and less code.
 
-- **Shared core (from cwopt):** template language, exact/sampled fitness, common seeds,
-  racing, reseeding, code-hash cache, held-out check, pause/resume, hill mode.
-- **Strategy "Anneal" (default):** cwopt's sweep, then Metcalf-style annealing, then
-  restarts. Deterministic and strong on small domains and exact hills (nano, tiny).
-- **Strategy "Genetic":** Metcalf's steady-state GA (tournaments, four crossovers
-  including BLX-α, creep and reset mutation, immigrants, deterministic crowding). Its
-  population and crowding explore large '94 domains better than a single annealing
-  chain. Run it on cwopt's fitness: common seeds per batch, reseed periodically and
-  re-score the population, and keep the per-genome running mean from `ga.py` so lucky
-  members do not dominate. Allow seeding the population from the editor's current values
-  and earlier bests, which was `ga.py`'s most useful feature.
-- `ga.py` is then covered by "Genetic" and need not be ported separately. A "classic
-  Metcalf (fixed -F series)" checkbox is cheap to add for reproducing old results, but
-  should not be the default.
+**Shared core (from cwopt):** template language (so every method can tune opcodes,
+modifiers and modes as well as numbers), exact/sampled fitness, common seeds, racing,
+reseeding, code-hash cache, held-out check, pause/resume, hill mode.
 
-Before fixing the defaults, run both strategies on the same template, benchmark and
-time budget, a few seeds each, and compare held-out scores.
+**Method "Simulated annealing" (default).** cwopt's search (§5.3), which is Metcalf's
+annealing (move set and acceptance rule of `annealing5.rb`) with two optional additions:
+
+| Setting | Default | Pure Metcalf annealing |
+|---|---|---|
+| Sweep small domains first | on (`sweep_limit` 160) | off (`sweep_limit` 0) |
+| Restart from a top result when stuck | on (`restart_patience` 400) | off (patience = ∞) |
+
+With both off, the search is `annealing5.rb`'s algorithm on cwopt's scoring. Show both
+as checkboxes. The sweep is what makes nano and tiny fast and deterministic, and the
+restarts help when values only pay off together. For a "Classic Metcalf" preset, add a
+fixed-series scoring option (`-F 7293` for every candidate) to reproduce old results;
+do not make it the default.
+
+**Method "Genetic algorithm".** Start from `ga.py` (§5.4), which already fits cwopt's
+scoring: one shared seed per generation, a running mean per genome, a genome trusted
+only after ≥ 2 seeds, seeding from earlier bests and the editor's current values. Its
+mutation also suits token genes (opcodes, modifiers, modes): domains of 100 values or
+fewer get a random value, not a numeric creep. Add from Metcalf's `genetic2.rb` (§5.2):
+- deterministic crowding (the child replaces the most similar weaker member), which kept
+  the population diverse in the splitty run;
+- BLX-α crossover, for numeric genes only (on a token list the index order means
+  nothing), and single-point crossover beside uniform;
+- about 5% random immigrants;
+- asymmetric tournaments (best of 3 and a random member);
+- from cwopt: checkpoints, pause/resume and the held-out check, which `ga.py` lacks.
+
+Defaults to start from: population 40–50, elites 6, tournament 3/1, immigrants 0.05,
+gene mutation 1.5 / genes, creep for domains > 100 with 70% probability and
+±(1 + Exp(mean 15)), BLX rate 0.5 with α 0.3.
+
+Before fixing the defaults, run both methods on the same template, benchmark and time
+budget, a few seeds each, and compare held-out scores (§5.5).
