@@ -238,4 +238,51 @@ export class Genetic{
  }
  summary(){const p=this.s.pop.map(m=>m.score).sort((a,b)=>a-b);return {steps:this.s.steps,population:p.length,median:p.length?p[p.length>>1]:null,children:this.s.children,discarded:this.s.discarded};}
 }
-export function restoreMethod(state){return state.method==='ga'?Genetic.fromState(state):Annealing.fromState(state);}
+// Every combination of the "!!" variables (grid), in order with the last one changing fastest;
+// the other variables stay at their start values. propose() returns null when all are scored.
+// Keeps the top results and, for a single grid variable, the score of every value.
+export const EXHAUSTIVE_DEFAULTS={keep:20,race:true};
+export class Exhaustive{
+ constructor(sizes,start,grid,options={}){
+  const opts={...EXHAUSTIVE_DEFAULTS,...options};
+  if(!grid.length)throw new Error('No !! markers: nothing to test exhaustively.');
+  const missing=start.flatMap((v,i)=>v===null&&!grid.includes(i)?[i]:[]);
+  if(missing.length)throw new Error('missing start values');
+  const total=grid.reduce((p,i)=>p*sizes[i],1);
+  this.s={method:'exhaustive',sizes:[...sizes],start:start.map(v=>v??0),grid:[...grid],opts,total,next:0,steps:0,top:[],pending:null,
+   scores:grid.length===1?Array(sizes[grid[0]]).fill(null):null,invalid:0,raced:0};
+ }
+ static fromState(state){const self=Object.create(Exhaustive.prototype);self.s=clone(state);return self;}
+ state(){return clone(this.s);}
+ get done(){return this.s.next>=this.s.total&&!this.s.pending;}
+ candidate(k){
+  const s=this.s,x=[...s.start];
+  for(let g=s.grid.length-1;g>=0;g--){const i=s.grid[g];x[i]=k%s.sizes[i];k=Math.floor(k/s.sizes[i]);}
+  return x;
+ }
+ best(){const b=this.s.top[0];return b?{...b,x:[...b.x],n:1}:null;}
+ invalidate(){}
+ propose(){
+  const s=this.s;if(s.pending)return s.pending;
+  if(s.next>=s.total)return null;
+  // Racing drops a candidate once it is clearly below the best so far; its score is then partial.
+  const p={x:this.candidate(s.next),kind:'grid',index:s.next,race:s.opts.race&&s.top.length?s.top[0].score:null};
+  s.pending=p;return p;
+ }
+ observe(proposal,result){
+  const s=this.s;
+  if(!s.pending||!same(proposal.x,s.pending.x))throw new Error('observe() without propose()');
+  s.pending=null;s.next++;s.steps++;
+  const events=[];
+  if(!result){s.invalid++;return events;}
+  if(!result.complete){s.raced++;return events;}
+  if(s.scores)s.scores[proposal.x[s.grid[0]]]=result.score;
+  const before=s.top[0]?.score;
+  s.top.push({x:[...proposal.x],score:result.score,se:result.se});
+  s.top.sort((a,b)=>b.score-a.score);s.top.length=Math.min(s.top.length,s.opts.keep);
+  if(before===undefined||result.score>before)events.push({type:'best',score:result.score,x:[...proposal.x]});
+  return events;
+ }
+ summary(){const s=this.s;return {tested:s.next,total:s.total,invalid:s.invalid,raced:s.raced};}
+}
+export function restoreMethod(state){return state.method==='ga'?Genetic.fromState(state):state.method==='exhaustive'?Exhaustive.fromState(state):Annealing.fromState(state);}

@@ -3,7 +3,7 @@
 // determinism and resume, and exact scoring on the pMARS engine.
 import assert from 'node:assert/strict';
 import {parseTemplate,TemplateError,signed,templateConstants,fromMetcalf} from './optimizer-template.mjs';
-import {Annealing,Genetic,restoreMethod} from './optimizer-search.mjs';
+import {Annealing,Genetic,Exhaustive,restoreMethod} from './optimizer-search.mjs';
 import {Evaluator,runMatch,scoringMode} from './optimizer-fitness.mjs';
 import {examples} from './optimizer-examples.mjs';
 const NANO=templateConstants({coreSize:80,maxLength:5,distance:5,tasks:80,cycles:800,pspace:5});
@@ -74,4 +74,27 @@ const s1=await e1.evaluate(t.render(t.startIndices())),s2=await e2.evaluate(t.re
 assert.deepEqual(s1,s2);assert.equal(s1.rounds,50);
 // Every example parses for its benchmark's core.
 for(const e of examples){const c=e.id==='alcoholism'?nano:{coreSize:8000,maxLength:100,distance:100,tasks:8000,cycles:80000,pspace:500};assert(parseTemplate(e.source,templateConstants(c)).variables.length>0,e.id);}
-console.log(`PASS: optimizer template parser, search determinism and resume, exact and sampled scoring (start ${start.score.toFixed(1)}).`);
+// !! markers: every value, in order, ! markers at their start value.
+{
+ const t=parse('a equ !!(1..3)\nb equ !!![#,$]\nc equ !(1..9):4\n mov.i #a, $b\n'.replace('!!![','!![').replace('#a, $b','#a+c, $b'));
+ assert.deepEqual(t.variables.map(v=>v.exhaustive),[true,true,false]);assert.deepEqual(t.exhaustive,[0,1]);assert.equal(t.gridSize(),6);
+ assert.equal(t.variables[0].spec,'!!(1..3)');assert.match(t.writeBack([2,1,3]),/a equ !!\(1\.\.3\):3\nb equ !!\[#,\$\]:\$\nc equ !\(1\.\.9\):4/);
+ assert.equal(parse('dat !!, 0').variables[0].values.length,80);
+ assert.equal(fromMetcalf('dat !!(1..5), !\n'),'dat !!(1..5), !(0..CORESIZE-1)\n');
+ const m=new Exhaustive(t.sizes,t.startIndices(),t.exhaustive,{race:false}),seen=[];
+ for(let p;(p=m.propose());){seen.push(p.x.join(''));m.observe(p,{score:p.x[0]*10+p.x[1],se:0,complete:true});}
+ assert.deepEqual(seen,['003','013','103','113','203','213']);assert.equal(m.best().score,21);assert.deepEqual(m.best().x,[2,1,3]);
+ assert.deepEqual(restoreMethod(m.state()).summary(),{tested:6,total:6,invalid:0,raced:0});
+ assert.throws(()=>new Exhaustive([3,9],[null,null],[0]),/missing start values/);
+ // One !! variable keeps every value's score; racing drops weak ones, and they get no score.
+ const one=new Exhaustive([4],[null],[0],{race:true});
+ for(let p;(p=one.propose());)one.observe(p,{score:[5,9,1,9][p.x[0]],se:0,complete:p.race===null||[5,9,1,9][p.x[0]]>=p.race});
+ assert.deepEqual(one.s.scores,[5,9,null,9]);assert.equal(one.summary().raced,1);
+ // End to end on nano with exact scoring: the scan finds the same best as scoring each value by hand.
+ const scan=parse(';name scan\nstep equ !!(1..12)\n add.ab #step, 2\n mov.i 1, @1\n jmp -2\n');
+ const ev=new Evaluator({runJob:runMatch,config:nano,opponents:[imp,dwarf]});ev.setMode(scoringMode(nano,[imp.source],{}));
+ const ex=new Exhaustive(scan.sizes,scan.startIndices(),scan.exhaustive,{race:false}),byHand=[];
+ for(let p;(p=ex.propose());){const r=await ev.evaluate(scan.render(p.x));ex.observe(p,r);byHand.push(r?.score??-1);}
+ assert.equal(ex.best().score,Math.max(...byHand));assert.equal(ex.s.scores.filter(x=>x!==null).length,byHand.filter(x=>x>=0).length);
+}
+console.log(`PASS: optimizer template parser, !! markers and the exhaustive scan, search determinism and resume, exact and sampled scoring (start ${start.score.toFixed(1)}).`);

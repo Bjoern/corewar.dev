@@ -3,7 +3,7 @@
 // methods: optimizer-search.mjs; scoring and the worker pool: optimizer-fitness.mjs.
 import {el} from './tools.mjs';
 import {parseTemplate,templateConstants,fromMetcalf} from './optimizer-template.mjs';
-import {Annealing,Genetic,ANNEAL_DEFAULTS,GA_DEFAULTS} from './optimizer-search.mjs';
+import {Annealing,Genetic,Exhaustive,ANNEAL_DEFAULTS,GA_DEFAULTS} from './optimizer-search.mjs';
 import {Evaluator,WorkerPool,scoringMode,SCORING_DEFAULTS,matchConfig,plannedEngine,engineSummary} from './optimizer-fitness.mjs';
 import {examples} from './optimizer-examples.mjs';
 import {benchmarkCatalog} from './benchmark-catalog.mjs';
@@ -20,12 +20,14 @@ const SYNTAX=[
  ['![x, y, …]','one of a list: numbers, opcodes, modifiers or modes','mov.![i,f]  ![#,$,<]','mov.i, mov.f · #, $, <'],
  ['?coprime ?odd ?even','keep only some numbers (after a range or !)','!(1..3999)?coprime','steps with mod 1'],
  ['…:v','start value, always last','!(1..79):37','starts at 37'],
+ ['!!…','test every value instead of searching: any marker above with a second !','!!(4..3996, 4)','scores all 999 steps'],
 ];
 const RULES=[
  ['Name it with EQU','A marker on an EQU line is named after the label: step equ !(1..79) gives a variable step, and step or step*2 anywhere else follow it. Other markers are named by line:column.'],
  ['Constants in ranges','Ranges may use CORESIZE, MAXLENGTH, MINDISTANCE, MAXPROCESSES, MAXCYCLES and PSPACESIZE with + − * / %, for example !(MINDISTANCE..CORESIZE-MINDISTANCE).'],
  ['Comments are safe','Everything after ; is ignored, so ;name Wow! is fine, and != is never a marker.'],
  ['Start values','Without :v the run starts from a random value. “Use as template” writes the best values back as :v, so you can narrow the ranges and run again.'],
+ ['Test every value','A template with !! markers scores every combination of their values, in order and on the same placements, so the scores compare fairly; its ! markers keep their start value. With one !! variable the chart shows the score of each value. The check counts the battles first: two !! variables of 100 values are already 10,000 candidates.'],
 ];
 const EXAMPLE_TEMPLATE='step  equ  !(4..3996, 4):2004    ; mod-4 steps, start at 2004\n      add.ab #step, bomb\n      mov.i  bomb, @bomb\n      jmp    -2\nbomb  dat  ![#,$,<,>]:# 0, #0    ; try four A-modes';
 const EXAMPLE_RENDERED='step  equ  2008    ; mod-4 steps, start at 2004\n      add.ab #step, bomb\n      mov.i  bomb, @bomb\n      jmp    -2\nbomb  dat  $ 0, #0    ; try four A-modes';
@@ -76,7 +78,8 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
  const suiteSelect=el('select',{id:'optSuite'},...benchmarkCatalog.map(s=>new Option(s.descriptor.name,s.id)),new Option('Your warriors (roster, Battle settings)','roster'));
  suiteSelect.value=saved.suite&&[...suiteSelect.options].some(o=>o.value===saved.suite)?saved.suite:examples[0].suite;
  const suiteInfo=el('p',{className:'hint'});
- const methodSelect=el('select',{id:'optMethod'},new Option('Simulated annealing','anneal'),new Option('Genetic algorithm','ga'));methodSelect.value=saved.method||'anneal';
+ const methodSelect=el('select',{id:'optMethod'},new Option('Simulated annealing','anneal'),new Option('Genetic algorithm','ga'));methodSelect.value=saved.method==='ga'?'ga':'anneal';
+ const everyOption=new Option('Every value (!! markers)','every');let searchMethod=methodSelect.value;
  const scoringSelect=el('select',{id:'optScoring'},new Option('Exact when possible','auto'),new Option('Always sampled','sampled'));scoringSelect.value=saved.scoring||'auto';
  const num=(value,attrs={})=>el('input',{type:'number',value:String(value),...attrs});
  const rounds=num(saved.rounds??SCORING_DEFAULTS.rounds,{min:10,max:10000,step:10});
@@ -121,6 +124,8 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
  const stats=el('dl',{className:'opt-stats'});
  const chart=el('canvas',{className:'opt-chart',ariaLabel:'Best and current score over evaluations'});
  const log=el('ol',{className:'opt-log'});
+ const topTable=el('table',{className:'tool-table opt-top'});
+ const topBox=el('div',{className:'opt-top-box',hidden:true},el('h4',{textContent:'Best candidates'}),el('div',{className:'tool-table-wrap'},topTable));
  // Best
  const bestHead=el('p',{className:'hint',textContent:'No result yet.'});
  const bestCode=el('pre',{className:'opt-best'});
@@ -142,13 +147,13 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
     el('div',{className:'tool-form'},field(exampleSelect,rosterSelect,convert)),editor,check,markerTable),
    el('section',{className:'t-card'},el('h3',{textContent:'Best warrior'}),bestHead,bestValues,bestCode,
     el('div',{className:'tool-actions'},addBest,useTemplate,downloadBest,copyBest),el('div',{className:'tool-actions'},validate),validation,opponentsBox)),
-  el('section',{className:'t-card opt-run'},el('h3',{textContent:'Run'}),settings,el('div',{className:'tool-actions'},start,pause,stop),runStatus,stats,chart,log)));
+  el('section',{className:'t-card opt-run'},el('h3',{textContent:'Run'}),settings,el('div',{className:'tool-actions'},start,pause,stop),runStatus,stats,chart,topBox,log)));
 
  // ---- state
  let parsed=null,suite=null,run=null,methodShown=null;
  const suites=new Map();
  function persist(){
-  saveState({template:editor.value,suite:suiteSelect.value,method:methodSelect.value,scoring:scoringSelect.value,rounds:rounds.value,minutes:minutes.value,workers:workers.value,seed:seed.value,race:race.checked,
+  saveState({template:editor.value,suite:suiteSelect.value,method:searchMethod,scoring:scoringSelect.value,rounds:rounds.value,minutes:minutes.value,workers:workers.value,seed:seed.value,race:race.checked,
    sweep:sweep.checked,sweepLimit:sweepLimit.value,restarts:restarts.checked,patience:patience.value,population:population.value,immigrants:immigrants.value,mutation:mutation.value,
    helpClosed:!help.open,advancedOpen:settings.querySelector('.opt-advanced').open,syntaxOpen:markerTable.open});
  }
@@ -205,11 +210,11 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
  function recheck(){
   const config=matchSettings();
   if(!config){check.replaceChildren(el('p',{className:'hint',textContent:'Choose the opponents to check the template against their core size.'}));parsed=null;return;}
-  methodVisibility();
   try{
    parsed=parseTemplate(editor.value,templateConstants({...config,rounds:Number(rounds.value)||250}));
+   methodVisibility();
   }catch(error){
-   parsed=null;
+   parsed=null;methodVisibility();
    check.replaceChildren(el('p',{className:'opt-error',textContent:error.message}));
    if(error.line)markLine(error.line);
    return;
@@ -219,10 +224,24 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
   const mode=suite?scoringMode(suite.config,[parsed.render(parsed.startIndices().map(v=>v??0)),...suite.warriors.map(w=>w.source)],{mode:scoringSelect.value,rounds:Number(rounds.value)||250}):null;
   check.replaceChildren(
    el('p',{},el('strong',{textContent:`${vars.length} variable${vars.length===1?'':'s'}`}),` · search space ${big(parsed.searchSpace())} candidates`+(mode?` · ${mode.why} · ${engineLabel(suite.config,mode)}`:'')),
+   ...gridSummary(vars,mode),
    el('table',{className:'tool-table opt-vars'},el('thead',{},el('tr',{},...['Name','Line','Values','Domain','Start'].map(h=>el('th',{scope:'col',textContent:h})))),
     el('tbody',{},...vars.map(v=>el('tr',{},el('td',{},el('code',{textContent:v.name})),el('td',{className:'num',textContent:String(v.line)}),el('td',{className:'num',textContent:big(v.values.length)}),
      el('td',{},el('code',{textContent:v.values.length<=6?v.values.join(', '):`${v.values.slice(0,3).join(', ')} … ${v.values.slice(-2).join(', ')}`})),
-     el('td',{textContent:v.start===null?'random':v.values[v.start]}))))));
+     el('td',{textContent:v.exhaustive?'every value':v.start===null?'random':v.values[v.start]}))))));
+ }
+ // What a !! run will fight, and what is missing before it can start.
+ const LOTS_OF_ROUNDS=2e7;
+ function gridSummary(vars,mode){
+  if(!gridRun())return [];
+  const grid=vars.filter(v=>v.exhaustive),candidates=parsed.gridSize(),opponents=suite?.warriors?.length??0,out=[];
+  const matches=candidates*opponents,roundsTotal=mode?matches*mode.rounds:0;
+  out.push(el('p',{className:'opt-grid'},el('strong',{textContent:'Every value: '}),
+   `${big(candidates)} candidate${candidates===1?'':'s'} (${grid.map(v=>`${v.name} ${big(v.values.length)}`).join(' × ')})`+(opponents?` × ${opponents} opponents = ${big(matches)} matches`+(mode?` of ${mode.rounds} rounds`:''):'')+'. The run shows the time left once it has started.'));
+  if(roundsTotal>LOTS_OF_ROUNDS)out.push(el('p',{className:'t-warning',textContent:`That is a lot of battles (${big(roundsTotal)} rounds) and may take hours. Racing (Method settings) skips the rest of a candidate that is clearly behind; Stop after pauses the run, and Continue tests the rest.`}));
+  const fixed=vars.filter(v=>!v.exhaustive&&v.start===null);
+  if(fixed.length)out.push(el('p',{className:'t-warning',textContent:`In a !! run the ! markers keep their start value. Give ${fixed.map(v=>v.name).join(', ')} a start value with :v, or make ${fixed.length===1?'it':'them'} !! too.`}));
+  return out;
  }
  const engineLabel=(config,mode)=>{const e=plannedEngine(config,mode);return e.engine==='exmars'?'engine exMARS':`engine pMARS (exMARS can’t run ${e.why})`;};
  function markLine(line){
@@ -231,8 +250,14 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
   const lines=editor.value.split('\n');let pos=0;for(let i=0;i<line-1&&i<lines.length;i++)pos+=lines[i].length+1;
   editor.setSelectionRange(pos,pos+(lines[line-1]?.length??0));
  }
- function methodVisibility(){annealOptions.hidden=methodSelect.value!=='anneal';gaOptions.hidden=methodSelect.value!=='ga';}
- methodSelect.addEventListener('change',methodVisibility);
+ // A template with !! markers is always an exhaustive run; the method choice comes back without them.
+ const gridRun=()=>!!parsed?.exhaustive.length;
+ function methodVisibility(){
+  if(gridRun()){if(!everyOption.parentNode)methodSelect.append(everyOption);methodSelect.value='every';methodSelect.disabled=true;}
+  else if(everyOption.parentNode){everyOption.remove();methodSelect.value=searchMethod;methodSelect.disabled=!!run&&['running','paused'].includes(run.state);}
+  annealOptions.hidden=methodSelect.value!=='anneal';gaOptions.hidden=methodSelect.value!=='ga';
+ }
+ methodSelect.addEventListener('change',()=>{if(methodSelect.value!=='every')searchMethod=methodSelect.value;methodVisibility();});
 
  // ---- run
  function setRunning(state){
@@ -240,6 +265,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
   start.textContent=state==='paused'?'▶ Continue':'▶ Start';
   editor.readOnly=['running','paused'].includes(state);
   for(const c of [suiteSelect,methodSelect,scoringSelect,rounds,exampleSelect,rosterSelect,convert,workers,coreSlider,...corePresets,seed])c.disabled=['running','paused'].includes(state);
+  if(gridRun())methodSelect.disabled=true;
   validate.disabled=!run?.best||state==='running';
  }
  async function begin(){
@@ -256,23 +282,31 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
   const startX=template.startIndices(),numericSeed=hashSeed(seed.value);
   // Continuing from an earlier best of the same template seeds the GA with it.
   const seeds=run?.best&&run.templateText===editor.value?[run.best.x]:[];
-  const method=methodSelect.value==='ga'
+  let method;
+  if(template.exhaustive.length){
+   try{method=new Exhaustive(template.sizes,startX,template.exhaustive,{race:race.checked});}
+   catch(error){pool.terminate();runStatus.textContent=error.message==='missing start values'?'Give every ! marker a start value with :v (or make it !!): a !! run keeps them fixed.':error.message;return;}
+  }else method=methodSelect.value==='ga'
    ?new Genetic(template.sizes,startX,numericSeed,{population:Number(population.value)||50,immigrants:Number(immigrants.value),mutation:Number(mutation.value)||1.5,race:race.checked},seeds)
    :new Annealing(template.sizes,startX,numericSeed,{sweepLimit:sweep.checked?Number(sweepLimit.value)||160:0,restartPatience:restarts.checked?Number(patience.value)||400:1e15,race:race.checked});
   run?.pool?.terminate();
   run={state:'running',template,templateText:editor.value,pool,evaluator,method,mode,suiteName:suite.name,config,started:Date.now(),elapsed:0,resumedAt:Date.now(),
    deadline:Number(minutes.value)>0?Date.now()+Number(minutes.value)*60000:Infinity,evaluations:0,improvements:0,samples:[],best:null,bestResult:null,log:[]};
   log.replaceChildren();validation.textContent='';opponentsTable.replaceChildren();opponentsBox.hidden=true;shownBest=null;
-  runStatus.textContent=`Running ${methodSelect.value==='ga'?'the genetic algorithm':'simulated annealing'} against ${suite.warriors.length} opponents (${mode.why}; ${engineLabel(config,mode)}).`;
+  runStatus.textContent=`${method instanceof Exhaustive?`Testing all ${big(method.s.total)} candidates`:`Running ${methodSelect.value==='ga'?'the genetic algorithm':'simulated annealing'}`} against ${suite.warriors.length} opponents (${mode.why}; ${engineLabel(config,mode)}).`;
   setRunning('running');loop();
  }
  async function loop(){
   const r=run;r.resumedAt=Date.now();
   let lastDraw=0;
   while(r.state==='running'&&run===r){
-   if(Date.now()>=r.deadline){finish(r,'Time limit reached.');break;}
+   if(Date.now()>=r.deadline){
+    // A !! run pauses at the limit, so Continue tests the rest; a search ends there.
+    if(r.method instanceof Exhaustive){const t=r.method.summary();r.elapsed+=Date.now()-r.resumedAt;r.state='paused';setRunning('paused');runStatus.textContent=`Paused at the time limit after ${big(t.tested)} of ${big(t.total)} candidates. Continue tests the rest.`;break;}
+    finish(r,'Time limit reached.');break;
+   }
    let p,result,events;
-   try{p=r.method.propose();result=await r.evaluator.evaluate(r.template.render(p.x),{race:p.race});}
+   try{p=r.method.propose();if(!p){finish(r,`Every candidate tested (${big(r.method.summary().total)}).`);break;}result=await r.evaluator.evaluate(r.template.render(p.x),{race:p.race});}
    catch(error){finish(r,'Stopped: '+error.message);break;}
    if(r.state==='stopped'||run!==r)break;
    try{events=r.method.observe(p,result);}catch(error){finish(r,'Stopped: '+error.message);break;}
@@ -305,14 +339,22 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
  pause.onclick=()=>{if(run?.state!=='running')return;run.state='paused';run.elapsed+=Date.now()-run.resumedAt;setRunning('paused');runStatus.textContent='Paused. The candidate being scored is finished first; Continue picks up exactly here.';draw(run);};
  stop.onclick=()=>{if(!run||run.finished)return;if(run.state==='running')run.elapsed+=Date.now()-run.resumedAt;run.state='stopped';run.finished=true;run.pool.terminate();setRunning('finished');runStatus.textContent='Stopped.'+(run.best?' The best result is kept below.':'');draw(run);};
 
+ // From the rate so far; the first candidates also assemble the opponents, so wait for a few.
+ function timeLeft(elapsed,{tested,total}){
+  if(tested>=total)return 'done';if(tested<3||elapsed<2)return 'estimating…';
+  const left=elapsed/tested*(total-tested),h=Math.floor(left/3600),m=Math.floor(left%3600/60),sec=Math.floor(left%60);
+  return h?`about ${h} h ${m} min`:m?`about ${m} min ${sec} s`:`about ${sec} s`;
+ }
  function draw(r){
   const elapsed=(r.elapsed+(r.state==='running'?Date.now()-r.resumedAt:0))/1000,ev=r.evaluator,summary=r.method.summary();
   const items=[['Evaluations',r.evaluations.toLocaleString('en-US')],['Per second',fmt(r.evaluations/Math.max(1,elapsed),1)],['Elapsed',`${Math.floor(elapsed/60)}:${String(Math.floor(elapsed%60)).padStart(2,'0')}`],
    ['Best',r.best?fmt(r.best.score,2)+(r.best.se?` ± ${fmt(r.best.se,2)}`:''):'—'],
-   ...(r.method instanceof Annealing?[['Current',fmt(summary.current,2)],['Phase',summary.phase],['Restarts',String(summary.restarts)]]:[['Population median',fmt(summary.median,2)],['Children',String(summary.children)]]),
+   ...(r.method instanceof Annealing?[['Current',fmt(summary.current,2)],['Phase',summary.phase],['Restarts',String(summary.restarts)]]
+    :r.method instanceof Exhaustive?[['Tested',`${big(summary.tested)} of ${big(summary.total)}`],['Time left',timeLeft(elapsed,summary)]]
+    :[['Population median',fmt(summary.median,2)],['Children',String(summary.children)]]),
    ['Engine',engineSummary(ev.engines)],['Raced out',String(ev.raced)],['Invalid',String(ev.invalid)],['Cache hits',String(ev.cached)],...(r.mode.exact?[]:[['Seed set',String(ev.epoch+1)]])];
   stats.replaceChildren(...items.flatMap(([k,v])=>[el('dt',{textContent:k}),el('dd',{textContent:v})]));
-  drawChart(r);
+  drawChart(r);showTop(r);
   log.replaceChildren(...r.log.slice(0,8).map(e=>el('li',{textContent:`New best after ${e.at} evaluations: ${fmt(e.score,2)}${e.se?' ± '+fmt(e.se,2):''}`})));
   showBest(r);
  }
@@ -321,6 +363,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
   if(!chart.clientWidth)return;
   const ratio=devicePixelRatio||1,w=chart.clientWidth,h=180;chart.width=w*ratio;chart.height=h*ratio;
   const ctx=chart.getContext('2d');ctx.scale(ratio,ratio);ctx.fillStyle='#101d29';ctx.fillRect(0,0,w,h);
+  if(r.method instanceof Exhaustive&&r.method.s.scores)return drawValues(r,ctx,w,h);
   const pts=r.samples,L=40,R=8,T=10,B=20;ctx.font='11px system-ui';ctx.fillStyle='#aec0ce';
   if(pts.length<2){ctx.fillText('Waiting for scores',L,h/2);return;}
   let lo=Infinity,hi=-Infinity;for(const [,b,c] of pts)for(const v of [b,c])if(v!==null){lo=Math.min(lo,v);hi=Math.max(hi,v);}
@@ -336,6 +379,32 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
    ctx.stroke();
   }
   ctx.fillStyle='#54d8df';ctx.fillText('best',w-R-90,T+8);ctx.fillStyle='#f9a567';ctx.fillText(r.method instanceof Annealing?'current':'candidate',w-R-56,T+8);
+ }
+ // One !! variable: the score of each value, in domain order, with the best marked.
+ function drawValues(r,ctx,w,h){
+  const scores=r.method.s.scores,v=r.template.variables[r.method.s.grid[0]],L=40,R=8,T=26,B=20;
+  ctx.font='11px system-ui';ctx.fillStyle='#aec0ce';
+  const known=scores.filter(x=>x!==null);if(!known.length){ctx.fillText('Waiting for scores',L,h/2);return;}
+  let lo=Math.min(...known),hi=Math.max(...known);if(hi-lo<1){hi+=0.5;lo-=0.5;}
+  const n=scores.length,xs=i=>L+(w-L-R)*(n>1?i/(n-1):0.5),ys=s=>T+(h-T-B)*(1-(s-lo)/(hi-lo));
+  ctx.strokeStyle='#2a3d4d';ctx.beginPath();ctx.moveTo(L,T);ctx.lineTo(L,h-B);ctx.lineTo(w-R,h-B);ctx.stroke();
+  ctx.fillText(fmt(hi,0),4,T+8);ctx.fillText(fmt(lo,0),4,h-B);ctx.fillText(v.values[0],L,h-6);ctx.fillText(v.values[n-1],w-R-30,h-6);
+  ctx.fillText(`Score for each value of ${v.name}`,L,14);
+  ctx.strokeStyle='#54d8df';ctx.lineWidth=1.5;ctx.beginPath();let started=false;
+  scores.forEach((s,i)=>{if(s===null){started=false;return;}const x=xs(i),y=ys(s);if(started)ctx.lineTo(x,y);else{ctx.moveTo(x,y);started=true;}});ctx.stroke();
+  ctx.fillStyle='#54d8df';scores.forEach((s,i)=>{if(s!==null&&n<=200)ctx.fillRect(xs(i)-1.5,ys(s)-1.5,3,3);});
+  // The best value, labelled beside its dot (left of it near the right edge, below it at the top).
+  const b=r.best;if(b){const i=b.x[r.method.s.grid[0]],x=xs(i),y=ys(b.score),label=`best ${v.values[i]}`,tw=ctx.measureText(label).width;
+   ctx.fillStyle='#f1c96b';ctx.beginPath();ctx.arc(x,y,4,0,7);ctx.fill();
+   ctx.fillText(label,x+8+tw>w-R?x-8-tw:x+8,y<T+12?y+14:y-6);}
+ }
+ // The best candidates of a !! run, by score.
+ function showTop(r){
+  if(!(r.method instanceof Exhaustive)){topBox.hidden=true;return;}
+  const grid=r.method.s.grid,vars=r.template.variables,top=r.method.s.top.slice(0,10);
+  topBox.hidden=!top.length;
+  topTable.replaceChildren(el('thead',{},el('tr',{},el('th',{scope:'col',textContent:'#'}),...grid.map(i=>el('th',{scope:'col'},el('code',{textContent:vars[i].name}))),el('th',{scope:'col',textContent:'Score'}))),
+   el('tbody',{},...top.map((t,k)=>el('tr',{},el('td',{className:'num',textContent:String(k+1)}),...grid.map(i=>el('td',{className:'num',textContent:vars[i].values[t.x[i]]})),el('td',{className:'num',textContent:fmt(t.score,2)+(t.se?` ± ${fmt(t.se,2)}`:'')})))));
  }
  function showBest(r){
   const b=r.best;

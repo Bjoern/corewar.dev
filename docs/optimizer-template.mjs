@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Template language of the constant optimizer, ported from cwopt (tools-import/cwopt/template.py).
 // Redcode with "!" markers for the values to tune:
-//   marker := "!" [domain] {filter} [":" value]
+//   marker := "!" ["!"] [domain] {filter} [":" value]     ("!!": test every value, see Exhaustive)
 //   domain := "(" expr ".." expr ["," expr] ")" | "[" token {"," token} "]"
 //   filter := "?" ("coprime" | "odd" | "even")
 // Text after ";" is ignored and "!=" is pMARS's not-equal operator, never a marker.
@@ -55,7 +55,7 @@ function matching(s,i,open,close){let depth=0;for(let j=i;j<s.length;j++){if(s[j
 function splitTop(s,sep){const parts=[];let depth=0,cur='';for(const ch of s){if(ch==='(')depth++;else if(ch===')')depth--;if(ch===sep&&depth===0){parts.push(cur);cur='';}else cur+=ch;}parts.push(cur);return parts;}
 
 function parseMarker(code,k,ln,constants){
- const coreSize=constants.CORESIZE,col=k+1,n=code.length;let i=k+1;
+ const coreSize=constants.CORESIZE,col=k+1,n=code.length,exhaustive=code[k+1]==='!';let i=k+(exhaustive?2:1);
  const err=(msg,at=i)=>{throw new TemplateError(msg,ln,at+1);};
  let numeric=true,raw;
  if(code[i]==='('){
@@ -109,7 +109,7 @@ function parseMarker(code,k,ln,constants){
   }
  }
  if(!values.length)throw new TemplateError('no values left after filtering',ln,col);
- const variable={name:`${ln}:${col}`,line:ln,col,end:i,spec,values,numeric,start:null,onEqu:false};
+ const variable={name:`${ln}:${col}`,line:ln,col,end:i,spec,values,numeric,start:null,onEqu:false,exhaustive};
  if(startText!==null){
   const index=values.findIndex(v=>normKey(v,coreSize)===normKey(startText,coreSize));
   if(index<0)throw new TemplateError(`start value ${startText} is not in the domain`,ln,col);
@@ -138,6 +138,9 @@ export function parseTemplate(text,constants){
 export class Template{
  constructor(text,lines,variables,coreSize){this.text=text;this.lines=lines;this.variables=variables;this.coreSize=coreSize;}
  get sizes(){return this.variables.map(v=>v.values.length);}
+ // Indices of the "!!" variables, whose every combination an exhaustive run scores.
+ get exhaustive(){return this.variables.flatMap((v,i)=>v.exhaustive?[i]:[]);}
+ gridSize(){return this.exhaustive.reduce((p,i)=>p*this.variables[i].values.length,1);}
  searchSpace(){return this.variables.reduce((p,v)=>p*v.values.length,1);}
  startIndices(){return this.variables.map(v=>v.start);}
  substitute(x,writeBack){
@@ -184,6 +187,6 @@ export class Template{
 export function fromMetcalf(text){
  return text.split(/(?<=\n)/).map(line=>{
   const at=line.indexOf(';'),code=at<0?line:line.slice(0,at),rest=at<0?'':line.slice(at);
-  return code.replace(/!%(\d+)/g,(_,n)=>`!(0..${Number(n)-1})`).replace(/!(?![=(\[%?:])/g,'!(0..CORESIZE-1)')+rest;
+  return code.replace(/!%(\d+)/g,(_,n)=>`!(0..${Number(n)-1})`).replace(/(?<!!)!(?![=(\[%?:!])/g,'!(0..CORESIZE-1)')+rest;
  }).join('');
 }
