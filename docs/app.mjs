@@ -644,6 +644,12 @@ function frame(now) {
     const update = engine.advance(unthrottled?100000:Math.min(100000,Math.floor(credit)),4);
     maxSlice = Math.max(maxSlice,performance.now()-before);
     if(!unthrottled)credit -= update.executed; present(update);
+    // The engine stops at every round's end, so Fast keeps advancing within the frame instead of
+    // running one round per frame (about 60 rounds a second however short the rounds are).
+    while (fastMode && state === 'running' && performance.now()-before < 12) {
+      const sliceStart = performance.now(), next = engine.advance(100000,4);
+      maxSlice = Math.max(maxSlice,performance.now()-sliceStart); present(next);
+    }
   }
   if (state === 'running') animation = requestAnimationFrame(frame);
 }
