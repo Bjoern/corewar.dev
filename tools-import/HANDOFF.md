@@ -30,6 +30,7 @@ values filled in.
 | `scripts/ga.py` | generational GA over cwopt templates (uses cwopt for fitness) | Claude for Bjoern, Oct 2026 | as cwopt |
 | `scripts/genetic2.rb` | port of Metcalf's `genetic2.rb` to the exMARS Ruby binding and cwopt templates; algorithm unchanged | Claude for Bjoern, Nov 2026, derived from `metcalf/genetic2.rb` | derivative of Metcalf's code, covered by his permission |
 | `scripts/export_template.py` | prints a cwopt template as JSON so non-Python optimizers can use it | Claude for Bjoern, Nov 2026 | as cwopt |
+| `scripts/engine-overhead.mjs` | Node timing of per-match startup vs per-round cost, site pMARS Wasm vs exMARS Wasm (§11) | Claude for Bjoern, Nov 2026 | GPL-2.0-or-later |
 | `tests/test_template.py`, `tests/test_runs.py`, `tests/acceptance.py` | cwopt tests: template parser, run/resume determinism, engine vs pMARS acceptance | as cwopt | as cwopt |
 | `examples/alcoholism.red` | nano template made from Dave Hillis's *Alcoholism Malt* | warrior by Dave Hillis, markers added for the cwopt example | published hill warrior |
 | `examples/splitty6b_top_tmpl.red` | '94 paper template used in the comparisons below | Bjoern's warrior | Bjoern's |
@@ -218,14 +219,8 @@ started from).
   domain sizes, storage is an interface (`cwopt/storage.py`), the engine is one module
   (`cwopt/engine.py`), and the UI uses only the API. Pyodide plus a Python build of
   exMARS would be the other route, but it would add a second engine to the site.
-- **Engine gap.** `docs/engine.mjs` creates a **fresh Wasm instance per match** and goes
-  through `web_configure` / `web_compile` / `_web_advance`. An optimizer runs millions of
-  short matches, and exact nano mode alone is 142 one-round fights per opponent per
-  candidate. It needs one instance per worker that can, for two compiled banks, run `R`
-  rounds with a given `-F` position and return W/T/L without reinstantiating. That is a
-  new export in the engine build in pmars_experiments, so it is an engine change
-  (engine-lock), not an app change. Measure fights per second before designing the UI
-  around it.
+- **Engine.** Use exMARS with a persistent Wasm API for the optimizer's battles and keep
+  the site's pMARS for the Battle tab. See §11.
 - **Assembly.** Compile each candidate once per worker and cache the bank by a hash of
   its assembled code. Different values often give identical code, for example fields
   nothing reads.
@@ -324,3 +319,71 @@ gene mutation 1.5 / genes, creep for domains > 100 with 70% probability and
 
 Before fixing the defaults, run both methods on the same template, benchmark and time
 budget, a few seeds each, and compare held-out scores (§5.5).
+
+## 11. Engine: exMARS with a persistent Wasm API
+
+### Measurements
+`scripts/engine-overhead.mjs` (Node 22, Apple M1, 2026-11-04) times a whole match, 1 round
+and many rounds, on corewar.dev's pMARS (`docs/engine.mjs`, a fresh instance per match as
+in `docs/tournament-worker.mjs`) and on exMARS's `dist/wasm` (`runMatch`, at exMARS
+`ecbff45`, also a fresh runtime per match). Pairs: nano `ALCOHOLI.RED` vs `8C094799.RED`
+(nanobm07), standard `Carmilla_3.red` vs `arvon.red` (top20mix). Two runs agreed to within
+about 0.3 µs per nano round and 5% per standard round.
+
+| | 1-round match (mostly startup) | each extra round |
+|---|---|---|
+| site pMARS, nano | 2.3–2.4 ms | 4.1–4.2 µs |
+| exMARS, nano | 1.7–1.8 ms | 0.8–1.1 µs |
+| site pMARS, standard | 2.9–3.0 ms | 1.6–1.7 ms |
+| exMARS, standard | 2.0–2.2 ms | 0.39 ms |
+
+Consequences:
+- **Small hills.** Exact scoring is 142 one-round matches per opponent on nano, so with
+  a fresh engine per match one candidate against 50 opponents costs about 17 s per
+  worker, almost all of it startup. The battles themselves take about 10 ms. Native
+  cwopt does about 290 candidates/s on 8 workers. An engine that stays loaded is
+  required here.
+- **Standard.** A 250-round match takes 100–400 ms, so 2 ms of startup is under 1%. The
+  simulator's speed is what matters: exMARS was 4.1× faster on this pair. The exMARS
+  benchmark (`exMARS/dist/wasm/BENCHMARK-2026-10-23.md`, whole suites, Node) shows
+  about 2.2× over pMARS.
+- These are single pairs in Node on one machine. Repeat in the target browsers before
+  committing to numbers.
+
+### Why exMARS
+- **Same results.** cwopt's acceptance test (§4) found exMARS = pMARS round for round on
+  nano, tiny, standard, 94nop and lp.
+- **Built for reuse.** It allocates its core once. The Python binding (`python_mars.c`)
+  is already the API needed: `parse_string`, settable `rounds` and `fixed_position`, and
+  `fight()` that starts a fresh match each call (P-space kept across its rounds only).
+- **Licence.** The simulator (`sim.c`, from exhaust by M Joonas Pihlaja) is public domain.
+  The parser in `pmars.c` is GPL-2.0-or-later. Both fit corewar.dev.
+
+### Change to make (in exMARS's Wasm build, not in pMARS)
+1. **Persistent API**, one instance per Web Worker, alongside the existing CLI-backed
+   `exmars.mjs`:
+   - `configure(coreSize, cycles, processes, maxLength, minDistance)`
+   - `load(instructions, start, pin) → handle`, with instructions as the 6-int tuples
+     of `cwopt/engine.py` / `Warrior.py`
+   - `fight(a, b, rounds, position) → {wins, ties, losses}`, as the Python binding's
+     `fight()`
+   - `unload(handle)`
+2. **Assembly in a separate instance.** The pMARS parser can `exit()` after too many
+   errors, which would kill a persistent instance. Assemble each candidate once in a
+   throwaway instance (about 2 ms) that returns the instruction list and diagnostics,
+   then load it into the fight instance. cwopt does the same with a child process.
+   Keying the cache by a hash of the assembled code also avoids re-assembling
+   duplicates.
+3. **Tests.** Port the exact-mode check and the round-for-round comparison of
+   `tests/acceptance.py` to Node against the native exMARS or pMARS CLI. Add a test that
+   repeated `fight()` calls on one instance give the same results as fresh instances,
+   including P-space warriors, and a throughput test (nano exact, standard 250 rounds).
+4. **Site integration.** Ship the exMARS Wasm with its own lock entry, like
+   `engine-lock.json` for pMARS, and keep pMARS for the Battle tab and the debugger.
+   Leave `engine-lock.json` and pmars_experiments unchanged.
+
+### Limits of exMARS
+No '88 mode, no permutation option, P-space size fixed at CORESIZE/16, 3/1/0 scoring
+only. The Tools tab offers only hills within these limits, the same as cwopt today
+(`cwopt/hills.json`). The Tournaments tab could later route its headless matches to
+exMARS for speed, but that is a separate decision because of these missing features.
