@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  actions: write  # start the Pages deployment
 concurrency:
   group: koenigstuhl
   cancel-in-progress: false
@@ -26,35 +27,37 @@ jobs:
           python scripts/fetch_koenigstuhl.py $full
       # Fail before committing if a new snapshot no longer parses.
       - run: python -c "import sys; sys.path.insert(0, 'scripts'); from pathlib import Path; import koenigstuhl; print(len(koenigstuhl.library(Path('.'))), 'hills')"
-      - name: Commit changes or keep the schedule alive
+      # Every run commits at least the new SNAPSHOT dates, so the site shows when the hills were
+      # last checked and the weekly commit keeps GitHub from disabling this schedule (60 idle days).
+      - name: Commit the snapshot
+        id: commit
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A koenigstuhl
-          # SNAPSHOT dates change on every run; only commit when warriors or rankings changed.
+          if git diff --cached --quiet; then
+            echo "Nothing changed (already checked today)."
+            exit 0
+          fi
           if git diff --cached --name-only | grep -qv '/SNAPSHOT$'; then
             git commit -m "Update Koenigstuhl snapshots"
-            # One tag per weekly snapshot, so any week can be checked out or diffed later.
+            # Tag snapshots with new warriors or rankings, so any of them can be checked out or diffed later.
             tag="koenigstuhl-$(date -u +%F)"
             if [ -n "$(git ls-remote --tags origin "refs/tags/$tag")" ]; then
               tag="koenigstuhl-$(date -u +%F-%H%M)"  # a second (manual) run on the same day
             fi
             git tag "$tag"
           else
-            git reset -q koenigstuhl
-            git checkout -- koenigstuhl
-            age=$(( $(date +%s) - $(git log -1 --format=%ct) ))
-            if [ "$age" -gt $(( 50 * 86400 )) ]; then
-              # GitHub disables scheduled workflows after 60 days without repository activity.
-              date -u +%F > .github/keepalive
-              git add .github/keepalive
-              git commit -m "Keep the Koenigstuhl update schedule active"
-            else
-              echo "No changes."
-              exit 0
-            fi
+            git commit -m "Check Koenigstuhl snapshots: no changes"
           fi
           git push origin HEAD ${tag:+"refs/tags/$tag"}
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+      # Commits pushed with GITHUB_TOKEN do not trigger the Pages workflow; start it explicitly.
+      - name: Deploy the site
+        if: steps.commit.outputs.pushed == 'true' && github.ref_name == github.event.repository.default_branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref "$GITHUB_REF_NAME"
       - if: steps.fetch.outcome == 'failure'
         run: |
           echo "::error::Some Koenigstuhl hills failed to download; see the fetch step."

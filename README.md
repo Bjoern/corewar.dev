@@ -34,9 +34,10 @@ It always refreshes the ranking pages, but for a hill already on disk fetches on
 in its ranking; `--full` downloads the archives instead, picking up edited warriors and dropping removed ones.
 Ranked warriors missing from a hill's archive are fetched one by one, and the Odd hill, which has
 only flat scores, uses them as its recursive ranking. A weekly workflow runs the script (with `--full` in
-the first week of each month), commits changes and tags each snapshot `koenigstuhl-YYYY-MM-DD`;
+the first week of each month), commits the result and deploys the site. Every run commits at least the new
+`SNAPSHOT` dates, so the Library shows when the hills were last checked and GitHub keeps the schedule enabled.
+Snapshots with new warriors or rankings are tagged `koenigstuhl-YYYY-MM-DD`;
 `git diff koenigstuhl-2026-11-09 koenigstuhl-2026-11-16 -- koenigstuhl/94nop` shows a week's changes.
-After about 50 quiet days it makes a small keepalive commit so GitHub keeps the schedule enabled.
 `scripts/koenigstuhl.py` reads the `;name`, `;author` and `;strategy` headers and the rankings;
 the build writes one search index per hill to `_site/library/`, named by content hash,
 and copies the warrior files beside it so the app fetches a source only when it is opened or added.
