@@ -66,7 +66,12 @@ function showConsole() {
 function refreshCompileButtons() {
  document.querySelectorAll('.compile-warrior').forEach((button,i)=>{
   const result=compileStates[i] || '';
-  button.textContent='↻ '+(result==='busy'?'Validating…':result==='ok'?'Valid ✓':result==='failed'?'Invalid — retry':'Validate');
+  const text=result==='busy'?'Validating…':result==='ok'?'Valid ✓':result==='failed'?'Invalid — retry':'Validate';
+  // The icon and label are separate so a narrow warrior list can show the icon alone
+  const icon=document.createElement('span');icon.className='compile-icon';icon.setAttribute('aria-hidden','true');icon.textContent='↻';
+  const label=document.createElement('span');label.className='compile-label';label.textContent=' '+text;
+  button.replaceChildren(icon,label);
+  button.title=({ok:'Valid. ',failed:'Invalid. ',busy:'Validating… '}[result]||'')+'Revalidate warrior and show assembly output';
   button.dataset.result=result;button.disabled=result==='busy';
  });
  editorStatus();
