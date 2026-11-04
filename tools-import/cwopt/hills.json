@@ -1,0 +1,39 @@
+{
+  "_comment": "Hill presets. 'verified' lists the fields checked against the hill's published rules, with the source. Users can add presets in ~/.cwopt/hills.json or with --hills FILE.",
+  "nano": {
+    "title": "Nano (SAL)",
+    "coresize": 80, "cycles": 800, "processes": 80, "length": 5, "distance": 5,
+    "pspace": 5, "rounds": 250, "hill_size": 50, "standard": "94",
+    "verified": "all fields, sal.discontinuity.info/hill.php?key=nano, 2026-10-24"
+  },
+  "tiny": {
+    "title": "Tiny (SAL)",
+    "coresize": 800, "cycles": 8000, "processes": 800, "length": 20, "distance": 20,
+    "pspace": 50, "rounds": 250, "hill_size": 25, "standard": "94",
+    "verified": "all fields, sal.discontinuity.info/hill.php?key=tiny, 2026-10-24"
+  },
+  "standard": {
+    "title": "Standard '94 draft (koth.org)",
+    "coresize": 8000, "cycles": 80000, "processes": 8000, "length": 100, "distance": 100,
+    "pspace": 500, "rounds": 250, "hill_size": null, "standard": "94",
+    "verified": "core settings only; rounds and hill size NOT verified (koth.org unreachable on 2026-10-24)"
+  },
+  "94nop": {
+    "title": "'94 no p-space (koth.org)",
+    "coresize": 8000, "cycles": 80000, "processes": 8000, "length": 100, "distance": 100,
+    "pspace": 0, "rounds": 250, "hill_size": null, "standard": "94",
+    "verified": "core settings only; rounds and hill size NOT verified (koth.org unreachable on 2026-10-24)"
+  },
+  "lp": {
+    "title": "Limited process (SAL)",
+    "coresize": 8000, "cycles": 80000, "processes": 8, "length": 200, "distance": 200,
+    "pspace": 500, "rounds": 250, "hill_size": 25, "standard": "94",
+    "verified": "all fields, sal.discontinuity.info/hill.php?key=lp, 2026-10-24"
+  },
+  "88": {
+    "title": "ICWS '88 (koth.org)",
+    "coresize": 8000, "cycles": 80000, "processes": 8000, "length": 100, "distance": 100,
+    "pspace": 0, "rounds": 250, "hill_size": null, "standard": "88",
+    "verified": "NOT verified"
+  }
+}
