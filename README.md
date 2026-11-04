@@ -28,7 +28,11 @@ The Library tab searches published warriors from Koenigstuhl snapshots in `koeni
 Each hill folder holds the unpacked archive (`HILL32/*.red`) and the saved ranking pages
 `<hill>_recursive.html` (required), `<hill>_battle_royal.html` and `<hill>_top50.html` (optional).
 An optional `SNAPSHOT` file holds the download date (`2026-11-04`), shown as the library's last update.
-To update a hill, replace its folder contents with a new download and rebuild.
+`python scripts/fetch_koenigstuhl.py` downloads every hill listed on the Koenigstuhl page into this layout
+(`--only 94nop tiny` limits it to some hills); a hill's folder is replaced only when its download succeeded.
+Ranked warriors missing from a hill's archive are fetched one by one, and the Odd hill, which has
+only flat scores, uses them as its recursive ranking. A weekly workflow runs the script and commits changes,
+with a small keepalive commit after about 50 quiet days so GitHub keeps the schedule enabled.
 `scripts/koenigstuhl.py` reads the `;name`, `;author` and `;strategy` headers and the rankings;
 the build writes one search index per hill to `_site/library/`, named by content hash,
 and copies the warrior files beside it so the app fetches a source only when it is opened or added.

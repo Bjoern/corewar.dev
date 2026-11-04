@@ -16,7 +16,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python scripts/fetch_koenigstuhl.py
+      # A failed hill keeps its previous snapshot; commit the others, then fail the run below.
+      - id: fetch
+        continue-on-error: true
+        run: python scripts/fetch_koenigstuhl.py
       # Fail before committing if a new snapshot no longer parses.
       - run: python -c "import sys; sys.path.insert(0, 'scripts'); from pathlib import Path; import koenigstuhl; print(len(koenigstuhl.library(Path('.'))), 'hills')"
       - name: Commit changes or keep the schedule alive
@@ -42,3 +45,7 @@ jobs:
             fi
           fi
           git push
+      - if: steps.fetch.outcome == 'failure'
+        run: |
+          echo "::error::Some Koenigstuhl hills failed to download; see the fetch step."
+          exit 1
