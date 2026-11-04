@@ -184,7 +184,7 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
   toggle.onclick=()=>{open=open===item.dataset.key?null:item.dataset.key;render();};
   const add=document.createElement('button');add.type='button';add.className='lib-add';
   const isLoaded=loaded.has(w.file);
-  add.textContent=isLoaded?'Added ✓':'Add';add.disabled=isLoaded;
+  add.textContent=isLoaded?'Added':'Add';add.disabled=isLoaded;
   add.title=isLoaded?'Already in your warriors':'Add to your warriors';add.setAttribute('aria-label',(isLoaded?'Added: ':'Add ')+w.name);
   add.onclick=async()=>{
    add.disabled=true;

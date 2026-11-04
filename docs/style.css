@@ -394,7 +394,7 @@ body[data-view=library] .inspector,body[data-view=library] #inspectorSplitter{di
 .lib-name{font-size:13px}.lib-author{font-size:13px;color:var(--muted)}.lib-strategy{font-size:12px;color:var(--muted);opacity:.85}
 .lib-tag{font-size:11px;font-weight:400;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:0 6px}
 .lib-add,.lib-add-space{flex:none;width:5.5em}
-.lib-add{padding:1px 6px;font-size:12px;line-height:1.4}
+.lib-add{padding:1px 6px;font-size:12px;line-height:1.4;white-space:nowrap}
 .lib-columns{position:sticky;top:-12px;z-index:1;background:var(--panel);border-bottom:1px solid var(--border);padding-bottom:2px}
 .lib-columns .lib-grid{padding:0 8px}
 .lib-sort{padding:2px 0;border:0;background:transparent;font-size:12px;color:var(--muted);text-align:left;cursor:pointer;justify-self:start}
