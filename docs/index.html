@@ -142,12 +142,14 @@
 <div class="lib-bar">
 <div id="libraryHills" class="lib-hills" role="group" aria-label="Hills to search"></div>
 <input id="librarySearch" type="search" placeholder="Search name, author or strategy" aria-describedby="librarySearchHint" autocomplete="off" spellcheck="false">
-<label>Sort <select id="librarySort"><option value="rec">Recursive rank</option><option value="br">Battle royal rank</option><option value="name">Name</option><option value="author">Author</option></select></label>
+<label title="Which Koenigstuhl ranking the Rank column shows">Ranking <select id="libraryRanking"><option value="rec">Recursive</option><option value="br">Battle royal</option></select></label>
 <label id="libraryTop50Label" title="Warriors on the hill's top 50 list"><input id="libraryTop50" type="checkbox"> Top 50 only</label>
+<label title="Also search each warrior's code and comments. Downloads the sources of the chosen hills once (about 0.5 MB per hill)."><input id="libraryFullText" type="checkbox"> Search full source</label>
 </div>
-<p id="librarySearchHint" class="hint">Every word must match. Narrow a word to one field with <code>author:</code>, <code>name:</code>, <code>strategy:</code> or <code>file:</code>, and use quotes for a phrase: <code>author:metcalf "paper/stone"</code></p>
+<p id="librarySearchHint" class="hint">Every word must match. Narrow a word to one field with <code>author:</code>, <code>name:</code>, <code>strategy:</code>, <code>file:</code> or <code>source:</code>, and use quotes for a phrase: <code>author:metcalf "paper/stone"</code></p>
 <p id="libraryCount" class="lib-count" role="status" aria-live="polite"></p>
 <p id="libraryNotice" class="lib-notice" role="status" aria-live="polite" hidden></p>
+<div class="lib-head lib-columns"><div id="libraryColumns" class="lib-grid" role="group" aria-label="Sort by"></div><span class="lib-add-space" aria-hidden="true"></span></div>
 <ol id="libraryResults" class="lib-results"></ol>
 <button id="libraryMore" type="button" hidden>Show more</button>
 <p class="hint lib-credit">Published warriors from the <a href="https://asdflkj.net/COREWAR/koenigstuhl.html" target="_blank" rel="noopener">Koenigstuhl</a> hills, with their rankings there.</p>

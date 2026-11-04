@@ -1,44 +1,49 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // The warrior library: search published Koenigstuhl warriors and add them to the workspace.
-// Each hill's index is fetched the first time that hill is searched; warrior sources load when opened or added.
+// Each hill's index is fetched the first time that hill is searched; warrior sources load when opened or added,
+// or all at once per hill when full-text search is switched on.
 import {libraryCatalog} from './library-catalog.mjs';
 
 const PAGE=100, STATE_KEY='corewar-library';
 const RANKINGS={rec:'Recursive',br:'Battle royal',top50:'Top 50'};
-const SORTS={rec:w=>w.rec?.[0]??Infinity,br:w=>w.br?.[0]??Infinity,name:w=>w.name.toLowerCase(),author:w=>w.author.toLowerCase()};
+const COLUMNS={rank:'Rank',name:'Name',author:'Author',strategy:'Strategy'};
 const FIELDS=['name','author','strategy','file'];
 // Text is compared as lowercase words without accents or punctuation, so a term matches from the start of a word:
 // "imp" finds "Imp" and "imps" but not "simple", and "paper/stone" finds "paper stone".
-const fold=text=>' '+text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+const fold=text=>' '+text.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 
-// "author:metcalf paper" → [{field:'author',text:'metcalf'},{field:null,text:'paper'}]; quotes keep a phrase together.
+// "author:metcalf paper" → [{field:'author',text:' metcalf'},{field:null,text:' paper'}]; quotes keep a phrase together.
 export function parseQuery(query){
  const terms=[];
  for(const m of query.matchAll(/(?:(\w+):)?(?:"([^"]*)"?|(\S+))/g)){
   let field=m[1]?.toLowerCase()??null,text=m[2]??m[3]??'';
-  if(field && !FIELDS.includes(field)){text=m[1]+':'+text;field=null;}
+  if(field && !FIELDS.includes(field) && field!=='source'){text=m[1]+':'+text;field=null;}
   text=fold(text);
   if(text.trim())terms.push({field,text});
  }
  return terms;
 }
-export function matches(warrior,terms){
- return terms.every(({field,text})=>field?warrior.folded[field].includes(text):FIELDS.some(f=>warrior.folded[f].includes(text)));
+// Unprefixed terms search the header fields, plus the whole source when it is loaded for full-text search.
+export function matches(warrior,terms,fullText=false){
+ const fields=fullText?[...FIELDS,'source']:FIELDS;
+ return terms.every(({field,text})=>field?(warrior.folded[field]??'').includes(text):fields.some(f=>warrior.folded[f]?.includes(text)));
 }
 
 export function setupLibrary({addWarrior,loadedFiles}){
  const $=id=>document.getElementById(id);
  let noticeTimer=0;
  const notice=(text,error=false)=>{const n=$('libraryNotice');n.textContent=text;n.dataset.error=String(error);n.hidden=false;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{n.hidden=true;},error?8000:4000);};
- const hills=new Map(),loading=new Map(),sources=new Map();
+ const hills=new Map(),loading=new Map(),texts=new Map(),textLoading=new Map(),sources=new Map();
  let saved={};try{saved=JSON.parse(localStorage.getItem(STATE_KEY))||{};}catch{}
  let chosen=new Set((saved.hills||[]).filter(id=>libraryCatalog.some(h=>h.id===id)));
  if(!chosen.size && libraryCatalog.length)chosen.add(libraryCatalog[0].id);
- let shown=PAGE,open=null,results=[],active=false;
+ let sortBy=COLUMNS[saved.sortBy]?saved.sortBy:'rank',descending=saved.descending===true;
+ let shown=PAGE,open=null,results=[],active=false,searchSerial=0;
  $('librarySearch').value=typeof saved.query==='string'?saved.query:'';
- if(SORTS[saved.sort])$('librarySort').value=saved.sort;
+ if(saved.ranking==='br')$('libraryRanking').value='br';
  $('libraryTop50').checked=saved.top50===true;
- const save=()=>{try{localStorage.setItem(STATE_KEY,JSON.stringify({hills:[...chosen],query:$('librarySearch').value,sort:$('librarySort').value,top50:$('libraryTop50').checked}));}catch{}};
+ $('libraryFullText').checked=saved.fullText===true;
+ const save=()=>{try{localStorage.setItem(STATE_KEY,JSON.stringify({hills:[...chosen],query:$('librarySearch').value,sortBy,descending,ranking:$('libraryRanking').value,top50:$('libraryTop50').checked,fullText:$('libraryFullText').checked}));}catch{}};
 
  function hillButtons(){
   const all=document.createElement('button');all.type='button';all.className='lib-hill';all.textContent='All hills';
@@ -56,29 +61,68 @@ export function setupLibrary({addWarrior,loadedFiles}){
   const top50=[...chosen].some(id=>libraryCatalog.find(h=>h.id===id)?.rankings.includes('top50'));
   $('libraryTop50Label').hidden=!top50;
  }
+ // Column headers sort the results; choosing the current column again reverses the order.
+ function columnHeaders(){
+  $('libraryColumns').replaceChildren(...Object.entries(COLUMNS).map(([key,label])=>{
+   const b=document.createElement('button');b.type='button';b.className='lib-sort lib-col-'+key;
+   const current=key===sortBy;
+   b.textContent=label+(current?(descending?' ↓':' ↑'):'');
+   b.setAttribute('aria-pressed',String(current));
+   b.title=current?'Reverse the order':'Sort by '+label.toLowerCase()+(key==='rank'?' ('+RANKINGS[$('libraryRanking').value]+')':'');
+   b.onclick=()=>{if(sortBy===key)descending=!descending;else{sortBy=key;descending=false;}shown=PAGE;save();columnHeaders();search();};
+   return b;
+  }));
+ }
+ function fetchJson(url,what){
+  return fetch(url).then(r=>{if(!r.ok)throw new Error('Could not load '+what+' ('+r.status+').');return r.json();});
+ }
  function load(id){
   if(hills.has(id))return Promise.resolve(hills.get(id));
   if(!loading.has(id)){
    const hill=libraryCatalog.find(h=>h.id===id);
-   loading.set(id,fetch(hill.index).then(r=>{if(!r.ok)throw new Error('Could not load the '+hill.label+' library ('+r.status+').');return r.json();}).then(list=>{
+   loading.set(id,fetchJson(hill.index,'the '+hill.label+' library').then(list=>{
     const warriors=list.map(w=>({...w,hill:id,strategy:w.strategy||'',folded:Object.fromEntries(FIELDS.map(f=>[f,fold(w[f]||'')]))}));
     hills.set(id,warriors);return warriors;
    }).finally(()=>loading.delete(id)));
   }
   return loading.get(id);
  }
+ // Full-text search loads every source of a hill in one file and folds it into each warrior's searchable text.
+ function loadText(id){
+  if(texts.has(id))return Promise.resolve();
+  if(!textLoading.has(id)){
+   const hill=libraryCatalog.find(h=>h.id===id);
+   textLoading.set(id,Promise.all([load(id),fetchJson(hill.text,'the '+hill.label+' sources')]).then(([warriors,files])=>{
+    for(const w of warriors){const text=files[w.file]??'';w.folded.source=fold(text);sources.set(id+'/'+w.file,Promise.resolve(text));}
+    texts.set(id,true);
+   }).finally(()=>textLoading.delete(id)));
+  }
+  return textLoading.get(id);
+ }
+ function sortKey(){
+  const ranking=$('libraryRanking').value;
+  if(sortBy==='rank')return w=>w[ranking]?.[0]??null;
+  // Leading punctuation ("- Evolved imps", "^C") is ignored so text sorts by its first letter or digit.
+  return w=>(sortBy==='strategy'?w.strategy.split('\n')[0]:w[sortBy]).replace(/^[^\p{L}\p{N}]+/u,'').toLowerCase()||null;
+ }
  async function search(){
-  const ids=[...chosen];
-  if(ids.some(id=>!hills.has(id))){
-   $('libraryCount').textContent='Loading…';
-   try{await Promise.all(ids.map(load));}catch(error){$('libraryCount').textContent=error.message;return;}
-   if(ids.join()!==[...chosen].join())return; // The choice changed while loading; that search runs instead.
+  const serial=++searchSerial,ids=[...chosen],fullText=$('libraryFullText').checked;
+  const missing=ids.filter(id=>!hills.has(id)||(fullText&&!texts.has(id)));
+  if(missing.length){
+   $('libraryCount').textContent=fullText&&ids.some(id=>!texts.has(id))?'Loading warrior sources for full-text search…':'Loading…';
+   try{await Promise.all(ids.map(id=>fullText?loadText(id):load(id)));}catch(error){$('libraryCount').textContent=error.message;return;}
+   if(serial!==searchSerial)return; // A newer search started while this one was loading.
   }
   const terms=parseQuery($('librarySearch').value),top50=$('libraryTop50').checked && !$('libraryTop50Label').hidden;
-  const key=SORTS[$('librarySort').value]||SORTS.rec;
-  const pool=ids.flatMap(id=>hills.get(id));
-  results=pool.filter(w=>(!top50||w.top50)&&matches(w,terms));
-  results.sort((a,b)=>{const x=key(a),y=key(b);return x<y?-1:x>y?1:a.hill<b.hill?-1:a.hill>b.hill?1:0;});
+  const key=sortKey(),direction=descending?-1:1,collator=new Intl.Collator(undefined,{numeric:true});
+  results=ids.flatMap(id=>hills.get(id)).filter(w=>(!top50||w.top50)&&matches(w,terms,fullText));
+  // Warriors without a value (unranked, or no strategy) stay at the end in either direction.
+  results.sort((a,b)=>{
+   const x=key(a),y=key(b);
+   if(x===null||y===null)return x===y?0:x===null?1:-1;
+   const order=typeof x==='number'?x-y:collator.compare(x,y);
+   return order*direction||collator.compare(a.hill,b.hill);
+  });
   render();
  }
  function changed(){shown=PAGE;open=null;save();hillButtons();search();}
@@ -87,16 +131,16 @@ export function setupLibrary({addWarrior,loadedFiles}){
  function row(w,loaded,many){
   const item=document.createElement('li');item.className='lib-row';item.dataset.key=w.hill+'/'+w.file;
   const head=document.createElement('div');head.className='lib-head';
-  const toggle=document.createElement('button');toggle.type='button';toggle.className='lib-toggle';toggle.setAttribute('aria-expanded',String(open===item.dataset.key));
-  const by=$('librarySort').value==='br'?'br':'rec';
+  const toggle=document.createElement('button');toggle.type='button';toggle.className='lib-toggle lib-grid';toggle.setAttribute('aria-expanded',String(open===item.dataset.key));
+  const by=$('libraryRanking').value;
   const rank=document.createElement('span');rank.className='lib-rank';rank.textContent=w[by]?'#'+w[by][0]:'–';rank.title=RANKINGS[by]+' rank';
   const name=document.createElement('strong');name.className='lib-name';name.textContent=w.name;
+  if(many){const tag=document.createElement('span');tag.className='lib-tag';tag.textContent=w.hill;name.append(' ',tag);}
   const author=document.createElement('span');author.className='lib-author';author.textContent=w.author||'unknown author';
   const strategy=document.createElement('span');strategy.className='lib-strategy';strategy.textContent=w.strategy.split('\n')[0];
   toggle.append(rank,name,author,strategy);
-  if(many){const tag=document.createElement('span');tag.className='lib-tag';tag.textContent=w.hill;toggle.append(tag);}
   toggle.onclick=()=>{open=open===item.dataset.key?null:item.dataset.key;render();};
-  const add=document.createElement('button');add.type='button';add.className='small lib-add';
+  const add=document.createElement('button');add.type='button';add.className='lib-add';
   const isLoaded=loaded.has(w.file);
   add.textContent=isLoaded?'Added ✓':'Add';add.disabled=isLoaded;
   add.title=isLoaded?'Already in your warriors':'Add to your warriors';add.setAttribute('aria-label',(isLoaded?'Added: ':'Add ')+w.name);
@@ -129,7 +173,7 @@ export function setupLibrary({addWarrior,loadedFiles}){
  function render(){
   const loaded=new Set(loadedFiles()),many=chosen.size>1;
   const total=[...chosen].reduce((n,id)=>n+(hills.get(id)?.length||0),0);
-  $('libraryCount').textContent=results.length===total?total.toLocaleString()+' warriors':results.length.toLocaleString()+' of '+total.toLocaleString()+' warriors';
+  $('libraryCount').textContent=(results.length===total?total.toLocaleString()+' warriors':results.length.toLocaleString()+' of '+total.toLocaleString()+' warriors')+($('libraryFullText').checked?' · searching full source':'');
   $('libraryResults').replaceChildren(...results.slice(0,shown).map(w=>row(w,loaded,many)));
   $('libraryMore').hidden=results.length<=shown;
   $('libraryMore').textContent='Show '+Math.min(PAGE,results.length-shown).toLocaleString()+' more';
@@ -137,11 +181,12 @@ export function setupLibrary({addWarrior,loadedFiles}){
 
  let typing=0;
  $('librarySearch').addEventListener('input',()=>{clearTimeout(typing);typing=setTimeout(()=>{shown=PAGE;open=null;save();search();},120);});
- $('librarySort').onchange=$('libraryTop50').onchange=()=>{shown=PAGE;save();search();};
+ $('libraryTop50').onchange=$('libraryFullText').onchange=()=>{shown=PAGE;save();search();};
+ $('libraryRanking').onchange=()=>{shown=PAGE;save();columnHeaders();search();};
  $('libraryMore').onclick=()=>{shown+=PAGE;render();};
- hillButtons();
+ hillButtons();columnHeaders();
  return {
-  show(){active=true;if(results.length||!libraryCatalog.length)render();else search();if(!libraryCatalog.length)$('libraryCount').textContent='No hills are included in this build.';},
+  show(){active=true;if(!libraryCatalog.length){$('libraryCount').textContent='No hills are included in this build.';return;}if(results.length)render();else search();},
   hide(){active=false;},
   refresh(){if(active && hills.size)render();}
  };

@@ -7,7 +7,7 @@ import shutil
 import zipfile
 from benchmark_catalog import catalog
 from option_presets import write_presets
-from koenigstuhl import library as koenigstuhl_library
+from koenigstuhl import library as koenigstuhl_library, read_text as koenigstuhl_text
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "docs"
@@ -52,7 +52,11 @@ for meta, warriors, files in koenigstuhl_library(ROOT):
     (OUT / "library" / meta["id"]).mkdir()
     for path in files:
         shutil.copy2(path, OUT / "library" / meta["id"] / path.name)
-    hills.append({**meta, "index": name})
+    # All sources of the hill in one file, loaded only when full-text search is switched on.
+    text = json.dumps({p.name: koenigstuhl_text(p) for p in files}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    text_name = "library/" + meta["id"] + "-text-" + hashlib.sha256(text).hexdigest()[:16] + ".json"
+    (OUT / text_name).write_bytes(text)
+    hills.append({**meta, "index": name, "text": text_name})
 (OUT / "library-catalog.mjs").write_text("// Generated from the koenigstuhl/ snapshots.\nexport const libraryCatalog = " + json.dumps(hills, ensure_ascii=True) + ";\n", encoding="utf-8")
 write_presets(WEB / "config", OUT / "presets.mjs")
 text_paths = sorted(OUT.glob("*.mjs")) + [OUT / "index.html", OUT / "style.css", OUT / "favicon.svg"]

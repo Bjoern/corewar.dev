@@ -31,6 +31,7 @@ To update a hill, replace its folder contents with a new download and rebuild.
 `scripts/koenigstuhl.py` reads the `;name`, `;author` and `;strategy` headers and the rankings;
 the build writes one search index per hill to `_site/library/`, named by content hash,
 and copies the warrior files beside it so the app fetches a source only when it is opened or added.
+A second file per hill holds all its sources; it loads only when "Search full source" is switched on.
 
 ## Match presets
 
