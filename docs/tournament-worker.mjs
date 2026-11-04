@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {Engine} from './engine.mjs';
 import {ExmarsRunner} from './exmars.mjs';
-// Two-warrior matches run on exMARS when it gives the same result (exmars.mjs); its fighter stays
+// Matches run on exMARS when it gives the same result (exmars.mjs); its fighter stays
 // loaded across this worker's jobs. Everything else, and anything exMARS refuses, gets a fresh
 // pMARS engine per job. All rounds of a job run together to retain P-space/RNG state.
 const exmars=new ExmarsRunner();
 self.onmessage=async({data:job})=>{
- if(job.warriors.length===2){
+ if(job.warriors.length>=2){
   const result=await exmars.run(job.config,job.warriors.map(w=>w.source),{onAssembled:()=>self.postMessage({type:'started',id:job.id})});
   if(!result.fallback){
    self.postMessage({type:'done',id:job.id,engine:'exmars',completed:result.completed,warriors:result.warriors});

@@ -10,14 +10,16 @@ The engine is pMARS AI (<https://github.com/pmars-org/pmars-ai>), which also hol
 committed Wasm runtime, generated demo collection, and corresponding-source archive.
 `docs/engine.mjs` and `docs/settings.mjs` are the app's adapter to that engine.
 
-Headless two-warrior matches in Tournaments and Tools run on exMARS
+Headless matches of 2 to 36 warriors in Tournaments and Tools run on exMARS
 (<https://github.com/Bjoern/exMARS>, branch `wasm-persistent-fighter`) when it gives the
-same result as pMARS: ICWS '94, the default score formula and P-space size, a numeric or
-no placement seed, and a permutation only when it covers every position without P-space.
+same result as pMARS: ICWS '94, the default P-space size, a numeric or no placement seed, a
+score formula in W and S (scored from exMARS's survivor counts by `docs/score-formula.mjs`,
+a port of pMARS's evaluator), and a permutation only when it covers every position without
+P-space.
 Its fighter stays loaded in each worker, so warriors are assembled once. `exmars-lock.json`
 pins its commit and the hashes of `docs/dist/exmars/`; `docs/exmars.mjs` decides which
 engine runs a match, and both pages say which one ran. `docs/test-exmars.mjs` checks that
-exMARS and pMARS agree. The Battle tab, the debugger, melee and everything else use pMARS.
+exMARS and pMARS agree. The Battle tab, the debugger and everything else use pMARS.
 
 No engine checkout, Emscripten, backend, or runtime request to another site is needed.
 
