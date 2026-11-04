@@ -19,12 +19,20 @@ export function saveToolState(id,value){try{const all=JSON.parse(localStorage.ge
 
 export function setupTools(context){
  const panel=$('toolsPanel'),mounted=new Map();let current=null,active=false;
- const nav=el('nav',{className:'tools-nav','ariaLabel':'Tools'});
+ // The same segmented control as the Tournaments modes, with the same keys.
+ const nav=el('div',{className:'mode-tabs tools-nav',role:'tablist',ariaLabel:'Tools'});
  const body=el('div',{className:'tools-body'});
- panel.append(nav,body);
- const overviewButton=el('button',{type:'button',className:'tools-nav-item',textContent:'Overview'});overviewButton.dataset.tool='';
- nav.append(overviewButton,...TOOLS.map(t=>{const b=el('button',{type:'button',className:'tools-nav-item'},el('span',{className:'tools-icon',ariaHidden:'true',textContent:t.icon}),' '+t.title);b.dataset.tool=t.id;return b;}));
+ panel.append(el('div',{className:'tools-head'},nav),body);
+ const tab=(id,title)=>{const b=el('button',{type:'button',className:'tools-nav-item',role:'tab',textContent:title});b.dataset.tool=id;b.setAttribute('aria-selected','false');b.tabIndex=-1;return b;};
+ const tabs=[tab('','Overview'),...TOOLS.map(t=>tab(t.id,t.title))];
+ nav.append(...tabs);
  nav.addEventListener('click',event=>{const b=event.target.closest('[data-tool]');if(b)open(b.dataset.tool,true);});
+ nav.addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  const index=tabs.indexOf(event.target);if(index<0)return;event.preventDefault();
+  const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+  open(tabs[next].dataset.tool,true);tabs[next].focus();
+ });
  const overview=el('section',{className:'tools-overview'},
   el('h2',{textContent:'Tools for warrior authors'}),
   el('p',{className:'tools-lead',textContent:'Helpers for the parts of writing a warrior that are tedious by hand. Everything runs in this browser, on the same pMARS engine as the Battle tab; nothing is uploaded.'}),
@@ -35,7 +43,7 @@ export function setupTools(context){
  body.append(overview);
  async function open(id,chosen){
   const tool=TOOLS.find(t=>t.id===id)||null;current=tool?.id??'';
-  for(const b of nav.querySelectorAll('[data-tool]')){if(b.dataset.tool===current)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}
+  for(const b of tabs){const selected=b.dataset.tool===current;b.setAttribute('aria-selected',String(selected));b.tabIndex=selected?0:-1;}
   overview.hidden=!!tool;
   for(const [key,view] of mounted)view.root.hidden=key!==current;
   // Remember the tool last shown, also one opened by address, so a bare #tools reopens it.

@@ -24,7 +24,14 @@ try{
  assert.equal(await hash(),'#tools/step-finder');assert.equal(await visibleTool(),'step-finder');
  await page.locator('.tools-nav-item[data-tool="optimizer"]').click();await settle();
  assert.equal(await hash(),'#tools/optimizer');assert.equal(await visibleTool(),'optimizer');
- assert.equal(await page.locator('.tools-nav-item[aria-current="page"]').getAttribute('data-tool'),'optimizer');
+ assert.equal(await page.locator('.tools-nav-item[aria-selected="true"]').getAttribute('data-tool'),'optimizer');
+ // The tool switcher is the Tournaments mode control, with the same keys.
+ assert.equal(await page.locator('#toolsPanel .mode-tabs[role=tablist] [role=tab]').count(),3);
+ await page.locator('.tools-nav-item[data-tool="optimizer"]').press('ArrowRight');await settle();
+ assert.equal(await hash(),'#tools/step-finder');assert.equal(await page.evaluate(()=>document.activeElement.dataset.tool),'step-finder');
+ await page.locator('.tools-nav-item[data-tool="step-finder"]').press('Home');await settle();assert.equal(await visibleTool(),'');
+ await page.locator('.tools-nav-item[data-tool=""]').press('End');await settle();assert.equal(await visibleTool(),'step-finder');
+ await page.locator('.tools-nav-item[data-tool="optimizer"]').click();await settle();
  await page.locator('#emulatorTab').click();await settle();assert.equal(await visibleTool(),null);
  await page.evaluate(()=>history.forward());await settle();assert.equal(await visibleTool(),'optimizer'); // Forward returns to the last tool.
  assert.equal(await hash(),'#tools/optimizer');
@@ -90,6 +97,25 @@ try{
  const held=await page.locator('.opt-best ~ [role=status]').textContent();
  const m=/Held-out score ([\d.]+).*search score ([\d.]+)/.exec(held);assert.ok(m,held);assert.equal(m[1],m[2]);
 
+ // !! markers: every value is scored, the method is fixed, and the run ends when all are tested.
+ const scan=';redcode-94\n;name scan\nstep equ !!(1..24)\nfar  equ !(10..30)\n add.ab #step, 2\n mov.i 1, @1\n jmp -2\n';
+ await page.fill('#optTemplate',scan);
+ await page.waitForFunction(()=>/In a !! run the ! markers keep their start value/.test(document.querySelector('#optCheck').textContent));
+ assert.equal(await page.inputValue('#optMethod'),'every');assert.equal(await page.isDisabled('#optMethod'),true);
+ await page.fill('#optTemplate',scan.replace('!(10..30)','!(10..30):20'));
+ await page.waitForFunction(()=>!/keep their start value/.test(document.querySelector('#optCheck').textContent));
+ assert.match(await page.locator('#optCheck').textContent(),/Every value: 24 candidates \(step 24\) × \d+ opponents = [\d,]+ matches of 142 rounds/);
+ await page.getByRole('button',{name:'▶ Start'}).click();
+ await page.waitForFunction(()=>/^Every candidate tested \(24\)\./.test(document.querySelector('.opt-status').textContent),null,{timeout:120000});
+ assert.equal(await page.locator('.opt-stats dt',{hasText:'Tested'}).locator('xpath=following-sibling::dd[1]').textContent(),'24 of 24');
+ assert.ok(await page.locator('.opt-top tbody tr').count()>0);
+ const topScore=Number((await page.locator('.opt-top tbody tr').first().locator('td').last().textContent()));
+ assert.match(await page.locator('.opt-best').evaluate(e=>e.parentElement.textContent),new RegExp('Score '+topScore.toFixed(2)));
+ // Without !! markers the method choice comes back.
+ await page.fill('#optTemplate',example);
+ await page.waitForFunction(()=>!document.querySelector('#optMethod').disabled&&document.querySelector('#optMethod').value!=='every');
+ assert.equal(await page.locator('#optMethod option[value=every]').count(),0);
+
  // Phone width: no horizontal page scroll on either tool.
  await page.setViewportSize({width:390,height:844});
  for(const id of ['optimizer','step-finder']){
@@ -98,5 +124,5 @@ try{
   assert.ok(scroll<=client+1,`${id}: page scrolls sideways (${scroll} > ${client})`);
  }
  assert.deepEqual(errors,[]);
- console.log('PASS: tools addresses and history, step finder scan/sort/detail, optimizer run/pause/stop/use/add/check, phone width.');
+ console.log('PASS: tools addresses and history, step finder scan/sort/detail, optimizer run/pause/stop/use/add/check, !! scan, phone width.');
 }finally{await browser.close();}
