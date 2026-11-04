@@ -329,6 +329,8 @@ budget, a few seeds each, and compare held-out scores (§5.5).
 
 ## 11. Engine: exMARS with a persistent Wasm API
 
+The detailed plan for the exMARS side is in `EXMARS-CHANGES.md`.
+
 ### Measurements
 `scripts/engine-overhead.mjs` (Node 22, Apple M1, 2026-11-04) times a whole match, 1 round
 and many rounds, on corewar.dev's pMARS (`docs/engine.mjs`, a fresh instance per match as
