@@ -9,6 +9,8 @@ import {readBenchmark} from './benchmarks.mjs';
 import {describeSettings} from './tournaments.mjs';
 
 const PAGE=100, STATE_KEY='corewar-library', MAX_LOADED=36, MAX_SUITE=500;
+// A first visit (and Reset) searches this hill: the most popular one, with a much smaller index than all hills together.
+const DEFAULT_HILL='94nop';
 const RANKINGS={rec:'Recursive',br:'Battle royal',top50:'Top 50'};
 const COLUMNS={rank:'Rank',name:'Name',author:'Author',strategy:'Strategy'};
 const FIELDS=['name','author','strategy','file'];
@@ -52,8 +54,10 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
  const hillOf=id=>libraryCatalog.find(h=>h.id===id);
  let saved={};try{saved=JSON.parse(localStorage.getItem(STATE_KEY))||{};}catch{}
  // No chosen hill means every hill; choosing hills narrows the search to them.
- let chosen=new Set((saved.hills||[]).filter(id=>hillOf(id)));
+ const defaultHills=()=>new Set(hillOf(DEFAULT_HILL)?[DEFAULT_HILL]:[]);
+ let chosen=Array.isArray(saved.hills)?new Set(saved.hills.filter(id=>hillOf(id))):defaultHills();
  if(chosen.size===libraryCatalog.length)chosen.clear();
+ const sameHills=(a,b)=>a.size===b.size&&[...a].every(id=>b.has(id));
  let sortBy=COLUMNS[saved.sortBy]?saved.sortBy:'rank',descending=saved.descending===true;
  let shown=PAGE,open=null,results=[],active=false,searchSerial=0,selectedOnly=false;
  // Selected warriors by "hill/file"; kept across searches until cleared or the page is closed.
@@ -88,11 +92,11 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
   const dates=[...new Set(ids().map(id=>hillOf(id).updated).filter(Boolean))].sort();
   $('libraryUpdated').textContent=!dates.length?'':dates.length===1?'Last updated '+day(dates[0])+'.':'Last updated between '+day(dates[0])+' and '+day(dates.at(-1))+'.';
  }
- // Reset appears once the search differs from a fresh one: every hill, no query or filters, by rank.
- const isFresh=()=>!chosen.size&&!$('librarySearch').value&&!$('libraryTop50').checked&&!$('libraryFullText').checked&&$('libraryRanking').value==='rec'&&sortBy==='rank'&&!descending&&!selectedOnly;
+ // Reset appears once the search differs from a fresh one: the default hill, no query or filters, by rank.
+ const isFresh=()=>sameHills(chosen,defaultHills())&&!$('librarySearch').value&&!$('libraryTop50').checked&&!$('libraryFullText').checked&&$('libraryRanking').value==='rec'&&sortBy==='rank'&&!descending&&!selectedOnly;
  function resetButton(){$('libraryReset').hidden=isFresh();}
  $('libraryReset').onclick=()=>{
-  chosen.clear();$('librarySearch').value='';$('libraryTop50').checked=false;$('libraryFullText').checked=false;$('libraryRanking').value='rec';
+  chosen=defaultHills();$('librarySearch').value='';$('libraryTop50').checked=false;$('libraryFullText').checked=false;$('libraryRanking').value='rec';
   sortBy='rank';descending=false;selectedOnly=false;$('librarySelectedOnly').checked=false;columnHeaders();changed();$('librarySearch').focus();
  };
  // Column headers sort the results; choosing the current column again reverses the order.

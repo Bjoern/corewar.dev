@@ -17,27 +17,32 @@ try{
  assert(hills.length>=2,'needs at least two hills');
  const total=hills.reduce((n,h)=>n+h.count,0),[a,b]=hills;
 
- // A fresh library searches every hill; choosing hills narrows it and turning the last one off widens it again.
- await page.waitForFunction(()=>/warriors/.test(document.querySelector('#libraryCount').textContent));
- assert.deepEqual(await pressed(),['All hills']);
+ // A first visit searches the 94nop hill; "All hills" searches every hill, choosing hills narrows it
+ // and turning the last one off widens it again.
+ const start=hills.find(h=>h.id==='94nop');assert(start,'the 94nop hill is the default');
+ const only=async h=>{await page.waitForFunction(n=>document.querySelector('#libraryCount').textContent===n,h.count.toLocaleString('en-US')+' warriors');assert.deepEqual(await pressed(),[h.id+' '+h.count.toLocaleString('en-US')]);};
+ await only(start);
  assert(await page.locator('#centerTabs').isHidden(),'no workspace tab strip without an open editor');
- assert.equal(await count(),total.toLocaleString('en-US')+' warriors');
  assert(await page.locator('#libraryReset').isHidden());
+ await page.locator('#libraryHills .lib-hill',{hasText:'All hills'}).click();assert.deepEqual(await pressed(),['All hills']);
+ await page.waitForFunction(n=>document.querySelector('#libraryCount').textContent===n,total.toLocaleString('en-US')+' warriors');
+ assert(await page.locator('#libraryReset').isVisible());
  await chip(a.id).click();await page.waitForFunction(n=>document.querySelector('#libraryCount').textContent===n,a.count.toLocaleString('en-US')+' warriors');
  await chip(b.id).click();assert.equal((await pressed()).length,2);
  await chip(b.id).click();await chip(a.id).click();assert.deepEqual(await pressed(),['All hills']);
  await chip(a.id).click();await page.locator('#libraryHills .lib-hill',{hasText:'All hills'}).click();assert.deepEqual(await pressed(),['All hills']);
 
- // Reset clears the query, filters and hill choice.
+ // Reset clears the query and filters and goes back to the default hill.
  await chip(a.id).click();await page.locator('#librarySearch').fill('zzzz-no-such-warrior');
  await page.waitForFunction(()=>document.querySelector('#libraryCount').textContent.startsWith('0 of'));
  assert(await page.locator('#libraryReset').isVisible());
  await page.locator('#libraryReset').click();
- await page.waitForFunction(n=>document.querySelector('#libraryCount').textContent===n,total.toLocaleString('en-US')+' warriors');
- assert.equal(await page.locator('#librarySearch').inputValue(),'');assert.deepEqual(await pressed(),['All hills']);
+ await only(start);
+ assert.equal(await page.locator('#librarySearch').inputValue(),'');
  assert(await page.locator('#libraryReset').isHidden());
 
  // Single warrior: download and copy sit with the source in the opened row.
+ await page.locator('#libraryHills .lib-hill',{hasText:'All hills'}).click();
  await chip(a.id).click();await page.waitForFunction(n=>document.querySelector('#libraryCount').textContent===n,a.count.toLocaleString('en-US')+' warriors');
  const first=page.locator('.lib-row').first();
  await first.locator('.lib-toggle').click();
