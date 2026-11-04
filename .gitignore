@@ -3,3 +3,4 @@ _site/
 docs/test-output/
 __pycache__/
 *.pyc
+.DS_Store
