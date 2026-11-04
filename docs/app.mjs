@@ -1144,7 +1144,9 @@ library=setupLibrary({
   if(sources.length>=36)throw new Error('At most 36 warriors can be loaded. Remove some before adding more.');
   sources.push(source);originals.push(source);sourceFiles.push(file);markDirty();editors();
  },
- loadedFiles:()=>sourceFiles.filter(Boolean)
+ loadedFiles:()=>sourceFiles.filter(Boolean),
+ // Benchmarks made in the library open in Tournaments, Benchmark mode.
+ addBenchmark(descriptor,files){const suite=tournaments.addSuite(descriptor,files);tournaments.selectTab(1);return suite;}
 });
 tournaments=setupTournaments({
  roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),

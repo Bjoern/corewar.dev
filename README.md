@@ -42,6 +42,9 @@ Snapshots with new warriors or rankings are tagged `koenigstuhl-YYYY-MM-DD`;
 the build writes one search index per hill to `_site/library/`, named by content hash,
 and copies the warrior files beside it so the app fetches a source only when it is opened or added.
 A second file per hill holds all its sources; it loads only when "Search full source" is switched on.
+With no hill chosen the Library searches every hill. Warriors can be selected across searches and then added,
+downloaded as a .zip, or turned into a benchmark suite with a hill's Koenigstuhl match settings
+(`OPTIONS` in `scripts/koenigstuhl.py`, shipped in the catalog as benchmark parameters).
 
 ## Match presets
 

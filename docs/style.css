@@ -405,6 +405,19 @@ body[data-view=library] .inspector,body[data-view=library] #inspectorSplitter{di
 .lib-full-strategy{margin:0 0 8px;font-size:13px;white-space:pre-wrap}
 .lib-source{margin:0;max-height:320px;overflow:auto;font-size:12px;background:var(--code);border:1px solid var(--border);border-radius:6px;padding:8px}
 #libraryMore{align-self:center}
+.lib-status{display:flex;align-items:center;gap:10px}
+.lib-reset{padding:1px 8px;font-size:12px;line-height:1.4}
+.lib-check{flex:none;margin:0 0 0 8px;width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+.lib-row:has(.lib-check:checked){background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.lib-actions{position:sticky;bottom:-12px;z-index:1;margin:auto -12px -12px;padding:8px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;background:var(--panel);border-top:1px solid var(--accent)}
+.lib-actions label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.lib-actions button{padding:3px 10px;font-size:13px}
+.lib-file-actions{display:inline-flex;gap:6px;margin-left:10px;vertical-align:baseline}.lib-file-actions button{padding:0 8px;font-size:12px;line-height:1.5}
+.lib-dialog{width:min(500px,calc(100vw - 32px))}.lib-dialog h3{margin:0 0 8px}
+.lib-dialog .t-block{display:flex;flex-direction:column;gap:4px;margin:10px 0;font-size:13px}
+.lib-dialog input,.lib-dialog select{padding:5px 8px;font-size:14px}
+.lib-dialog .hint{margin:6px 0;font-size:12px}
+.lib-warning{margin:6px 0;font-size:13px;color:#ffd58a}
 .lib-intro{margin:0;font-size:13px;color:var(--muted)}.lib-intro a{color:var(--accent)}
 #libraryUpdated{white-space:nowrap}
 @media(max-width:700px){

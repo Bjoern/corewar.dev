@@ -148,11 +148,23 @@
 <label title="Also search each warrior's code and comments. Downloads the sources of the chosen hills once (about 0.5 MB per hill)."><input id="libraryFullText" type="checkbox"> Search full source</label>
 </div>
 <p id="librarySearchHint" class="hint">Every word must match. Narrow a word to one field with <code>author:</code>, <code>name:</code>, <code>strategy:</code>, <code>file:</code> or <code>source:</code>, and use quotes for a phrase: <code>author:metcalf "paper/stone"</code></p>
-<p id="libraryCount" class="lib-count" role="status" aria-live="polite"></p>
+<div class="lib-status"><p id="libraryCount" class="lib-count" role="status" aria-live="polite"></p><button id="libraryReset" type="button" class="lib-reset" title="Clear the search, filters and hill choice" hidden>⟲ Reset search</button></div>
 <p id="libraryNotice" class="lib-notice" role="status" aria-live="polite" hidden></p>
-<div class="lib-head lib-columns"><div id="libraryColumns" class="lib-grid" role="group" aria-label="Sort by"></div><span class="lib-add-space" aria-hidden="true"></span></div>
+<div class="lib-head lib-columns"><input id="librarySelectAll" class="lib-check" type="checkbox" aria-label="Select all matching warriors" title="Select all matching warriors"><div id="libraryColumns" class="lib-grid" role="group" aria-label="Sort by"></div><span class="lib-add-space" aria-hidden="true"></span></div>
 <ol id="libraryResults" class="lib-results"></ol>
 <button id="libraryMore" type="button" hidden>Show more</button>
+<div id="librarySelection" class="lib-actions" role="region" aria-label="Selected warriors" hidden><strong id="librarySelected"></strong><label><input id="librarySelectedOnly" type="checkbox"> Show selected only</label><span class="foot-spacer"></span><button id="libraryAddSelected" type="button">Add to warriors</button><button id="libraryZip" type="button">Download .zip</button><button id="libraryBenchmark" type="button">Create benchmark…</button><button id="libraryClear" type="button">Clear</button></div>
+<dialog id="libraryBenchmarkDialog" class="lib-dialog" aria-labelledby="libraryBenchmarkTitle"><form method="dialog">
+<h3 id="libraryBenchmarkTitle">Create benchmark</h3>
+<p id="libraryBenchmarkWhat" class="hint"></p>
+<label class="t-block">Name <input id="libraryBenchmarkName" maxlength="100" required></label>
+<label class="t-block">Match settings <select id="libraryBenchmarkHill"></select></label>
+<p id="libraryBenchmarkSettings" class="hint"></p>
+<p id="libraryBenchmarkWarning" class="lib-warning" hidden></p>
+<label class="t-block">Rounds per opponent <input id="libraryBenchmarkRounds" type="number" min="1" step="1" required></label>
+<p id="libraryBenchmarkStatus" class="hint" role="status" aria-live="polite"></p>
+<div class="dialog-actions"><button value="cancel" formnovalidate>Cancel</button><button id="libraryBenchmarkZip" type="button">Download .zip</button><button id="libraryBenchmarkUse" type="button" class="primary">Use in Tournaments</button></div>
+</form></dialog>
 </section>
 <section id="sharedEditor" class="editor-pane" hidden aria-label="Warrior editor"><div class="shared-editor-toolbar"><strong id="editingName"></strong><button id="validateActive" type="button">↻ Validate</button><button id="downloadActive" type="button">Download</button><button id="removeActive" class="danger" type="button" title="Remove this warrior from the roster">Delete</button><span id="editorStatus" class="hint" role="status"></span><span class="foot-spacer"></span><label class="editor-theme-control">Background <select id="editorTheme"><option value="dark">Dark</option><option value="light">Light</option><option value="contrast">High contrast</option></select></label><label class="syntax-theme-control">Syntax colors <select id="editorSyntax"><option value="ocean">Ocean</option><option value="warm">Warm</option><option value="mono">Monochrome</option></select></label><button id="toggleEditors" aria-controls="editorViews">Close editor</button><button id="runFromEditor" class="primary" type="button">▶ Run battle</button></div><div id="editorViews"></div>
 <div class="asm-output"><div class="asm-head"><strong>pMARS assembler output</strong><span id="asmCount" class="hint"></span><button id="clearAsm" type="button" class="small">Clear</button></div><pre id="asmOutput" aria-label="Assembler output">Validate the warrior to see assembly output here.</pre></div></section>

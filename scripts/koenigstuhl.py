@@ -13,6 +13,41 @@ RANKINGS = {"recursive": "rec", "battle_royal": "br", "top50": "top50"}
 # Header comments worth searching. Strategy lines are kept in order; the others keep their first value.
 HEADER = re.compile(r"^\s*;\s*(name|author|strategy|assert|redcode[\w-]*)\b[ \t:]*(.*)$", re.IGNORECASE)
 
+# Match settings of each hill as published on https://asdflkj.net/COREWAR/koenigstuhl.html (pMARS options),
+# used for benchmarks built from the library. Odd mixes special rule sets; its options are the page's default.
+OPTIONS = {
+    "88": "-8 -r 1000",
+    "94nop": "-r 1000",
+    "pspace": "-r 1000",
+    "icws64": "-r 1000 -8 -s 8192 -p 64",
+    "icws": "-r 1000 -8 -s 8192 -p 8000 -c 100000",
+    "lp": "-r 1000 -p 8 -l 200 -d 200",
+    "x": "-r 1000 -s 55440 -c 500000 -p 10000 -l 200 -d 200",
+    "tiny": "-P -s 800 -c 8000 -l 20 -d 20 -p 800",
+    "nano": "-P -s 80 -c 800 -l 5 -d 5 -p 80",
+    "odd": "-r 100 -l 800 -d 800",
+}
+# Hills that only accept warriors without P-space instructions.
+NO_PSPACE = {"94nop"}
+
+
+def parameters(hill):
+    """Benchmark parameters (see docs/benchmarks.mjs) for a hill's pMARS options, or None if unknown."""
+    if hill not in OPTIONS:
+        return None
+    values = {"coreSize": 8000, "cycles": 80000, "tasks": 8000, "maxLength": 100, "distance": 0}
+    flags = {"-s": "coreSize", "-c": "cycles", "-p": "tasks", "-l": "maxLength", "-d": "distance", "-r": "rounds"}
+    words = OPTIONS[hill].split()
+    result = {"rules88": "-8" in words, "noPspace": hill in NO_PSPACE, "permutate": "-P" in words}
+    for flag, value in zip(words, words[1:]):
+        if flag in flags:
+            values[flags[flag]] = int(value)
+    values["distance"] = values["distance"] or values["maxLength"]
+    if result["permutate"]:
+        # -P plays every starting position once: two warriors, each first in turn.
+        values["rounds"] = 2 * (values["coreSize"] - 2 * values["distance"] + 1)
+    return {**values, **result}
+
 
 def read_text(path):
     data = path.read_bytes()
@@ -92,6 +127,9 @@ def hill(directory):
         raise SystemExit(f"Hill {name}: SNAPSHOT must hold a date like 2026-11-04, not {updated!r}")
     meta = {"id": name, "label": name, "count": len(warriors), "rankings": sorted(ranks), "updated": updated,
             "origin": folders.pop() + "/" if len(folders) == 1 else ""}
+    if name in OPTIONS:
+        meta["options"] = OPTIONS[name]
+        meta["parameters"] = parameters(name)
     return meta, warriors, files
 
 

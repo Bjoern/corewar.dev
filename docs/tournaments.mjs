@@ -361,5 +361,13 @@ export function setupTournaments({roster,readConfig,onTab}) {
   const idle=()=>window.requestIdleCallback?requestIdleCallback(prefetch,{timeout:5000}):setTimeout(prefetch,1000);
   if(document.readyState==='complete')idle();else addEventListener('load',idle,{once:true});
  }
- return {refresh,selectTab};
+ // A suite made elsewhere (the library) joins this session's suites and is selected in Benchmark mode.
+ function addSuite(descriptor,files){
+  const suite=readBenchmark(descriptor,files,'suite-'+(++serial));
+  suites.push(suite);refresh();$('benchmarkSuite').value=suite.id;
+  chooseMode(modeTabs.find(tab=>tab.dataset.mode==='benchmark'));
+  $('tournamentStatus').textContent=`Created “${suite.name}” from the library with ${suite.warriors.length} opponent${suite.warriors.length===1?'':'s'}. Available until you reload or close this page.`;
+  return suite;
+ }
+ return {refresh,selectTab,addSuite};
 }
