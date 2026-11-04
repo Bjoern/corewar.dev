@@ -1,7 +1,7 @@
 """Download every Koenigstuhl hill into koenigstuhl/<hill>/ for the warrior library.
 
-Reads the Koenigstuhl index page, then for each hill fetches the warrior archive and the
-ranking pages and writes the layout scripts/koenigstuhl.py expects:
+Reads the Koenigstuhl index page, then for each hill fetches the ranking pages and the
+warriors and writes the layout scripts/koenigstuhl.py expects:
 
     koenigstuhl/<hill>/HILL32/*.red
     koenigstuhl/<hill>/<hill>_recursive.html     (hill32_rec.html, or the flat hill32.html)
@@ -9,10 +9,13 @@ ranking pages and writes the layout scripts/koenigstuhl.py expects:
     koenigstuhl/<hill>/<hill>_top50.html         (TOP50/hill32.html, when listed)
     koenigstuhl/<hill>/SNAPSHOT                  (download date, YYYY-MM-DD)
 
-A hill's folder is replaced only after all of its downloads succeeded; failed hills keep
-their previous snapshot and make the script exit non-zero. Standard library only.
+A hill already on disk only downloads the warriors its new ranking lists that it lacks;
+new hills, many new warriors, or --full download the hill's archive instead, which also
+picks up edited warriors and drops removed ones. A hill's folder is replaced only after
+all of its downloads succeeded; failed hills keep their previous snapshot and make the
+script exit non-zero. Standard library only.
 
-Usage: python scripts/fetch_koenigstuhl.py [--only HILL ...] [--dest DIR]
+Usage: python scripts/fetch_koenigstuhl.py [--full] [--only HILL ...] [--dest DIR]
 """
 from pathlib import Path, PurePosixPath
 from urllib.parse import urljoin
@@ -33,6 +36,8 @@ INDEX = "https://asdflkj.net/COREWAR/koenigstuhl.html"
 NAMES = {"94": "94nop"}
 HREF = re.compile(r'(href\s*=\s*")([^"]*)(")', re.IGNORECASE)
 AGENT = "corewar.dev-koenigstuhl-snapshot"
+# Above this many new warriors, one archive download beats fetching them one by one.
+ARCHIVE_ABOVE = 25
 
 
 def fetch(url, attempts=3):
@@ -119,39 +124,55 @@ def unpack(data, target):
     return count
 
 
-def download(name, urls, dest, today):
+def download(name, urls, dest, today, full=False):
+    """Refresh one hill; return (warrior count, how its warriors were updated)."""
+    target = dest / name
     staging = Path(tempfile.mkdtemp(prefix=f".{name}-", dir=dest))
     try:
-        (staging / "HILL32").mkdir()
-        try:
-            count = unpack(fetch(urls["archive"]), staging / "HILL32")
-        except HTTPError as error:
-            if error.code != 404:
-                raise
-            # A broken archive link (Pspace) still leaves every ranked warrior downloadable.
-            print(f"{name}: archive not found, fetching ranked warriors one by one")
-            count = 0
-        ranked = []
+        hill = staging / "HILL32"
+        hill.mkdir()
+        ranked = {}
         for key, suffix in (("rec", "recursive"), ("br", "battle_royal"), ("top50", "top50")):
             if key in urls:
                 saved = page(urls[key])
                 (staging / f"{name}_{suffix}.html").write_bytes(saved)
                 if key == "rec":
-                    ranked = [m[1] for m in HREF.findall(saved.decode("latin-1")) if m[1].lower().endswith(".red")]
-        # Archives occasionally lag behind the rankings; fetch ranked warriors they lack one by one.
-        extra = 0
-        for url in ranked:
-            file = staging / "HILL32" / PurePosixPath(url).name
-            if not file.exists():
-                file.write_bytes(fetch(url))
-                extra += 1
-        if extra:
-            print(f"{name}: fetched {extra} ranked warriors missing from the archive separately")
-        count += extra
-        if not count:
-            raise RuntimeError("no warriors downloaded")
+                    for m in HREF.findall(saved.decode("latin-1")):
+                        if m[1].lower().endswith(".red"):
+                            ranked.setdefault(PurePosixPath(m[1]).name, m[1])
+        if not ranked:
+            raise RuntimeError("no warriors on the ranking page")
+        previous = target / "HILL32"
+        have = {p.name for p in previous.iterdir() if p.is_file()} if previous.is_dir() else set()
+        new = [file for file in ranked if file not in have]
+        # The rankings list every warrior, so a known hill only needs its new warriors. The archive
+        # is used for new hills, many new warriors, or --full (which also picks up edited warriors).
+        if full or not have or len(new) > ARCHIVE_ABOVE:
+            how = "archive"
+            try:
+                unpack(fetch(urls["archive"]), hill)
+            except HTTPError as error:
+                if error.code != 404:
+                    raise
+                # A broken archive link (Pspace) still leaves every ranked warrior downloadable.
+                how = "archive missing"
+        else:
+            how = "incremental"
+            for file in have:
+                shutil.copy2(previous / file, hill / file)
+            dropped = sorted(set(have) - set(ranked))
+            if dropped:
+                print(f"{name}: no longer ranked, kept until the next --full run: {', '.join(dropped)}")
+        # Archives occasionally lag behind the rankings; fetch ranked warriors still missing one by one.
+        fetched = []
+        for file, url in ranked.items():
+            if not (hill / file).exists():
+                (hill / file).write_bytes(fetch(url))
+                fetched.append(file)
+        if fetched:
+            shown = ", ".join(fetched[:10]) + (f" and {len(fetched) - 10} more" if len(fetched) > 10 else "")
+            how += f", fetched {len(fetched)} separately: {shown}"
         (staging / "SNAPSHOT").write_text(today + "\n", encoding="utf-8")
-        target = dest / name
         old = dest / f".{name}-old"
         if old.exists():
             shutil.rmtree(old)
@@ -159,7 +180,7 @@ def download(name, urls, dest, today):
             target.rename(old)
         staging.rename(target)
         shutil.rmtree(old, ignore_errors=True)
-        return count
+        return sum(1 for _ in (target / "HILL32").iterdir()), how
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
@@ -168,6 +189,8 @@ def download(name, urls, dest, today):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--only", nargs="*", help="hill folder names to update (default: all)")
+    parser.add_argument("--full", action="store_true",
+                        help="download every hill's archive instead of only new warriors")
     parser.add_argument("--dest", type=Path, default=Path(__file__).resolve().parent.parent / "koenigstuhl")
     args = parser.parse_args()
     args.dest.mkdir(parents=True, exist_ok=True)
@@ -181,8 +204,8 @@ def main():
         if args.only and name not in args.only:
             continue
         try:
-            count = download(name, urls, args.dest, today)
-            print(f"{name}: {count} warriors, pages: {', '.join(k for k in ('rec', 'br', 'top50') if k in urls)}")
+            count, how = download(name, urls, args.dest, today, args.full)
+            print(f"{name}: {count} warriors ({how}), pages: {', '.join(k for k in ('rec', 'br', 'top50') if k in urls)}")
         except Exception as error:  # keep the previous snapshot of this hill
             failed.append(name)
             print(f"{name}: FAILED, kept previous snapshot ({error})", file=sys.stderr)

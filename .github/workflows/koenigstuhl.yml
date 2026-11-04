@@ -19,7 +19,11 @@ jobs:
       # A failed hill keeps its previous snapshot; commit the others, then fail the run below.
       - id: fetch
         continue-on-error: true
-        run: python scripts/fetch_koenigstuhl.py
+        # Weekly runs fetch only new warriors; the first run of each month downloads the full
+        # archives, which also picks up edited warriors and drops removed ones.
+        run: |
+          if [ "$(date -u +%d)" -le 7 ]; then full=--full; fi
+          python scripts/fetch_koenigstuhl.py $full
       # Fail before committing if a new snapshot no longer parses.
       - run: python -c "import sys; sys.path.insert(0, 'scripts'); from pathlib import Path; import koenigstuhl; print(len(koenigstuhl.library(Path('.'))), 'hills')"
       - name: Commit changes or keep the schedule alive
@@ -30,6 +34,12 @@ jobs:
           # SNAPSHOT dates change on every run; only commit when warriors or rankings changed.
           if git diff --cached --name-only | grep -qv '/SNAPSHOT$'; then
             git commit -m "Update Koenigstuhl snapshots"
+            # One tag per weekly snapshot, so any week can be checked out or diffed later.
+            tag="koenigstuhl-$(date -u +%F)"
+            if [ -n "$(git ls-remote --tags origin "refs/tags/$tag")" ]; then
+              tag="koenigstuhl-$(date -u +%F-%H%M)"  # a second (manual) run on the same day
+            fi
+            git tag "$tag"
           else
             git reset -q koenigstuhl
             git checkout -- koenigstuhl
@@ -44,7 +54,7 @@ jobs:
               exit 0
             fi
           fi
-          git push
+          git push origin HEAD ${tag:+"refs/tags/$tag"}
       - if: steps.fetch.outcome == 'failure'
         run: |
           echo "::error::Some Koenigstuhl hills failed to download; see the fetch step."

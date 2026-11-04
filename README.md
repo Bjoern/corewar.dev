@@ -30,9 +30,13 @@ Each hill folder holds the unpacked archive (`HILL32/*.red`) and the saved ranki
 An optional `SNAPSHOT` file holds the download date (`2026-11-04`), shown as the library's last update.
 `python scripts/fetch_koenigstuhl.py` downloads every hill listed on the Koenigstuhl page into this layout
 (`--only 94nop tiny` limits it to some hills); a hill's folder is replaced only when its download succeeded.
+It always refreshes the ranking pages, but for a hill already on disk fetches only the warriors that are new
+in its ranking; `--full` downloads the archives instead, picking up edited warriors and dropping removed ones.
 Ranked warriors missing from a hill's archive are fetched one by one, and the Odd hill, which has
-only flat scores, uses them as its recursive ranking. A weekly workflow runs the script and commits changes,
-with a small keepalive commit after about 50 quiet days so GitHub keeps the schedule enabled.
+only flat scores, uses them as its recursive ranking. A weekly workflow runs the script (with `--full` in
+the first week of each month), commits changes and tags each snapshot `koenigstuhl-YYYY-MM-DD`;
+`git diff koenigstuhl-2026-11-09 koenigstuhl-2026-11-16 -- koenigstuhl/94nop` shows a week's changes.
+After about 50 quiet days it makes a small keepalive commit so GitHub keeps the schedule enabled.
 `scripts/koenigstuhl.py` reads the `;name`, `;author` and `;strategy` headers and the rankings;
 the build writes one search index per hill to `_site/library/`, named by content hash,
 and copies the warrior files beside it so the app fetches a source only when it is opened or added.
