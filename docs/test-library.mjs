@@ -86,6 +86,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('#tournamentTab').getAttribute('aria-selected')==='true');
  assert(await page.locator('#libraryBenchmarkDialog').isHidden());
  assert.equal(await page.locator('#mode-benchmark').getAttribute('aria-selected'),'true');
+ assert(await page.locator('#centerTabs').isHidden(),'Tournaments shows no workspace tab strip without an open editor');
  assert.equal(await page.locator('#benchmarkSuite option:checked').textContent(),'Library test suite');
  assert.equal(await page.locator('#tournamentRounds').inputValue(),'25');
  assert.match(await page.locator('#tournamentStatus').textContent(),/from the library with 3 opponents/);
