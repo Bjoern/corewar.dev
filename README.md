@@ -5,7 +5,7 @@ and the native debugger, with a separate tournament and benchmark workspace.
 
 ## Engine boundary
 
-The original engine and bundled warrior sources remain in pmars_experiments.
+The engine is pMARS AI (<https://github.com/pmars-org/pmars-ai>), which also holds the bundled warrior sources.
 `engine-lock.json` records the exact upstream commit and SHA-256 hashes of the
 committed Wasm runtime, generated demo collection, and corresponding-source archive.
 `docs/engine.mjs` and `docs/settings.mjs` are the app's adapter to that engine.

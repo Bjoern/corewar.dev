@@ -138,7 +138,7 @@ f.dispose();
   for the others. The GPL parser obligations apply to the assembler module.
 - `dist/` is gitignored, but corewar.dev vendors **built** engine files with SHA-256
   pins (see corewar.dev `engine-lock.json`, which pins `docs/dist/pmars.mjs`,
-  `pmars.wasm` and a source zip from `Bjoern/pmars_experiments`). Commit the files
+  `pmars.wasm` and a source zip from `pmars-org/pmars-ai`). Commit the files
   corewar.dev should take in a tracked folder, for example `wasm/release/`:
   `fighter.mjs`, `fighter.wasm`, `fighter-client.mjs`, the assembler module and its
   `.wasm`, `manifest.json`, and a source zip. Say in the commit message which commit

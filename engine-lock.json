@@ -1,10 +1,10 @@
 {
-  "repository": "https://github.com/Bjoern/pmars_experiments",
-  "commit": "b074237629d632bba7c14fa0d386697a2fc511bd",
+  "repository": "https://github.com/pmars-org/pmars-ai",
+  "commit": "7c221e114501a6312068cda90a2661589b8c04a2",
   "files": {
-    "docs/dist/pmars.mjs": "59d90951a37d3b60aeb46ee654eb5659c05b9e553bd5a75f8f1debf9eea1e962",
-    "docs/dist/pmars.wasm": "f4f94d94f8f6ea7301cd2ac61216f3434d6e21942cc7ce1fc7c9c8479df94822",
-    "docs/pmars-source.zip": "6d05eb4f412f9961c6fa8bb9515d666a0b814cf0d53c0669e0ee9df72ed53797",
+    "docs/dist/pmars.mjs": "de291bd738b89d7ae18b7cebb773ddb1726f93aa957d07a336abd2f8e2e9b876",
+    "docs/dist/pmars.wasm": "dd7f667630b643eacfe0e55965eea7f4c9ee0af6549b7bd9b3e4a8117168f1a3",
+    "docs/pmars-source.zip": "a2169a1a9ef72de4965e32a70ec75c162d3d505b3a8f16aef249ea5991fdbadc",
     "docs/demo-warriors.mjs": "45e51a3aac6aef41dadad83ad64d2fa32ffb1727eb2193fa6f0506804c05b29b"
   }
 }

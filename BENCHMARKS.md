@@ -115,7 +115,7 @@ numeric seeds. pMARS also accepts text for `-F` and turns it into an RC5 key.
 Up to 0.9.6-dev its rotate macros (`ROL`/`ROR` in `pos.c`) shifted by `y`
 instead of `32 - y`, so text keys gave clustered placements: often only a few
 hundred distinct offsets in 1000 rounds, with similar keys colliding. The
-pinned engine (pmars_experiments `b074237`) has the fix, so text values typed
+pinned engine (pmars-ai `7c221e1`) has the fix, so text values typed
 into the Battle settings are safe too. The derived value is never the minimum separation itself:
 that is seed 0, which exMARS never advances.
 

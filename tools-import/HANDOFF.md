@@ -389,7 +389,7 @@ Consequences:
    including P-space warriors, and a throughput test (nano exact, standard 250 rounds).
 4. **Site integration.** Ship the exMARS Wasm with its own lock entry, like
    `engine-lock.json` for pMARS, and keep pMARS for the Battle tab and the debugger.
-   Leave `engine-lock.json` and pmars_experiments unchanged.
+   Leave `engine-lock.json` (pMARS from pmars-ai) unchanged.
 
 ### Limits of exMARS
 No '88 mode, no permutation option, P-space size fixed at CORESIZE/16, 3/1/0 scoring
