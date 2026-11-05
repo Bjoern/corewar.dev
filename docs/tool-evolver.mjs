@@ -123,7 +123,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const popMap=el('canvas',{className:'evo-map',ariaLabel:'Map of the population: similar warriors sit close together'});
  const popHistory=el('canvas',{className:'evo-history',ariaLabel:'Niches and diversity per generation'});
  const nicheTable=el('table',{className:'tool-table evo-niches'});
- const popCode=el('pre',{className:'opt-best evo-code',hidden:true});
+ const popCode=el('pre',{className:'evo-pop-code',hidden:true});
  const popEdit=el('button',{type:'button',className:'small',textContent:'Open in editor',hidden:true});
  const popBox=el('details',{className:'opt-advanced evo-population',open:!!saved.populationOpen},el('summary',{textContent:'Population and niches'}),
   el('div',{className:'tool-actions'},popSlider,popLatest),popLabel,popMap,
