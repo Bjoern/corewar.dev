@@ -1072,6 +1072,8 @@ for(const [b,m] of popovers){
  $(b).onclick=event=>{event.stopPropagation();const open=$(m).hidden;closePopovers(m);$(m).hidden=!open;$(b).setAttribute('aria-expanded',String(open));if(open)alignPopover($(m));};
  $(m).addEventListener('click',event=>{event.stopPropagation();if(event.target.closest('.menu button'))closePopovers();});
 }
+// Tournament Weekend teaser: shown until 15 Nov 2026 is over everywhere; remove it and its markup after that.
+$('eventTeaser').hidden=Date.now()>=Date.parse('2026-11-16T12:00:00Z');
 $('helpBtn').onclick=event=>{event.stopPropagation();const open=!$('helpLinks').classList.contains('open');closePopovers();$('helpLinks').classList.toggle('open',open);$('helpBtn').setAttribute('aria-expanded',String(open));};
 document.addEventListener('click',()=>closePopovers());
 // The cell key sits inline under the core when it fits on one line, otherwise behind the "? Cell key" button.
