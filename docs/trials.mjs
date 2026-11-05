@@ -62,6 +62,18 @@ function say(lines, vars = {}, mood = '') {
 function divider(text) { queue = queue.then(() => { append('divider', text); remember('divider', text); }); }
 $('chatLog').addEventListener('click', () => { flushed = queued; });
 
+// ---- Stars ------------------------------------------------------------------------------------
+// One convention for the map and the stage card: ✓ once the stage is cleared, then one star per optional goal,
+// ★ when reached and ☆ while not yet. The tooltip spells the goals out.
+function badge(stage) {
+  const saved = state.stages[stage.id] ?? {}, stars = stage.stars ?? [];
+  const title = [saved.cleared ? '✓ Cleared' : 'Not cleared yet',
+    ...stars.map((star, i) => `${saved.stars?.[i] ? '★' : '☆'} ${star.text}${saved.stars?.[i] ? '' : ': not yet'}`)].join(' · ');
+  const html = `<span class="check${saved.cleared ? '' : ' off'}">✓</span>` +
+    stars.map((_, i) => `<span class="${saved.stars?.[i] ? 'on' : 'off'}">${saved.stars?.[i] ? '★' : '☆'}</span>`).join('');
+  return {html, title, cleared: !!saved.cleared};
+}
+
 // ---- Map --------------------------------------------------------------------------------------
 function renderMap() {
   const map = $('map'); map.replaceChildren();
@@ -76,8 +88,9 @@ function renderMap() {
       button.type = 'button'; button.disabled = !unlocked(stage);
       if (stage.kind === 'challenge') button.classList.add('challenge');
       button.setAttribute('aria-current', String(stage.id === state.current));
-      const stars = (stage.stars ?? []).map((_, i) => saved.stars?.[i] ? '★' : '☆').join('');
-      button.innerHTML = `<span class="num">${stage.id}</span><span class="label">${escapeHtml(stage.title)}</span><span class="state">${saved.cleared ? '✓' + stars : button.disabled ? '🔒' : ''}</span>`;
+      const marks = badge(stage);
+      button.innerHTML = `<span class="num">${stage.id}</span><span class="label">${escapeHtml(stage.title)}</span><span class="state stars">${marks.cleared ? marks.html : button.disabled ? '🔒' : ''}</span>`;
+      if (marks.cleared) button.title = marks.title;
       button.addEventListener('click', () => { open(stage); $('map').classList.remove('open'); });
       item.append(button); list.append(item);
     }
@@ -93,10 +106,9 @@ $('mapToggle').addEventListener('click', () => {
 // ---- Stage card and editor --------------------------------------------------------------------
 let current = null, editor = null, running = null, display = null, marks = [];
 function renderStars(stage) {
-  const saved = state.stages[stage.id] ?? {};
-  const all = [saved.cleared, ...(stage.stars ?? []).map((_, i) => saved.stars?.[i])];
-  $('stageStars').innerHTML = all.map(on => `<span class="${on ? '' : 'off'}">★</span>`).join('');
-  $('stageStars').title = ['Cleared', ...(stage.stars ?? []).map(star => star.text)].join(' · ');
+  const marks = badge(stage);
+  $('stageStars').innerHTML = marks.html;
+  $('stageStars').title = marks.title;
 }
 function renderSetups(states = []) {
   const box = $('stageSetups'); box.replaceChildren();
@@ -366,7 +378,7 @@ function finish(stage, result) {
   save();
   const earned = result.stars?.filter(Boolean).length ?? 0, possible = stage.stars?.length ?? 0;
   showResult(true, stage.kind === 'demo' ? 'Handshake complete.' : 'Cleared!',
-    stage.kind === 'demo' ? '' : `${result.length} instruction${result.length === 1 ? '' : 's'}.${score}${possible ? ` Stars: ${earned + 1} of ${possible + 1}.` : ''}`);
+    stage.kind === 'demo' ? '' : `${result.length} instruction${result.length === 1 ? '' : 's'}.${score}${possible ? ' ' + (stage.stars.map((star, i) => `${result.stars[i] ? '★' : '☆'} ${star.text}${result.stars[i] ? '' : ' (not yet)'}`).join(' · ')) : ''}`);
   renderStars(stage); renderMap();
   $('next').hidden = !nextStage();
   const missed = possible && earned < possible && stage.missed ? stage.missed : [];
