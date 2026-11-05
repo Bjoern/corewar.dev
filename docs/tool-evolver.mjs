@@ -21,7 +21,7 @@ const STEPS=[
 ];
 const TOPICS=[
  ['What it does','The evolver breeds whole warriors. Each generation, parents chosen by tournament are crossed over (two-point on the instruction lists, or instruction by instruction) and mutated: opcodes, modifiers, addressing modes and fields change, and instructions are inserted, deleted, duplicated or swapped. Parents and children compete for the next generation; the best are always kept, and a few random immigrants keep the population from settling too early.'],
- ['Valid warriors','Every warrior the evolver writes has 1 to the maximum length of instructions, fields inside the core and ICWS ’94 instructions. It leaves out LDP and STP: P-space keeps state between rounds, which would rule out exact scoring.'],
+ ['Valid warriors','Every warrior the evolver writes has 1 to the maximum length of instructions, fields inside the core and ICWS ’94 instructions. It leaves out LDP and STP: P-space keeps state between rounds, so a warrior’s result would depend on the order its rounds are played in, and the score would no longer be one clear number to improve.'],
  ['Scores','Each warrior fights each opponent one on one: 3 points per win, 1 per tie, shown as (3W + T) per round × 100 and averaged over the opponents. 100 means all ties, 300 all wins. Small cores (nano, tiny with few positions) are scored exactly, over every legal start position with both starting orders; bigger cores are sampled on seeded positions that change every few generations, so a warrior cannot just fit one set of positions.'],
  ['Mutation settings','Mutations per child is the mean number of point changes (at least one). Structural share is how many of those insert, delete, duplicate or swap instructions or move the start. Crossover is the share of children with two parents. Immigrants are random new warriors per generation.'],
  ['Niching','Without niching, near-copies of the leader soon fill the population and the search narrows to one idea. With niching (clearing), the next generation is filled best first, but a warrior within the niche radius of a better one (0.3: differs in under 30% of opcodes, modifiers, modes and fields, instruction by instruction) only gets in while that niche has fewer than “Warriors per niche”; the others wait at the back and only fill places left over. So the best of each kind of warrior survives even when it scores below the leader’s copies. The elite are always kept. Niches is how many kinds the population holds. A radius of 0 turns it off; a bigger radius or fewer warriors per niche spreads the population wider.'],
@@ -100,6 +100,9 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
     field(...labelled('evoScoring','Scoring',scoringSelect),...labelled('evoRounds','Sampled rounds per opponent',rounds)),
     field(...labelled('evoSeed','Random seed',seed),el('span',{className:'hint',textContent:'same seed, same run'})))),
   field(...labelled('evoWorkers','CPU cores',workers),el('span',{className:'hint',textContent:`of ${processors}; each runs one battle at a time`})));
+ // Back to the defaults: this card's settings, with population, generations and rounds from the preset.
+ const resetEvolution=el('button',{type:'button',className:'small',textContent:'Reset to defaults'});
+ params.append(el('div',{className:'tool-actions'},resetEvolution));
  // ---- run
  const start=el('button',{type:'button',className:'primary',textContent:'▶ Start'});
  const pause=el('button',{type:'button',textContent:'Ⅱ Pause',disabled:true});
@@ -261,11 +264,18 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  seedSelect.addEventListener('change',showSeed);
 
  // ---- run
+ resetEvolution.onclick=()=>{
+  const p=preset(),d=EVOLVER_DEFAULTS;
+  population.value=p.defaults.population;generations.value=p.defaults.generations;rounds.value=p.defaults.rounds??100;
+  mutation.value=d.mutation;structural.value=d.structural;crossoverRate.value=d.crossover;immigrants.value=d.immigrants;elite.value=d.elite;
+  niche.value=d.niche;nicheSize.value=d.nicheSize;scoringSelect.value='auto';seed.value='1';workers.value=Math.max(1,processors-1);
+  persist();showOpponentCount();runStatus.textContent=`Evolution settings reset to the defaults for the ${p.title}.`;
+ };
  function setRunning(state){
   const active=state==='running'||state==='paused'||state==='pausing';
   start.disabled=state==='running'||state==='pausing';pause.disabled=state!=='running';stop.disabled=!active;
   start.textContent=state==='paused'?'▶ Continue':'▶ Start';
-  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,scoringSelect,rounds,workers,seed,useRoster,holdOut,holdOutShare,addPasted,addFiles])c.disabled=active;
+  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,scoringSelect,rounds,workers,seed,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
   if(!active)holdOutShare.disabled=!holdOut.checked;
  }
  function begin(){

@@ -30,7 +30,7 @@ export function rng(seed){
 // What the evolver may write for these settings.
 export function genomeRules(config){
  const coreSize=config.coreSize,maxLength=Math.max(1,Math.min(config.maxLength,coreSize));
- // LDP and STP stay out: P-space keeps state between rounds, which rules out exact scoring.
+ // LDP and STP stay out: P-space keeps state between rounds, so a score would depend on the round order.
  const opcodes=OPCODES.map((_,i)=>i).filter(i=>i<OP.ldp);
  return {coreSize,maxLength,opcodes,opWeights:opcodes.map(i=>OP_WEIGHTS[OPCODES[i]]),distance:config.distance||maxLength};
 }
