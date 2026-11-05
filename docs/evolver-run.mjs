@@ -12,6 +12,17 @@
 import {rng,genomeRules,randomGenome,markovGenome,normalize,mutate,crossover,genomeKey,renderGenome,redcodeHeader,distance,nicheGroups} from './evolver-genome.mjs';
 
 // niche: the clearing radius (genome distance 0 … 1, 0 = no niching); nicheSize: warriors a niche keeps.
+// Held-out opponents: a share of the opponents (at least one, and one left to train on) set aside
+// by the run's seed, never used for selection; scoring the best warrior on them shows whether a
+// run learns to fight warriors in general or only the ones it is scored against.
+export function splitHoldOut(opponents,share,seed){
+ const n=opponents.length,k=share>0&&n>1?Math.min(n-1,Math.max(1,Math.round(n*share))):0;
+ if(!k)return {training:opponents.slice(),heldOut:[]};
+ const r=rng('holdout:'+seed),order=opponents.map((_,i)=>i);
+ for(let i=n-1;i>0;i--){const j=r.int(i+1);[order[i],order[j]]=[order[j],order[i]];}
+ const out=new Set(order.slice(0,k));
+ return {training:opponents.filter((_,i)=>!out.has(i)),heldOut:opponents.filter((_,i)=>out.has(i))};
+}
 export const EVOLVER_DEFAULTS={population:40,generations:200,elite:2,tournament:3,crossover:0.5,mutation:1.5,structural:0.3,immigrants:0.05,seedShare:0.5,reseedEvery:5,niche:0.3,nicheSize:2};
 
 export class Evolution{

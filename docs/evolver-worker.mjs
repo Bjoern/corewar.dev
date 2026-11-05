@@ -5,7 +5,7 @@
 // them here, one at a time. Messages in: start, pause, resume, stop. Out: started, generation,
 // paused, done, error.
 import {Evaluator,WorkerPool,runMatch,scoringMode,matchConfig,plannedEngine,engineSummary} from './optimizer-fitness.mjs';
-import {Evolution} from './evolver-run.mjs';
+import {Evolution,splitHoldOut} from './evolver-run.mjs';
 import {genomeRules,markovModel} from './evolver-genome.mjs';
 import {hillOf} from './exmars.mjs';
 
@@ -36,13 +36,18 @@ async function opponentModel(opponents,config){
 }
 
 async function start(job){
- const config=matchConfig(job.config),opponents=job.opponents;
- const mode=scoringMode(config,opponents.map(o=>o.source),job.scoring);
+ const config=matchConfig(job.config);
+ // Held-out opponents never take part in selection (or in the Markov chain); the best warrior is
+ // scored on them in the same mode, so the two scores compare.
+ const {training:opponents,heldOut}=splitHoldOut(job.opponents,job.holdOut||0,job.seed);
+ const mode=scoringMode(config,job.opponents.map(o=>o.source),job.scoring);
  const size=Math.max(1,job.workers|0);
  const pool=typeof Worker!=='undefined'&&size>1?new WorkerPool(size,new URL('./optimizer-worker.mjs',import.meta.url)):null;
  const evaluator=new Evaluator({runJob:pool?(j=>pool.run(j)):(j=>runMatch(j)),config,opponents,seed:job.seed});
  evaluator.setMode(mode);
- const r={state:'running',pool,evaluator,started:Date.now(),elapsed:0,resumedAt:Date.now(),wake:null,job};
+ const validator=heldOut.length?new Evaluator({runJob:pool?(j=>pool.run(j)):(j=>runMatch(j)),config,opponents:heldOut,seed:job.seed+':held-out'}):null;
+ validator?.setMode(mode);
+ const r={state:'running',pool,evaluator,validator,validation:null,validatedKey:null,started:Date.now(),elapsed:0,resumedAt:Date.now(),wake:null,job};
  run=r;
  try{
   const seeds=[...(job.seedGenomes||[]),...await assembleSeeds(job.seedSources||[],config)];
@@ -51,17 +56,18 @@ async function start(job){
   r.evolution=new Evolution({evaluator,config,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model});
   const engine=plannedEngine(config,mode);
   post({type:'started',why:mode.why,exact:mode.exact,rounds:mode.rounds,engine:engine.engine,engineWhy:engine.why,workers:pool?size:1,nested:!!pool||size===1,
-   markov:model&&{warriors:model.warriors,instructions:model.instructions,shapes:model.shapes,skipped:opponents.length-model.warriors}});
+   markov:model&&{warriors:model.warriors,instructions:model.instructions,shapes:model.shapes,skipped:opponents.length-model.warriors},
+   training:opponents.map(o=>o.name),heldOut:heldOut.map(o=>o.name)});
   const first=await r.evolution.init();
   if(r.state==='stopped'||run!==r)return;
-  report(r,first);
+  await report(r,first);if(r.state==='stopped'||run!==r)return;
   const limit=job.params.generations>0?job.params.generations:Infinity;
   while(run===r&&r.state!=='stopped'){
    if(r.state==='paused'){post({type:'paused',generation:r.evolution.generation,elapsed:r.elapsed});await new Promise(resolve=>{r.wake=resolve;});continue;}
    if(r.evolution.generation>=limit){finish(r,`Finished ${limit} generations.`);return;}
    const stats=await r.evolution.step();
    if(r.state==='stopped'||run!==r)return;
-   report(r,stats);
+   await report(r,stats);
   }
  }catch(error){
   if(r.state==='stopped')return;
@@ -69,10 +75,14 @@ async function start(job){
  }
 }
 function elapsed(r){return r.elapsed+(r.state==='running'?Date.now()-r.resumedAt:0);}
-function report(r,stats){
+async function report(r,stats){
  const e=r.evolution,b=e.best;
+ // The best warrior on the held-out opponents, scored again only when the best changes.
+ if(r.validator&&b&&r.validatedKey!==b.key){r.validation=await r.validator.evaluate(e.source(b.genome));r.validatedKey=b.key;}
+ if(r.validation)stats={...stats,heldOut:r.validation.score};
  post({type:'generation',stats,elapsed:elapsed(r),matches:r.evaluator.matches,engines:engineSummary(r.evaluator.engines),cached:r.evaluator.cached,invalid:r.evaluator.invalid,
-  best:b?{source:e.bestSource(r.job.benchmarkName),score:b.score,se:b.se,generation:b.generation,length:b.genome.code.length,opponents:b.result?.opponents??[]}:null,
+  best:b?{source:e.bestSource(r.job.benchmarkName),score:b.score,se:b.se,generation:b.generation,length:b.genome.code.length,opponents:b.result?.opponents??[],
+   heldOut:r.validation?{score:r.validation.score,se:r.validation.se,opponents:r.validation.opponents}:null}:null,
   population:e.snapshot(),scores:e.view().map(m=>m.score),ranked:e.view().map(m=>m.genome),radius:e.params.niche>0?e.params.niche:0.3});
 }
 function finish(r,reason){

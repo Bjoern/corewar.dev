@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {rng,genomeRules,randomGenome,mutate,mutateOnce,crossover,normalize,renderGenome,genomeKey,signed,MUTATIONS,markovModel,markovGenome,nicheGroups} from './evolver-genome.mjs';
-import {Evolution} from './evolver-run.mjs';
+import {Evolution,splitHoldOut} from './evolver-run.mjs';
 import {EVOLVER_PRESETS,checkCustom,splitWarriors,suiteFits} from './evolver-presets.mjs';
 import {Evaluator,runMatch,scoringMode} from './optimizer-fitness.mjs';
 import {assemble} from './dist/exmars/fighter-client.mjs';
@@ -58,6 +58,16 @@ for(const config of [nano,tiny]){
  const g=normalize({code:w.instructions,start:w.start},rules);valid(g,rules);assert.equal(g.code.length,3);assert.equal(g.code[0][3],3);
  valid(normalize({code:[[99,9,9,-5,1,500]],start:7},rules),rules);
  valid(normalize({code:Array.from({length:12},()=>[2,6,0,1,0,2]),start:11},rules),rules);
+}
+// Held-out opponents: a seeded share, at least one held out and one left to train on.
+{
+ const list=Array.from({length:10},(_,i)=>({name:'w'+i}));
+ const a=splitHoldOut(list,0.2,'s'),b=splitHoldOut(list,0.2,'s'),c=splitHoldOut(list,0.2,'t');
+ assert.equal(a.heldOut.length,2);assert.equal(a.training.length,8);assert.deepEqual(a,b,'same seed, same split');
+ assert.notDeepEqual(a.heldOut,c.heldOut,'another seed, another split');
+ assert.deepEqual(new Set([...a.training,...a.heldOut]),new Set(list));
+ assert.equal(splitHoldOut(list,0,'s').heldOut.length,0);assert.equal(splitHoldOut(list.slice(0,1),0.5,'s').heldOut.length,0);
+ assert.equal(splitHoldOut(list.slice(0,2),0.5,'s').training.length,1);assert.equal(splitHoldOut(list,0.01,'s').heldOut.length,1);
 }
 // Presets, custom checks and pasted benchmark warriors.
 assert.deepEqual(['nano','tiny','94','custom'],EVOLVER_PRESETS.map(p=>p.id));

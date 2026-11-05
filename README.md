@@ -47,6 +47,8 @@ tab's Benchmark mode (imported or session-made ones too). `markovModel`/`markovG
 an order-2 Markov chain of instruction shapes from the opponents and draw the first population and immigrants from it.
 Survivors are chosen with clearing (`niche` radius on the genome distance, `nicheSize` warriors per niche), so
 near-copies of the leader give way to the best of other kinds.
+An optional held-out share of the opponents (`splitHoldOut` in `docs/evolver-run.mjs`, picked by the run's seed) never
+counts for selection; the best warrior is scored on it as well, to show overfitting to the benchmark.
 `node docs/test-evolver.mjs` checks validity, niching, the chain, and that a nano run improves.
 
 ## Trials
