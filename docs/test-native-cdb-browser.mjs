@@ -28,7 +28,7 @@ try{
  await send('help');await page.waitForFunction(()=>document.querySelector('#commandOutput').textContent.includes('RET'));await send('a');await idle();
  await send('cls');await idle();await send('step');await idle();
  const firstStep=await page.locator('#instruction').textContent();
- await send('');await idle();assert((await page.locator('#instruction').textContent()).startsWith(firstStep.trimEnd()));
+ await send('');await idle();assert((await page.locator('#instruction').textContent()).startsWith(firstStep.replace(/\s*← next:.*\n?$/,'')),'Repeated steps keep the first one; only the newest line says next');
  assert.equal(await page.locator('#instruction .listing-line').count(),2,'Repeated steps retain prior instructions');
  await send('step~!80');await idle();assert.equal(await page.locator('#instruction .listing-line').count(),82);
  assert(await page.locator('#instruction').evaluate(el=>el.scrollHeight>el.clientHeight && Math.abs(el.scrollHeight-el.clientHeight-el.scrollTop)<2),'History scrolls to the latest instruction');

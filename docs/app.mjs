@@ -579,10 +579,12 @@ function blockNodes(block,newest){
   if(block.rows)return nodes.concat(block.rows.map(r=>instructionRow(r.address,r.instruction,r.owner,newest?r.suffix:'',true)));
   const pcs=block.pcs??latest?.warriors.map(w=>w.pc)??[],lines=block.text.split('\n');
   if(lines.at(-1)==='')lines.pop();
+  // After the battle ends cdb prints a lone address with an empty cell view; in a listing a blank view is an empty cell.
+  const listing=lines.filter(line=>/^\d{5}\s/.test(line)).length>1;
   for(const line of lines){
     const match=line.match(/^(\d{5})\s+(.*)$/);
     if(!match){nodes.push(document.createTextNode(line+'\n'));continue;}
-    if(!match[2].trim())continue; // After the battle ends cdb prints the address with an empty cell view.
+    if(!match[2].trim() && !listing)continue;
     const address=Number(match[1]),owners=pcs.flatMap((pc,j)=>pc===address?[j]:[]);
     nodes.push(instructionRow(address,match[2],owners[0]??null,newest&&owners.length?'  ← next: '+owners.map(j=>latest?.warriors[j]?.name).join(', '):'',true));
   }

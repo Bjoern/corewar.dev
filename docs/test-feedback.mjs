@@ -11,7 +11,6 @@ try {
  await page.goto(process.env.PMARS_URL || 'http://127.0.0.1:8765/docs/');
  await loadTestWarriors(page);
  await page.waitForFunction(()=>Array.from(document.querySelectorAll('.compile-warrior')).every(e=>e.dataset.result==='ok'));
- assert.equal(await page.locator('#consolePanel').getAttribute('data-tab'),'cdb','automatic validation leaves the inspector alone');
  let validationWorkers=0;page.on('worker',()=>validationWorkers++);
  for(let i=0;i<3;i++){
   await editWarrior(page,'#first',source+';edit '+i,{keepOpen:true});
@@ -21,9 +20,8 @@ try {
  await page.waitForFunction(()=>Array.from(document.querySelectorAll('.compile-warrior')).every(e=>e.dataset.result==='ok'));
  assert.equal(validationWorkers,2,'One validation per warrior after the editing pause');
  await showCore(page);
- assert.equal(await page.locator('#consolePanel').getAttribute('data-tab'),'cdb','automatic validation leaves the inspector alone');
  await page.getByRole('button',{name:'Validate warrior 1',exact:true}).click();await compiled();
- assert.equal(await page.locator('#consolePanel').getAttribute('data-tab'),'output','Validate shows the assembler output');
+ assert((await page.locator('#consoleOutput').textContent()).includes('Compiling'),'Validate shows the assembler output');
  await viewOptions(page);await page.locator('#cellSize').selectOption('4');
  assert.equal(await page.locator('#core').evaluate(c=>Number(c.dataset.cellSize)),4);
  await viewOptions(page);await page.locator('#cellSize').selectOption('6');
@@ -59,7 +57,7 @@ try {
  await page.locator('#editSettings').click();await page.locator('#cycles').fill('10');
  await page.locator('#brief').check();
  await page.getByRole('button',{name:'Validate warrior 1',exact:true}).click();await compiled();
- assert.equal(await page.locator('#consolePanel').getAttribute('data-tab'),'output','Validate shows the assembler output');
+ assert((await page.locator('#consoleOutput').textContent()).includes('Compiling'),'Validate shows the assembler output');
  assert((await page.locator('#consoleOutput').textContent()).includes('JMP'));
  await editWarrior(page,'#second',';redcode\n;assert 1\ninvalid 0,0\n');
  await page.getByRole('button',{name:'Validate warrior 2',exact:true}).click();
@@ -67,7 +65,7 @@ try {
  await page.locator('#run').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('error'));
  assert.equal(await page.locator('.compile-warrior').nth(1).getAttribute('data-result'),'failed');
- assert.equal(await page.locator('#consolePanel').getAttribute('data-tab'),'output','Validate shows the assembler output');
+ assert((await page.locator('#consoleOutput').textContent()).includes('Error in line'),'A failed run shows the assembler output');
  await editWarrior(page,'#second',source);
  assert.equal(await page.locator('.compile-warrior').nth(1).textContent(),'↻ Validate');
  await page.locator('#reset').click();

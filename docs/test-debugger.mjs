@@ -22,7 +22,7 @@ try {
   assert.equal(await count(),0);
   assert.equal(await page.locator('#instruction .listing-line').count(),0);
   assert.equal(await page.locator('.tracker').count(),1);
-  assert.equal(await page.locator('.tracker pre').first().textContent(),'');
+  assert.equal(await page.locator('.tracker .instruction-row').count(),0);
   await page.locator('#step').click(); await ready('Paused after');
   assert.equal(await count(),1);
   // Resizing an active arena preserves execution and cell inspection after scrolling.
@@ -51,7 +51,7 @@ try {
   assert(await count()>1);
   await page.locator('#reset').click(); await ready('Paused before');
   assert.equal(await count(),0);
-  assert.equal(await page.locator('.tracker pre').first().textContent(),'');
+  assert.equal(await page.locator('.tracker .instruction-row').count(),0);
 
   await command('list 7998,1');
   assert.deepEqual(await page.locator('#instruction .listing-line').allTextContents().then(a=>a.map(s=>s.slice(0,4))),
@@ -67,12 +67,13 @@ try {
   await command('alive'); await command('tproc');
   assert((await page.locator('#instruction').textContent()).includes('2'));
   await page.locator('.tracker select').first().selectOption('all');
-  assert.equal(await page.locator('.tracker').first().locator('.instruction-row').count(),2);
+  assert.equal(await page.locator('.tracker').first().locator('.instruction-row:not(.listing-line)').count(),2,'The log shows the two executed instructions besides the listings');
   // Clicking a cell lists the core from that cell, filling the listing's height.
   await page.locator('#core').click({position:{x:40,y:30}});
   const clicked=(await page.locator('#hoverAddress').textContent()).replace('Cell: ','');
-  assert((await page.locator('#instruction .listing-line').first().textContent()).startsWith(clicked));
-  assert(await page.locator('#instruction .listing-line').count()>=10);
+  // The listing goes at the end of the log, after what came before.
+  const listed=await page.locator('#instruction .listing-line').allTextContents(),from=listed.findLastIndex(s=>s.startsWith(clicked));
+  assert(from>=0 && listed.length-from>=10,'The clicked cell starts a listing of at least ten lines at the end of the log');
 
   await editWarrior(page,'#first',';redcode-94\n;NAME Beta\n;assert 1\nadd.ab #1,0\njmp -1\n');
   assert((await page.locator('#editors .warrior').first().textContent()).includes('Beta'));
@@ -96,8 +97,9 @@ try {
   assert.equal(await page.locator('.tracker').count(),3);
   await command('step~!3');
   assert.equal(await count(),3);
-  const rows = await page.locator('.tracker pre').allTextContents();
-  assert(rows.every(s=>/^\d{4}\s/.test(s)));
+  const rows = await page.locator('.tracker pre.console-output').allTextContents();
+  assert(rows[0].startsWith('> step~!3'),'The log echoes the command');
+  assert(rows.slice(1).every(s=>/^\d{4}\s/.test(s)));
   const colors = await page.locator('.tracker .instruction-row').evaluateAll(nodes=>nodes.map(n=>n.style.color));
   assert.equal(new Set(colors).size,3);
   await page.screenshot({path:'docs/test-output/debugger-desktop.png',fullPage:true});

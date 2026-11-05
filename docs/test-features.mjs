@@ -85,7 +85,7 @@ try{
  await page.locator('#step').click();await ready('Paused after');
  assert.equal(await page.locator('#trackers').textContent(),oldTrace);
  await page.locator('#pauseViews').uncheck();
- await page.getByRole('button',{name:'Pause tracker 1',exact:true}).click();
+ await page.getByRole('button',{name:'Pause log',exact:true}).click();
  const firstTrace=await page.locator('.tracker pre').first().textContent();
  await page.locator('#step').click();await ready('Paused after');
  assert.equal(await page.locator('.tracker pre').first().textContent(),firstTrace);
