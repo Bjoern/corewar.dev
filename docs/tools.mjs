@@ -8,6 +8,9 @@ export const TOOLS=[
  {id:'optimizer',title:'Constant optimizer',icon:'⚙',
   summary:'Tune the numbers in your warrior (steps, offsets, decoy distances, even opcodes and modes) against a benchmark, with simulated annealing or a genetic algorithm.',
   load:()=>import('./tool-optimizer.mjs')},
+ {id:'evolver',title:'Warrior evolver',icon:'❋',
+  summary:'Evolve whole warriors against a benchmark: opcodes, modes and fields mutate, instructions are inserted, deleted and duplicated, and parents cross over. Nano, tiny and ’94 presets.',
+  load:()=>import('./tool-evolver.mjs')},
  {id:'step-finder',title:'Step finder',icon:'⌗',
   summary:'Rank bombing and scanning steps for a core size by how fast they leave no gap a small warrior could hide in, and see why a step is good or bad.',
   load:()=>import('./tool-stepfinder.mjs')}

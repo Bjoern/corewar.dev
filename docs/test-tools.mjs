@@ -18,7 +18,7 @@ try{
  await page.goto(base.href);
  await page.locator('#toolsTab').click();await settle();
  assert.equal(await hash(),'#tools');assert.equal(await visibleTool(),'');
- assert.equal(await page.locator('.tools-card[data-tool]').count(),2);
+ assert.equal(await page.locator('.tools-card[data-tool]').count(),3);
  assert.equal((await page.locator('.core-tab').first().textContent()).trim(),'Tools'); // The view tab beside the editors names the mode.
  await page.locator('.tools-card[data-tool="step-finder"]').click();await settle();
  assert.equal(await hash(),'#tools/step-finder');assert.equal(await visibleTool(),'step-finder');
@@ -26,10 +26,10 @@ try{
  assert.equal(await hash(),'#tools/optimizer');assert.equal(await visibleTool(),'optimizer');
  assert.equal(await page.locator('.tools-nav-item[aria-selected="true"]').getAttribute('data-tool'),'optimizer');
  // The tool switcher is the Tournaments mode control, with the same keys.
- assert.equal(await page.locator('#toolsPanel .mode-tabs[role=tablist] [role=tab]').count(),3);
+ assert.equal(await page.locator('#toolsPanel .mode-tabs[role=tablist] [role=tab]').count(),4);
  await page.locator('.tools-nav-item[data-tool="optimizer"]').press('ArrowRight');await settle();
- assert.equal(await hash(),'#tools/step-finder');assert.equal(await page.evaluate(()=>document.activeElement.dataset.tool),'step-finder');
- await page.locator('.tools-nav-item[data-tool="step-finder"]').press('Home');await settle();assert.equal(await visibleTool(),'');
+ assert.equal(await hash(),'#tools/evolver');assert.equal(await page.evaluate(()=>document.activeElement.dataset.tool),'evolver');
+ await page.locator('.tools-nav-item[data-tool="evolver"]').press('Home');await settle();assert.equal(await visibleTool(),'');
  await page.locator('.tools-nav-item[data-tool=""]').press('End');await settle();assert.equal(await visibleTool(),'step-finder');
  await page.locator('.tools-nav-item[data-tool="optimizer"]').click();await settle();
  await page.locator('#emulatorTab').click();await settle();assert.equal(await visibleTool(),null);
@@ -116,13 +116,38 @@ try{
  await page.waitForFunction(()=>!document.querySelector('#optMethod').disabled&&document.querySelector('#optMethod').value!=='every');
  assert.equal(await page.locator('#optMethod option[value=every]').count(),0);
 
+ // Evolver: a short nano run against the nano benchmark, in a worker; the best opens in the editor.
+ await page.locator('.tools-nav-item[data-tool="evolver"]').click();await settle();
+ assert.equal(await page.inputValue('#evoPreset'),'nano');
+ await page.waitForFunction(()=>/50 opponents .*exact: all 142 placements.*engine exMARS/.test(document.querySelector('#evoSuite').closest('.tool-form').textContent),null,{timeout:30000});
+ await page.fill('#evoPopulation','16');await page.fill('#evoGenerations','4');await page.fill('#evoWorkers','2');
+ await page.locator('#evoWorkers').dispatchEvent('change');
+ await page.locator('.tool-view[data-tool=evolver] button.primary').click();
+ assert.equal(await page.isDisabled('#evoPreset'),true);
+ await page.waitForFunction(()=>/^Finished 4 generations\./.test(document.querySelector('.tool-view[data-tool=evolver] .opt-status').textContent),null,{timeout:120000});
+ assert.ok(Number(await page.locator('.evo-best-score strong').textContent())>0);
+ assert.match(await page.locator('.evo-code').textContent(),/^;redcode-nano\n;name Evolved Nano[\s\S]*end start/);
+ assert.equal(await page.locator('.tool-view[data-tool=evolver] .opt-stats dt',{hasText:'Generation'}).locator('xpath=following-sibling::dd[1]').textContent(),'4');
+ assert.equal(await page.isDisabled('#evoPreset'),false);
+ // Presets switch the benchmark; custom settings are checked.
+ await page.selectOption('#evoPreset','tiny');assert.equal(await page.inputValue('#evoSuite'),'public-tinybm04/suite.benchmark.json');
+ await page.selectOption('#evoPreset','custom');await page.fill('#evo-distance','10');await page.locator('#evo-distance').dispatchEvent('change');
+ assert.match(await page.locator('.tool-view[data-tool=evolver] .opt-error').textContent(),/distance must be at least/);
+ await page.fill('#evo-distance','20');await page.locator('#evo-distance').dispatchEvent('change');
+ await page.selectOption('#evoPreset','nano');
+ await page.getByRole('button',{name:'Open in editor'}).click();await settle();
+ assert.equal(await hash(),'#battle');assert.equal(await page.inputValue('#coreSize'),'80');
+ assert.match(await page.locator('#editorViews').textContent(),/Evolved Nano/);
+ await page.locator('#toolsTab').click();await settle();assert.equal(await visibleTool(),'evolver');
+ assert.match(await page.evaluate(()=>[...document.querySelectorAll('#evoSeedMode + select option')].map(o=>o.textContent).join('|')),/Evolved Nano/); // It can seed the next run.
+
  // Phone width: no horizontal page scroll on either tool.
  await page.setViewportSize({width:390,height:844});
- for(const id of ['optimizer','step-finder']){
+ for(const id of ['optimizer','evolver','step-finder']){
   await page.locator(`.tools-nav-item[data-tool="${id}"]`).click();await settle();
   const [scroll,client]=await page.evaluate(()=>[document.documentElement.scrollWidth,document.documentElement.clientWidth]);
   assert.ok(scroll<=client+1,`${id}: page scrolls sideways (${scroll} > ${client})`);
  }
  assert.deepEqual(errors,[]);
- console.log('PASS: tools addresses and history, step finder scan/sort/detail, optimizer run/pause/stop/use/add/check, !! scan, phone width.');
+ console.log('PASS: tools addresses and history, step finder scan/sort/detail, optimizer run/pause/stop/use/add/check, !! scan, evolver nano run and editor hand-off, phone width.');
 }finally{await browser.close();}
