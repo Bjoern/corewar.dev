@@ -87,11 +87,17 @@ select{font:inherit;background:var(--panel);color:var(--fg);border:1px solid #38
 
 /* Kettle's chat */
 .chat{border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:#0b1620}
-.chat-head{padding:10px 14px;border-bottom:1px solid var(--line);font:13px Consolas,monospace;color:var(--muted);display:flex;align-items:center;gap:8px}
+.chat-head{padding:8px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.chat-head strong{display:block;font:700 15px Consolas,monospace;color:var(--accent)}
+.chat-head small{font:12px Consolas,monospace;color:var(--muted);display:flex;align-items:center;gap:6px}
+.chat-avatar svg{display:block;width:56px;height:56px}
+.title-kettle{display:block;margin:0 auto 4px;padding:0;border:none;background:none;cursor:pointer}
+.title-kettle:hover{border:none}
+.title-kettle svg{display:block;width:150px;height:150px;filter:drop-shadow(0 6px 18px #54d8df33)}
 .led{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 6px var(--good)}
 .chat-log{list-style:none;margin:0;padding:12px 14px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 100px)}
 .chat-log li{line-height:1.45;font-size:14px;animation:appear .25s ease-out}
-.chat-log li.kettle::before{content:'Kettle';display:block;font:700 11px Consolas,monospace;color:var(--accent);letter-spacing:.08em}
+.chat-log li.kettle::before{content:'Kettle';display:block;font:700 11px/18px Consolas,monospace;color:var(--accent);letter-spacing:.08em;padding-left:22px;background:var(--kettle-icon) no-repeat left center/18px 18px}
 .chat-log li.kettle+li.kettle::before{display:none}
 .chat-log li.system{font:700 12px Consolas,monospace;color:var(--sys);letter-spacing:.08em}
 .chat-log li.divider{font:12px Consolas,monospace;color:#61798b;text-align:center;border-top:1px solid var(--line);padding-top:8px;margin-top:6px}

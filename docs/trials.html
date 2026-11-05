@@ -11,6 +11,7 @@
 <body data-screen="title">
 <section id="title" class="title-screen" aria-labelledby="gameTitle">
   <div class="title-box">
+    <button id="titleKettle" type="button" class="title-kettle" title="Kettle"></button>
     <p class="signal">▒ CHANNEL 7 ▒</p>
     <h1 id="gameTitle">Core War Trials</h1>
     <p class="tagline">Rebuild an academy of fighting programs, one line of assembly at a time.</p>
@@ -62,7 +63,7 @@
       <div id="result" class="result" role="status" hidden></div>
     </section>
     <aside class="chat" aria-label="Kettle">
-      <div class="chat-head"><span class="led" aria-hidden="true"></span> Kettle · channel 7</div>
+      <div class="chat-head"><span id="chatKettle" class="chat-avatar"></span><span><strong>Kettle</strong><small>K-7 training unit · channel 7 <span class="led" aria-hidden="true"></span></small></span></div>
       <ol id="chatLog" class="chat-log" aria-live="polite"></ol>
     </aside>
   </main>

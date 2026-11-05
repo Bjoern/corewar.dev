@@ -4,8 +4,14 @@ import {createEditor} from './dist/editor.mjs';
 import {CoreDisplay} from './display.mjs';
 import {stages, wings, manual} from './trials-stages.mjs';
 import {runStage} from './trials-check.mjs';
+import {kettleSvg, kettleIcon, setMood, setTalking} from './trials-kettle.mjs';
 
 const $ = id => document.getElementById(id);
+$('titleKettle').innerHTML = kettleSvg({label: 'Kettle, the training robot'});
+$('chatKettle').innerHTML = kettleSvg();
+document.documentElement.style.setProperty('--kettle-icon', kettleIcon());
+const avatar = () => $('chatKettle').firstElementChild;
+$('titleKettle').addEventListener('click', () => setMood($('titleKettle').firstElementChild, 'happy', 1600));
 const KEY = 'corewar-trials';
 const byId = Object.fromEntries(stages.map(stage => [stage.id, stage]));
 
@@ -32,7 +38,8 @@ function append(kind, text) {
 }
 function remember(kind, text) { state.chat.push([kind, text]); state.chat = state.chat.slice(-300); save(); }
 // Lines arrive one by one, with a short pause that grows with their length. Clicking the chat skips the wait.
-function say(lines, vars = {}) {
+function say(lines, vars = {}, mood = '') {
+  if (mood) queue = queue.then(() => setMood(avatar(), mood));
   for (const raw of lines) {
     const text = raw.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? '');
     const seq = ++queued;
@@ -42,12 +49,14 @@ function say(lines, vars = {}) {
         const typing = document.createElement('li');
         typing.className = 'typing'; typing.textContent = kind === 'system' ? '▒' : '…';
         $('chatLog').append(typing); typing.scrollIntoView({block: 'nearest'});
+        if (kind === 'system') setMood(avatar(), 'static', 900); else setTalking(avatar(), true);
         await new Promise(resolve => setTimeout(resolve, Math.min(1600, 300 + text.length * 14)));
-        typing.remove();
+        typing.remove(); setTalking(avatar(), false);
       }
       append(kind, text); remember(kind, text);
     });
   }
+  if (mood) queue = queue.then(() => setMood(avatar(), mood, 2500));
   return queue;
 }
 function divider(text) { queue = queue.then(() => { append('divider', text); remember('divider', text); }); }
@@ -238,12 +247,12 @@ function finish(stage, result) {
     saved.fails = (saved.fails ?? 0) + 1; save();
     if (result.reason === 'assembly') {
       showResult(false, 'Kettle could not read that.', 'Check the spelling of each instruction.', result.message);
-      say(['My parser choked on that. What it said is under the core.']);
+      say(['My parser choked on that. What it said is under the core.'], {}, 'worried');
     } else {
       showResult(false, result.reason === 'limit' ? 'Too long.' : 'Not yet.', result.message + score);
       const lines = [`${retorts[saved.fails % retorts.length]} ${result.message}`];
       if (saved.fails === 2 && !(saved.hints > 0) && stage.hints?.length) lines.push('If you want a hint, ask. Pride is a fine thing, but it does not compile.');
-      say(lines);
+      say(lines, {}, 'worried');
     }
     return;
   }
@@ -257,8 +266,8 @@ function finish(stage, result) {
   renderStars(stage); renderMap();
   $('next').hidden = !nextStage();
   const missed = possible && earned < possible && stage.missed ? stage.missed : [];
-  if (first) say([...(stage.debrief ?? []), ...missed], result).then(() => { if (!nextStage()) say(['▒ END OF THE DRAFT · MORE WINGS SOON ▒']); });
-  else say([earned === possible ? 'Cleared again. The logs are getting long.' : 'Cleared again.']);
+  if (first) say([...(stage.debrief ?? []), ...missed], result, 'happy').then(() => { if (!nextStage()) say(['▒ END OF THE DRAFT · MORE WINGS SOON ▒']); });
+  else say([earned === possible ? 'Cleared again. The logs are getting long.' : 'Cleared again.'], {}, 'happy');
 }
 
 // ---- Screens -----------------------------------------------------------------------------------
