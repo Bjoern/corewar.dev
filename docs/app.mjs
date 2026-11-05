@@ -1218,7 +1218,10 @@ tools=setupTools({
  addWarrior:addRosterWarrior,
  openInEditor:openToolWarrior,
  openInDebugger:debugToolWarrior,
- readConfig:()=>readSettings({warriors:2})
+ readConfig:()=>readSettings({warriors:2}),
+ // The Benchmark mode's suites, imported and session-made ones too.
+ benchmarks:()=>tournaments.benchmarks(),
+ loadBenchmark:id=>tournaments.loadBenchmark(id)
 });
 tournaments=setupTournaments({
  roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),

@@ -130,6 +130,46 @@ export function crossover(a,b,r,rules){
  const start=a.start<i?a.start:Math.min(code.length-1,Math.max(0,a.start-(k-i)+(l-j)));
  return {code,start:start>=0&&start<code.length?start:0};
 }
+// A Markov chain of instructions learnt from warriors (genomes): how often each instruction shape
+// (opcode, modifier and both modes) follows the one, two, … before it, with "^" before the first
+// and "$" after the last, so the chain also learns lengths. Fields come with the shape: an A/B pair
+// seen on that shape, or else on that opcode. Shapes the rules leave out (LDP, STP) are dropped.
+const shapeOf=ins=>ins[0]+'.'+ins[1]+'.'+ins[2]+'.'+ins[4];
+export function markovModel(genomes,rules,order=2){
+ const contexts=new Map(),fields=new Map(),opFields=new Map(),starts=[];let warriors=0,instructions=0;
+ const count=(key,next)=>{let m=contexts.get(key);if(!m)contexts.set(key,m=new Map());m.set(next,(m.get(next)||0)+1);};
+ const push=(map,key,value)=>{let list=map.get(key);if(!list)map.set(key,list=[]);list.push(value);};
+ for(const g of genomes){
+  const code=(g.code||[]).filter(i=>rules.opcodes.includes(i[0])).slice(0,rules.maxLength);
+  if(!code.length)continue;
+  warriors++;instructions+=code.length;starts.push(Math.min(g.start|0,code.length-1)/code.length);
+  const seq=['^',...code.map(shapeOf),'$'];
+  for(let i=1;i<seq.length;i++)for(let k=0;k<=order&&k<=i;k++)count(k+'|'+seq.slice(i-k,i).join(' '),seq[i]);
+  for(const ins of code){const pair=[((ins[3]%rules.coreSize)+rules.coreSize)%rules.coreSize,((ins[5]%rules.coreSize)+rules.coreSize)%rules.coreSize];push(fields,shapeOf(ins),pair);push(opFields,ins[0],pair);}
+ }
+ // Tables as arrays, so drawing is a weighted pick.
+ const table=new Map([...contexts].map(([key,m])=>[key,{next:[...m.keys()],weights:[...m.values()]}]));
+ return {order,contexts:table,fields,opFields,starts,warriors,instructions,shapes:fields.size};
+}
+// A warrior drawn from the chain: the longest context it knows, backing off to a shorter one now
+// and then (backoff), so it recombines what it learnt instead of copying whole warriors.
+export function markovGenome(r,model,rules,{backoff=0.25}={}){
+ if(!model?.warriors)return randomGenome(r,rules);
+ const history=['^'],code=[];
+ for(let guard=0;code.length<rules.maxLength&&guard<rules.maxLength*4;guard++){
+  const key=k=>k+'|'+history.slice(history.length-k).join(' ');
+  let k=Math.min(model.order,history.length);
+  while(k>0&&(r()<backoff||!model.contexts.has(key(k))))k--;
+  const t=model.contexts.get(key(k)),next=t.next[r.weighted(t.weights)];
+  if(next==='$'){if(code.length)break;continue;}
+  const [op,m,am,bm]=next.split('.').map(Number);
+  const pairs=model.fields.get(next)??model.opFields.get(op);
+  const [a,b]=pairs?r.pick(pairs):[randomField(r,rules),randomField(r,rules)];
+  code.push([op,m,am,a,bm,b]);history.push(next);
+ }
+ if(!code.length)return randomGenome(r,rules);
+ return {code,start:Math.min(code.length-1,Math.floor(r.pick(model.starts)*code.length))};
+}
 // How unlike two genomes are, 0 … 1 (for the population's diversity).
 export function distance(a,b){
  const n=Math.max(a.code.length,b.code.length);let d=0;

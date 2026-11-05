@@ -42,7 +42,12 @@ mode and field mutations, insert/delete/duplicate/swap, and crossover, all keepi
 `docs/evolver-run.mjs` is the (μ + λ) search, scored by the constant optimizer's `Evaluator` (3 per win, 1 per tie;
 exact on nano). `docs/evolver-worker.mjs` runs it in a Web Worker that hands matches to a pool of
 `optimizer-worker.mjs` workers. Presets (nano, tiny, standard '94, custom) and their benchmarks from
-`warriors_public/` are in `docs/evolver-presets.mjs`; `node docs/test-evolver.mjs` checks validity and that a nano run improves.
+`warriors_public/` are in `docs/evolver-presets.mjs`; the benchmark list also offers every fitting suite of the Tournaments
+tab's Benchmark mode (imported or session-made ones too). `markovModel`/`markovGenome` in `docs/evolver-genome.mjs` learn
+an order-2 Markov chain of instruction shapes from the opponents and draw the first population and immigrants from it.
+Survivors are chosen with clearing (`niche` radius on the genome distance, `nicheSize` warriors per niche), so
+near-copies of the leader give way to the best of other kinds.
+`node docs/test-evolver.mjs` checks validity, niching, the chain, and that a nano run improves.
 
 ## Trials
 

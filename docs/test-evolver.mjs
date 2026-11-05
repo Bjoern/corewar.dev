@@ -4,7 +4,7 @@
 // split; and a short nano run against the nano benchmark raises the best and mean score.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {rng,genomeRules,randomGenome,mutate,mutateOnce,crossover,normalize,renderGenome,genomeKey,signed,MUTATIONS} from './evolver-genome.mjs';
+import {rng,genomeRules,randomGenome,mutate,mutateOnce,crossover,normalize,renderGenome,genomeKey,signed,MUTATIONS,markovModel,markovGenome} from './evolver-genome.mjs';
 import {Evolution} from './evolver-run.mjs';
 import {EVOLVER_PRESETS,checkCustom,splitWarriors,suiteFits} from './evolver-presets.mjs';
 import {Evaluator,runMatch,scoringMode} from './optimizer-fitness.mjs';
@@ -96,5 +96,40 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
  // Seeding from genomes (the last population) starts from them.
  const again=new Evolution({evaluator,config:nano,params:{population:24},seeds:e.snapshot(),seed:'test2'});
  assert((await again.init()).best>=last.top-1e-9);
+}
+// Niching (clearing): near-copies of a better warrior give way to other kinds; elites stay; off at radius 0.
+{
+ const rules=genomeRules(nano),e=new Evolution({evaluator:null,config:nano,params:{niche:0.3,nicheSize:1,elite:1}});
+ const base={code:[[2,6,0,0,0,1],[11,2,0,-1,0,0]],start:0},near={code:[[2,6,0,0,0,1],[11,2,0,-1,0,5]],start:0},other={code:[[1,2,0,0,0,0],[2,6,0,2,0,3],[11,2,0,-2,0,0]],start:0};
+ const m=(g,score)=>({genome:normalize(g,rules),score});
+ const list=[m(base,200),m(near,190),m(near,180),m(other,100)];
+ assert.deepEqual(e.survivors(list,2).map(x=>x.score),[200,100],'the other kind gets in before the near-copies');
+ assert.equal(e.niches,2);
+ assert.deepEqual(e.survivors(list,4).map(x=>x.score),[200,100,190,180],'cleared warriors fill places left over');
+ e.params.elite=2;assert.deepEqual(e.survivors(list,2).map(x=>x.score),[200,190],'elites are kept');
+ e.params.niche=0;assert.deepEqual(e.survivors(list,3).map(x=>x.score),[200,190,180]);assert.equal(e.niches,null);
+}
+// A Markov chain of the nano benchmark: drawn warriors are valid, use only the shapes and fields
+// it learnt, and score better from the start than random code.
+{
+ const dir=new URL('../warriors_public/nanobm07/',import.meta.url),d=JSON.parse(readFileSync(new URL('suite.benchmark.json',dir),'utf8'));
+ const all=d.warriors.map(f=>({name:f,source:readFileSync(new URL(f,dir),'latin1')})),rules=genomeRules(nano),genomes=[];
+ for(const o of all){const w=await assemble(o.source,hillOf(nano));if(w.ok)genomes.push({code:w.instructions,start:w.start});}
+ const model=markovModel(genomes,rules);
+ assert.equal(model.warriors,genomes.length);assert(model.shapes>10,'shapes '+model.shapes);
+ const shape=i=>[i[0],i[1],i[2],i[4]].join('.'),known=new Set(genomes.flatMap(g=>g.code.map(shape)));
+ const r=rng('markov'),keys=new Set();
+ for(let i=0;i<2000;i++){const g=markovGenome(r,model,rules);valid(g,rules);for(const ins of g.code)assert(known.has(shape(ins)),'unknown shape');keys.add(genomeKey(g));}
+ assert(keys.size>1000,'the chain recombines rather than copies: '+keys.size+' distinct of 2000');
+ assert.equal(genomeKey(markovGenome(rng('x'),model,rules)),genomeKey(markovGenome(rng('x'),model,rules)));
+ assert.equal(markovModel([],rules).warriors,0);valid(markovGenome(r,markovModel([],rules),rules),rules); // An empty chain falls back to random code.
+ const opponents=all.slice(0,20),evaluator=new Evaluator({runJob:runMatch,config:nano,opponents});
+ evaluator.setMode(scoringMode(nano,opponents.map(o=>o.source)));
+ const random=await new Evolution({evaluator,config:nano,params:{population:40},seed:'m'}).init();
+ const chain=new Evolution({evaluator,config:nano,params:{population:40},seed:'m',model}),first=await chain.init();
+ console.log(`nano first population: random code mean ${random.mean.toFixed(1)} best ${random.best.toFixed(1)}, Markov chain mean ${first.mean.toFixed(1)} best ${first.best.toFixed(1)}`);
+ assert(first.mean>random.mean,'chain-drawn warriors start stronger than random code');
+ assert.equal(chain.population.length,40);
+ await chain.step();valid(chain.population[0].genome,rules);
 }
 console.log('Evolver checks passed.');

@@ -6,6 +6,7 @@
 // paused, done, error.
 import {Evaluator,WorkerPool,runMatch,scoringMode,matchConfig,plannedEngine,engineSummary} from './optimizer-fitness.mjs';
 import {Evolution} from './evolver-run.mjs';
+import {genomeRules,markovModel} from './evolver-genome.mjs';
 import {hillOf} from './exmars.mjs';
 
 let run=null;
@@ -26,6 +27,14 @@ async function assembleSeeds(sources,config){
  return out;
 }
 
+// The Markov chain learns from the opponents that assemble for these settings; the rest are skipped.
+async function opponentModel(opponents,config){
+ const {assemble}=await import('./dist/exmars/fighter-client.mjs');
+ const hill=hillOf({...config,distance:config.distance||config.maxLength}),genomes=[];
+ for(const {source} of opponents){try{const w=await assemble(source,hill);if(w.ok)genomes.push({code:w.instructions,start:w.start});}catch{}}
+ return markovModel(genomes,genomeRules(config));
+}
+
 async function start(job){
  const config=matchConfig(job.config),opponents=job.opponents;
  const mode=scoringMode(config,opponents.map(o=>o.source),job.scoring);
@@ -37,9 +46,12 @@ async function start(job){
  run=r;
  try{
   const seeds=[...(job.seedGenomes||[]),...await assembleSeeds(job.seedSources||[],config)];
-  r.evolution=new Evolution({evaluator,config,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved'});
+  const model=job.markov?await opponentModel(opponents,config):null;
+  if(model&&!model.warriors)throw new Error('None of the opponents assembled for these settings, so there is no Markov chain to draw from.');
+  r.evolution=new Evolution({evaluator,config,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model});
   const engine=plannedEngine(config,mode);
-  post({type:'started',why:mode.why,exact:mode.exact,rounds:mode.rounds,engine:engine.engine,engineWhy:engine.why,workers:pool?size:1,nested:!!pool||size===1});
+  post({type:'started',why:mode.why,exact:mode.exact,rounds:mode.rounds,engine:engine.engine,engineWhy:engine.why,workers:pool?size:1,nested:!!pool||size===1,
+   markov:model&&{warriors:model.warriors,instructions:model.instructions,shapes:model.shapes,skipped:opponents.length-model.warriors}});
   const first=await r.evolution.init();
   if(r.state==='stopped'||run!==r)return;
   report(r,first);

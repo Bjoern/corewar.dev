@@ -376,5 +376,8 @@ export function setupTournaments({roster,readConfig,onTab}) {
   $('tournamentStatus').textContent=`Created “${suite.name}” from the library with ${suite.warriors.length} opponent${suite.warriors.length===1?'':'s'}. Available until you reload or close this page.`;
   return suite;
  }
- return {refresh,selectTab,addSuite};
+ // The suites of this session (built in, imported, made from the roster or the library), for the tools.
+ const benchmarks=()=>suites.map(s=>({id:s.id,name:s.name,config:s.config,builtIn:benchmarkCatalog.some(c=>c.id===s.id)}));
+ const loadBenchmark=id=>{const suite=suites.find(s=>s.id===id);return suite?loadSuite(suite):Promise.reject(new Error('That benchmark is gone; reload the page or pick another.'));};
+ return {refresh,selectTab,addSuite,benchmarks,loadBenchmark};
 }
