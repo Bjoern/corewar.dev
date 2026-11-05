@@ -54,6 +54,8 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
  const notice=(text,error=false)=>{const n=$('libraryNotice');n.textContent=text;n.dataset.error=String(error);n.hidden=false;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{n.hidden=true;},error?8000:4000);};
  const hills=new Map(),loading=new Map(),texts=new Map(),textLoading=new Map(),sources=new Map();
  const hillOf=id=>libraryCatalog.find(h=>h.id===id);
+ // Koenigstuhl's own top 50 list where the hill has one; elsewhere the first 50 of the recursive ranking.
+ const inTop50=w=>hillOf(w.hill)?.rankings.includes('top50')?Boolean(w.top50):(w.rec?.[0]??Infinity)<=50;
  let saved={};try{saved=JSON.parse(localStorage.getItem(STATE_KEY))||{};}catch{}
  // No chosen hill means every hill; choosing hills narrows the search to them.
  const defaultHills=()=>new Set(hillOf(DEFAULT_HILL)?[DEFAULT_HILL]:[]);
@@ -85,7 +87,8 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
    b.onclick=()=>{if(chosen.has(h.id))chosen.delete(h.id);else chosen.add(h.id);if(chosen.size===libraryCatalog.length)chosen.clear();changed();};
    return b;
   }));
-  $('libraryTop50Label').hidden=!ids().some(id=>hillOf(id)?.rankings.includes('top50'));
+  const lists=ids().map(id=>hillOf(id)?.rankings.includes('top50'));
+  $('libraryTop50Label').title=lists.every(Boolean)?"Warriors on the hill's top 50 list":lists.some(Boolean)?"Warriors on the hill's top 50 list, or ranked 1–50 on hills without one":'Warriors ranked 1–50 in the recursive ranking';
   updated();resetButton();
  }
  // The snapshot date of the searched hills, as one date or the oldest and newest when they differ.
@@ -167,8 +170,8 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
    try{await Promise.all(searched.map(id=>fullText?loadText(id):load(id)));}catch(error){$('libraryCount').textContent=error.message;return;}
    if(serial!==searchSerial)return; // A newer search started while this one was loading.
   }
-  const terms=parseQuery($('librarySearch').value),top50=$('libraryTop50').checked && !$('libraryTop50Label').hidden;
-  results=sortResults(searched.flatMap(id=>hills.get(id)).filter(w=>(!top50||w.top50)&&matches(w,terms,fullText)));
+  const terms=parseQuery($('librarySearch').value),top50=$('libraryTop50').checked;
+  results=sortResults(searched.flatMap(id=>hills.get(id)).filter(w=>(!top50||inTop50(w))&&matches(w,terms,fullText)));
   render();
  }
  function changed(){shown=PAGE;open=null;save();hillButtons();search();}
@@ -305,7 +308,7 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
   $('libraryBenchmarkHill').replaceChildren(...withSettings.map(h=>new Option(h.label+' hill',h.id)));
   $('libraryBenchmarkHill').value=first.id;$('libraryBenchmarkRounds').value=first.parameters.rounds;
   const dates=[...new Set(used.map(id=>hillOf(id).updated).filter(Boolean))].sort();
-  const top50=list.every(w=>w.top50)&&$('libraryTop50').checked?' top 50':'';
+  const top50=list.every(inTop50)&&$('libraryTop50').checked?' top 50':'';
   $('libraryBenchmarkName').value=('Koenigstuhl '+used.join(' + ')+top50+' · '+plural(list.length,'warrior')+(dates.length?' · '+dates.at(-1):'')).slice(0,100);
   $('libraryBenchmarkWhat').textContent=plural(list.length,'selected warrior')+' from '+used.join(', ')+' become the opponents.';
   $('libraryBenchmarkStatus').textContent='';

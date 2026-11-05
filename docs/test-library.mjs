@@ -96,8 +96,31 @@ try{
  assert.equal(await page.locator('#tournamentRounds').inputValue(),'25');
  assert.match(await page.locator('#tournamentStatus').textContent(),/from the library with 3 opponents/);
 
+ // "Top 50 only" uses Koenigstuhl's top 50 list where the hill has one, else the first 50 of the recursive ranking;
+ // mixing such hills keeps both instead of hiding the hill without a list.
+ await page.locator('#libraryTab').click();
+ const listed=hills.find(h=>h.id==='94nop'),unlisted=hills.find(h=>h.id==='nano');
+ if(listed&&unlisted){
+  const top=await page.evaluate(async ids=>{
+   const {libraryCatalog}=await import('./library-catalog.mjs'),out={};
+   for(const id of ids){const h=libraryCatalog.find(c=>c.id===id),list=await (await fetch(h.index)).json();
+    out[id]=h.rankings.includes('top50')?list.filter(w=>w.top50).length:list.filter(w=>w.rec&&w.rec[0]<=50).length;}
+   return out;
+  },[listed.id,unlisted.id]);
+  assert(top[unlisted.id]>0&&top[unlisted.id]<=50);
+  const shows=(n,of)=>page.waitForFunction(n=>document.querySelector('#libraryCount').textContent===n,n.toLocaleString('en-US')+' of '+of.toLocaleString('en-US')+' warriors');
+  if(await page.locator('#libraryReset').isVisible())await page.locator('#libraryReset').click();
+  await chip(unlisted.id).click();
+  await page.locator('#libraryTop50').check();await shows(top[listed.id]+top[unlisted.id],listed.count+unlisted.count);
+  assert.match(await page.locator('#libraryTop50Label').getAttribute('title'),/top 50 list, or ranked 1–50/);
+  await chip(listed.id).click();await shows(top[unlisted.id],unlisted.count);
+  assert(await page.locator('#libraryTop50Label').isVisible());
+  assert.equal(await page.locator('#libraryTop50Label').getAttribute('title'),'Warriors ranked 1–50 in the recursive ranking');
+  await page.locator('#libraryReset').click();
+ }
+
  // Phone width: no horizontal scroll with the action bar shown.
- await page.locator('#libraryTab').click();await page.setViewportSize({width:390,height:844});
+ await page.setViewportSize({width:390,height:844});
  assert(await page.locator('#librarySelection').isVisible());
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  assert.deepEqual(errors,[]);
