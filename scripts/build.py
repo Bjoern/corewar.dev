@@ -12,10 +12,13 @@ from koenigstuhl import library as koenigstuhl_library, read_text as koenigstuhl
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "docs"
 OUT = ROOT / "_site"
+# pMARS runs everything; exMARS runs the headless two-warrior matches it can (docs/exmars.mjs).
 lock = json.loads((ROOT / "engine-lock.json").read_text(encoding="utf-8"))
-for name, expected in lock["files"].items():
-    if hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != expected:
-        raise SystemExit("Pinned engine file changed: " + name)
+exmars_lock = json.loads((ROOT / "exmars-lock.json").read_text(encoding="utf-8"))
+for pinned in (lock, exmars_lock):
+    for name, expected in pinned["files"].items():
+        if hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != expected:
+            raise SystemExit("Pinned engine file changed: " + name)
 # Only this fixed generated directory is replaced; source files are never rewritten.
 if OUT.is_symlink() or OUT.resolve() != ROOT.resolve() / "_site":
     raise SystemExit("Unexpected output directory: " + str(OUT))
@@ -30,7 +33,8 @@ for path in WEB.iterdir():
             shutil.copytree(path, OUT / path.name)
     elif path.is_file():
         shutil.copy2(path, OUT / path.name)
-shutil.copy2(ROOT / "engine-lock.json", OUT / "engine-lock.json")
+for name in ("engine-lock.json", "exmars-lock.json"):
+    shutil.copy2(ROOT / name, OUT / name)
 # The page loads only a small index. Each suite's warriors and hill scores are a separate
 # file named by its content hash, fetched when the suite is selected or prefetched when idle.
 (OUT / "benchmarks").mkdir()
@@ -65,8 +69,8 @@ digest = hashlib.sha256()
 for p, text in normalized.items():
     digest.update(p.name.encode())
     digest.update(text.encode())
-for p in sorted((OUT / "dist").iterdir()):
-    digest.update(p.name.encode())
+for p in sorted(f for f in (OUT / "dist").rglob("*") if f.is_file()):
+    digest.update(p.relative_to(OUT / "dist").as_posix().encode())
     digest.update(p.read_bytes())
 version = digest.hexdigest()[:16]
 for p, text in normalized.items():
@@ -78,7 +82,7 @@ for p, text in normalized.items():
     p.write_text(text, encoding="utf-8", newline="\n")
 # Include the app build inputs alongside the separate unchanged engine source archive.
 with zipfile.ZipFile(OUT / "app-source.zip", "w", zipfile.ZIP_DEFLATED) as archive:
-    paths = [ROOT / n for n in ("COPYING", "AUTHORS", "README.md", "BENCHMARKS.md", "package.json", "package-lock.json", "engine-lock.json", ".gitignore", ".gitattributes")]
+    paths = [ROOT / n for n in ("COPYING", "AUTHORS", "README.md", "BENCHMARKS.md", "package.json", "package-lock.json", "engine-lock.json", "exmars-lock.json", ".gitignore", ".gitattributes")]
     paths += sorted((ROOT / "scripts").glob("*.py"))
     paths += sorted((ROOT / ".github/workflows").glob("*.yml"))
     paths += sorted(p for p in WEB.rglob("*") if p.is_file() and "test-output" not in p.parts)
@@ -86,4 +90,4 @@ with zipfile.ZipFile(OUT / "app-source.zip", "w", zipfile.ZIP_DEFLATED) as archi
     for p in paths:
         info = zipfile.ZipInfo(p.relative_to(ROOT).as_posix(), (1980,1,1,0,0,0))
         archive.writestr(info, p.read_bytes(), compress_type=zipfile.ZIP_DEFLATED)
-print("Built _site, app release", version, "engine", lock["commit"])
+print("Built _site, app release", version, "engine", lock["commit"], "exMARS", exmars_lock["commit"][:7])

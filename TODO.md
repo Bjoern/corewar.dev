@@ -23,7 +23,7 @@ tournament. Only pursue the options below if instantiation is a meaningful share
   MEMFS warrior files cleared, and assumes memory never grows (or handles growth).
 - **Native `web_reset()`.** Audit all pMARS globals and reset them explicitly,
   then clear the `configured`/`started`/`loaded[]` flags in `src/webapi.c`
-  (pmars_experiments). Fastest in principle, but a missed global silently leaks
+  (pmars-ai). Fastest in principle, but a missed global silently leaks
   state (P-space, scores, RNG) between matchups. Needs a test that runs the
   same matchup on a reused and a fresh instance and compares results.
 - **Share one compiled module across workers.** Compile on the main thread and

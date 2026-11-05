@@ -25,7 +25,7 @@ export function parseWorkspace(data) {
  const tournament=data.tournament && typeof data.tournament==='object'?data.tournament:{};
  const pick=(source,key,type)=>typeof source[key]===type?source[key]:undefined;
  return {format:WORKSPACE_FORMAT,version:WORKSPACE_VERSION,warriors,openTabs,active:index(data.active)?data.active:-1,
-  mode:['tournament','library'].includes(data.mode)?data.mode:'battle',welcomeDismissed:data.welcomeDismissed===true,
+  mode:['tournament','library','tools'].includes(data.mode)?data.mode:'battle',welcomeDismissed:data.welcomeDismissed===true,
   settings:{preset:typeof settings.preset==='string'?settings.preset:'custom',values},
   battle:{speed:pick(battle,'speed','string'),debugEnabled:pick(battle,'debugEnabled','boolean')},
   tournament:{mode:['melee','round-robin','benchmark','challenge'].includes(tournament.mode)?tournament.mode:undefined,

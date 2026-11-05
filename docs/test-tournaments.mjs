@@ -20,6 +20,8 @@ try {
  await page.locator('#editSettings').click();await page.locator('#cycles').fill('200');await page.locator('#permutate').check();
  await page.locator('#tournamentRounds').fill('5');await page.locator('#tournamentWorkers').fill('1');
  await page.locator('#tournamentStart').click();await complete();const first=await exportRun();
+ // A permutation shorter than all positions must run on pMARS, and the status says so.
+ assert.match(await status.textContent(),/ · run on pMARS \(pMARS for a permutation of fewer rounds than positions\)$/);
  assert.equal(first.results.length,3);assert.equal(first.standings.length,3);
  const {Engine}=await import('./engine.mjs');
  const job=first.plan.jobs[0],engine=await Engine.create(job.config,{visual:false,log:()=>{}});engine.compile(job.warriors.map(w=>w.source));
@@ -35,10 +37,10 @@ try {
  await page.locator('#mode-challenge').click();await page.locator('#challenger').selectOption('roster-1');
  await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results.length,2);
  await page.locator('#permutate').uncheck();
- await page.locator('#mode-melee').click();await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results[0].warriors.length,3);
+ await page.locator('#mode-melee').click();await page.locator('#tournamentStart').click();await complete();assert.match(await status.textContent(),/ · run on exMARS$/);assert.equal((await exportRun()).results[0].warriors.length,3);
  await page.locator('#mode-benchmark').click();await page.getByText('Create a suite from selected warriors',{exact:true}).click();await page.locator('#saveBenchmark').click();assert.match(await page.locator('#saveBenchmarkStatus').textContent(),/Enter a name/);assert(await page.locator('#benchmarkName').evaluate(e=>e===document.activeElement));await page.locator('#benchmarkName').fill('My suite');await page.locator('#saveBenchmark').click();assert.match(await page.locator('#saveBenchmarkStatus').textContent(),/Created “My suite” with 3 opponents/);assert.equal(await page.locator('#benchmarkSuite option:checked').textContent(),'My suite');assert.deepEqual(JSON.parse(await page.locator('#benchmarkDescriptor').inputValue()).warriors,['Imp.red','Dwarf.red','Loop.red']);
  await page.locator('.include-warrior').nth(1).uncheck();await page.locator('.include-warrior').nth(2).uncheck();
- await page.locator('#tournamentStart').click();await complete();const bench=await exportRun();assert.equal(bench.results.length,2);assert.equal(bench.standings.length,1);
+ await page.locator('#tournamentStart').click();await complete();const bench=await exportRun();assert.match(await status.textContent(),/ · run on exMARS$/);assert.equal(bench.results.length,2);assert.equal(bench.standings.length,1);
  // Restore three entrants and exercise pause at matchup boundaries.
  await page.locator('.include-warrior').nth(1).check();await page.locator('.include-warrior').nth(2).check();
  await page.locator('#mode-round-robin').click();await page.locator('#cycles').fill('10000');await page.locator('#tournamentRounds').fill('100');await page.locator('#tournamentWorkers').fill('1');

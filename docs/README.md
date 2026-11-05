@@ -154,6 +154,31 @@ logs off, or pausing all of them, disables native trace capture. Series runs
 skip display events and instruction traces. Completed battle totals are shown
 for the current run and the current page session.
 
+## Tools
+
+The Tools tab (`#tools`, one tool at `#tools/<id>`) lists helpers for warrior
+authors beside the open tool. `tools.mjs` holds the registry: each entry has an
+id, title, icon, summary and a lazily imported module whose `mount(root, context)`
+builds the view the first time it opens and may return `{show, hide}`. The
+context gives the roster (`roster()`), `addWarrior(source, file)`, the Battle
+match settings (`readConfig()`) and per-tool saved state in localStorage. Adding a
+tool is one entry and one module; each tool starts with a “How to use” section.
+
+- **Constant optimizer** (`tool-optimizer.mjs`): cwopt's template language
+  (`optimizer-template.mjs`), simulated annealing and a steady-state GA
+  (`optimizer-search.mjs`, after John Metcalf's annealing5.rb and genetic2.rb,
+  used with permission), and scoring on the pMARS engine in a pool of Web Workers
+  (`optimizer-fitness.mjs`, `optimizer-worker.mjs`). Small cores without P-space
+  are scored exactly with one permutation match per opponent; others are sampled
+  in seeded slices shared by all candidates, with racing, reseeding after every
+  10 improvements and a held-out check on 2000 new rounds per opponent. Opponents
+  are the catalog benchmarks (with their match settings) or the roster. See
+  `tools-import/HANDOFF.md` for the background.
+- **Step finder** (`tool-stepfinder.mjs`): the math of
+  `resources/step-finder-spec.md` in `stepfinder.mjs` (gap sequence, find-x by a
+  reverse linked-list pass, classic score, Euclid count); full scans run in
+  `stepfinder-worker.mjs`.
+
 ## Responsiveness
 
 The animation loop uses requestAnimationFrame. Each advance call stops at:
@@ -269,6 +294,8 @@ above. Turn tracing off for maximum simulation throughput.
 ```sh
 node docs/test-engine.mjs /path/to/native/pmars-server
 node docs/test-options.mjs /path/to/native/pmars-server
+node docs/test-stepfinder.mjs
+node docs/test-optimizer.mjs
 python security/test_security.py /path/to/native/pmars-server
 python security/test_096.py /path/to/native/pmars-server
 # With the preview server running and Playwright installed:

@@ -23,6 +23,9 @@ jobs:
       - run: node docs/test-permutation.mjs
       - run: node docs/test-benchmarks.mjs
       - run: node docs/test-catalog-engine.mjs
+      - run: node docs/test-stepfinder.mjs
+      - run: node docs/test-optimizer.mjs
+      - run: node docs/test-exmars.mjs
       - run: npm ci
       - run: npm install --no-save playwright@1.62.1
       - run: npx playwright install --with-deps chromium
@@ -44,6 +47,7 @@ jobs:
           node docs/test-release-assets.mjs
           node docs/test-workspace.mjs
           node docs/test-routing.mjs
+          node docs/test-tools.mjs
           node docs/test-library.mjs
           node docs/test-browser.mjs
           node docs/test-controls.mjs

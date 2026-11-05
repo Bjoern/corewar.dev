@@ -5,10 +5,22 @@ and the native debugger, with a separate tournament and benchmark workspace.
 
 ## Engine boundary
 
-The original engine and bundled warrior sources remain in pmars_experiments.
+The engine is pMARS AI (<https://github.com/pmars-org/pmars-ai>), which also holds the bundled warrior sources.
 `engine-lock.json` records the exact upstream commit and SHA-256 hashes of the
 committed Wasm runtime, generated demo collection, and corresponding-source archive.
 `docs/engine.mjs` and `docs/settings.mjs` are the app's adapter to that engine.
+
+Headless matches of 2 to 36 warriors in Tournaments and Tools run on exMARS
+(<https://github.com/Bjoern/exMARS>, branch `wasm-persistent-fighter`) when it gives the
+same result as pMARS: ICWS '94, the default P-space size, a numeric or no placement seed, a
+score formula in W and S (scored from exMARS's survivor counts by `docs/score-formula.mjs`,
+a port of pMARS's evaluator), and a permutation only when it covers every position without
+P-space.
+Its fighter stays loaded in each worker, so warriors are assembled once. `exmars-lock.json`
+pins its commit and the hashes of `docs/dist/exmars/`; `docs/exmars.mjs` decides which
+engine runs a match, and both pages say which one ran. `docs/test-exmars.mjs` checks that
+exMARS and pMARS agree. The Battle tab, the debugger and everything else use pMARS.
+
 No engine checkout, Emscripten, backend, or runtime request to another site is needed.
 
 ## Build and preview
@@ -71,16 +83,14 @@ and `npx playwright install chromium`. With the preview server running, set
 optionally selects an installed browser. `test-options.mjs` requires a native pMARS
 executable argument; native-engine parity remains an upstream responsibility.
 
-## Deployment and domain transfer
+## Deployment
 
+The site is served at <https://corewar.dev> by GitHub Pages from this repository.
 CI builds and checks the static site on pushes and pull requests.
 The Pages workflow deploys `_site/` automatically on pushes to `master`.
 It can also be run manually from the Actions tab.
-No CNAME is shipped and no domain settings are changed by these files.
-Before dispatching, enable GitHub Actions as the Pages publishing source and test
-at the repository's GitHub Pages URL. Keep the existing corewar.dev deployment
-on pmars_experiments until this version is accepted. Then transfer the custom
-domain in GitHub Pages settings; inspect existing DNS before changing it.
+The custom domain is set in the repository's Pages settings; no CNAME file is
+shipped and these files change no domain or DNS settings.
 An optional pmars.corewar.dev site is documentation/downloads only, not a dependency.
 
 ## Updating pMARS
