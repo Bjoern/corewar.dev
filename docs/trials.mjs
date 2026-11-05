@@ -237,18 +237,22 @@ async function play({paused = false} = {}) {
       run.started = performance.now(); run.last = undefined;
       if (stage.setups.length > 1 && $('debug').open) printText(`— Setup ${index + 1}${setup.label ? `: ${opponentName(setup)} at ${setup.label}` : ''} —\n`, 'addr');
     }
+    // With the debugger open (or while paused) the engine records each instruction it runs, so the log can say who ran what.
+    const tracing = !!run.paused || $('debug').open;
+    if (engine.traced !== tracing) { engine.setTrace(tracing); engine.traced = tracing; }
     if (update.events.length) display.apply(update.events);
+    // While running, the log shows the last few instructions of each frame; at Fast speed it only counts them.
+    if (!run.stepped && tracing && update.trace.length) {
+      const shown = update.trace.slice(-RAN_PER_FRAME), skipped = update.executed - shown.length;
+      if (skipped > 0) printText(`… ${skipped.toLocaleString('en')} more instruction${skipped === 1 ? '' : 's'}\n`, 'addr');
+      printRan(update, shown);
+    }
     const rounds = stage.settings.rounds ?? 1;
     $('progress').textContent = [rounds > 1 ? `Round ${Math.min(update.round + 1, rounds)} of ${rounds}` : '',
       `cycle ${update.cycle.toLocaleString('en')}`, stage.setups.length > 1 ? `setup ${index + 1} of ${stage.setups.length}` : ''].filter(Boolean).join(' · ');
-    // While paused, the engine records each instruction it runs, so Step can say who ran what.
-    if (engine.traced !== !!run.paused) { engine.setTrace(!!run.paused); engine.traced = !!run.paused; }
     if (run.stepped) {
       run.stepped = false;
-      for (const entry of update.trace) {
-        const who = entry.warrior === 0 ? 'you' : update.warriors[entry.warrior].name;
-        print(`<span class="addr">cycle ${update.cycle.toLocaleString('en')} ·</span> <span style="color:${battleColor(entry.warrior)}">${escapeHtml(who)}</span> ran ${String(entry.address).padStart(3, '0')}: ${escapeHtml(entry.instruction.trimEnd())}\n`);
-      }
+      printRan(update, update.trace);
       if (!update.done) listAt(update.warriors[0].pc >= 0 ? update.warriors[0].pc - 2 : 0, 5);
       else printText(`Over at cycle ${update.cycle.toLocaleString('en')}: ${update.warriors[0].wins ? 'you won' : update.warriors[0].losses ? 'you lost' : 'a tie'}.\n`);
     }
@@ -289,6 +293,15 @@ function print(html) {
   term.insertAdjacentHTML('beforeend', html);
   if (term.innerHTML.length > TERM_LIMIT) term.innerHTML = term.innerHTML.slice(-TERM_LIMIT / 2).replace(/^[^\n]*\n/, '');
   term.scrollTop = term.scrollHeight;
+}
+const RAN_PER_FRAME = 8;
+// pMARS pads operands into columns (MOV.I  $     0, $     1); the log is narrow, so close the gaps.
+const compact = text => text.trim().replace(/([#$@*<>{}])\s+/g, '$1').replace(/\s+/g, ' ');
+function printRan(update, entries) {
+  print(entries.map(entry => {
+    const who = entry.warrior === 0 ? 'you' : update.warriors[entry.warrior].name;
+    return `<span class="addr">cycle ${update.cycle.toLocaleString('en')} ·</span> <span style="color:${battleColor(entry.warrior)}">${escapeHtml(who)}</span> ran ${String(entry.address).padStart(3, '0')}: ${escapeHtml(compact(entry.instruction))}\n`;
+  }).join(''));
 }
 const printText = (text, cls = '') => print(cls ? `<span class="${cls}">${escapeHtml(text)}</span>` : escapeHtml(text));
 function syncPause() {

@@ -59,7 +59,7 @@
       <div class="arena">
         <div id="viewport" class="viewport"><canvas id="core" aria-label="The core"></canvas><div id="marks" class="marks" aria-hidden="true"></div></div>
         <p id="progress" class="progress" aria-live="off"></p>
-        <details id="debug" class="debug">
+        <details id="debug" class="debug" open>
           <summary>Debugger</summary>
           <div class="debug-bar">
             <button id="pause" type="button" class="small">Pause</button>
@@ -67,7 +67,8 @@
             <button id="clearTerm" type="button" class="small">Clear</button>
             <span id="hoverCell" class="hover-cell"></span>
           </div>
-          <pre id="term" class="term" aria-live="polite">Click a cell in the core to list the instructions from there.
+          <pre id="term" class="term" aria-live="polite">Run a stage to see each instruction as it executes.
+Click a cell in the core to list the instructions from there.
 Step runs one instruction at a time. Type help for the debugger's commands.
 </pre>
           <form id="cmdForm" class="cmd"><span aria-hidden="true">(cdb)</span><input id="cmd" autocomplete="off" spellcheck="false" placeholder="list 0, 10" aria-label="Debugger command"></form>

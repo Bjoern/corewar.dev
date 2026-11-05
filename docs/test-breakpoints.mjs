@@ -18,7 +18,7 @@ try{
  await page.locator('#reset').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Paused before'));
  await page.locator('#step').click();await page.locator('#step').click();await page.waitForFunction(()=>document.querySelector('#timing').dataset.instructions==='2');
- assert.equal(await page.locator('#coreViewTitle').textContent(),'Native pMARS debugger');
+ 
  assert.equal(await page.locator('.tracker').first().locator('.instruction-row').count(),2);
  const colors=await page.locator('.tracker').first().locator('.instruction-row').evaluateAll(es=>es.map(e=>e.style.color));assert.notEqual(colors[0],colors[1]);
  assert(!(await page.locator('#trackers').textContent()).includes('#1'));
@@ -26,11 +26,11 @@ try{
  await page.locator('.tracker').first().locator('.instruction-row').first().click();assert(await page.locator('#debugEnabled').isChecked());
  assert.equal(await page.locator('.tracker').first().locator('.instruction-row').first().getAttribute('aria-pressed'),'true');
  await page.locator('#run').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Debug marker:'));
- assert.equal(await page.locator('#timing').getAttribute('data-instructions'),'2');assert.equal(await page.locator('#coreViewTitle').textContent(),'Native pMARS debugger');
+ assert.equal(await page.locator('#timing').getAttribute('data-instructions'),'2');
  await page.locator('.tracker').first().locator('[data-address="'+address+'"]').first().click();assert.equal(await page.locator('.tracker').first().locator('[data-address="'+address+'"]').first().getAttribute('aria-pressed'),'false');
  await page.locator('#run').click();await page.waitForFunction(()=>Number(document.querySelector('#timing').dataset.instructions)>10);
- await command('list 0,4');assert.equal(await page.locator('#coreViewTitle').textContent(),'Native pMARS debugger');assert.equal(await page.locator('#instruction .listing-line').count(),5);
- await page.locator('#step').click();assert.equal(await page.locator('#coreViewTitle').textContent(),'Native pMARS debugger');
+ await command('list 0,4');assert.equal(await page.locator('#instruction .listing-line').count(),5);
+ await page.locator('#step').click();
  await page.locator('.tracker').first().locator('.instruction-row').first().click();assert.equal(await page.locator('.tracker').first().locator('.instruction-row').first().getAttribute('aria-pressed'),'true');
  await page.locator('#reset').click();await page.waitForFunction(()=>document.querySelector('#timing').dataset.instructions==='0');assert.equal(await page.locator('#instruction [aria-pressed=true]').count(),0);
  assert.deepEqual(errors,[]);console.log('PASS: execution colors and no numbering; clickable breakpoints in both views; stop before execution, removal, step/live/list transitions, reset; native address breakpoint API.');

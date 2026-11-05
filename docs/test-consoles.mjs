@@ -12,13 +12,13 @@ const send=async text=>{await page.locator('#command').fill(text);await page.loc
 try{
  await page.goto(process.env.PMARS_URL || 'http://127.0.0.1:8765/docs/');await loadTestWarriors(page);
  await page.locator('#reset').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Paused before'));
- assert.equal(await page.locator('.output-console').count(),1);assert.equal(await page.locator('.tracker').count(),1);
+ assert.equal(await page.locator('.log-tracker #commandForm').count(),1,'The cdb command line sits below the log');assert.equal(await page.locator('.tracker').count(),1);
  await send('step');await send('');
- assert.deepEqual(await page.locator('#commandHistory button').allTextContents(),['step','step']);
+ assert.deepEqual(await page.locator('#instruction .log-cmd').allTextContents(),['> step','> step'],'The log echoes each command, including an empty-line repeat');
  assert(!(await page.locator('#instruction').textContent()).includes('(cdb)'));
- await page.locator('#commandHistory button').first().click();await idle();assert.equal(await page.locator('#timing').getAttribute('data-instructions'),'3');
+ await page.locator('#instruction .log-cmd').first().click();await idle();assert.equal(await page.locator('#timing').getAttribute('data-instructions'),'3');
  await send('calc 6*7');await send(' calc 2+3');await send('');
- assert.equal(await page.locator('#commandHistory button').last().textContent(),'calc 6*7','Native leading-space recall semantics preserved');
+ assert.equal(await page.locator('#instruction .log-cmd').last().textContent(),'> calc 6*7','Native leading-space recall semantics preserved');
  await page.locator('#addConsole').click();await page.locator('#addConsole').click();assert.equal(await page.locator('.tracker').count(),3);
  const panels=page.locator('.tracker');
  assert.deepEqual(await page.locator('.tracker select').evaluateAll(nodes=>nodes.map(n=>n.value)),['all','warrior:0','warrior:1'],'Each new tracker follows the next untracked warrior');
@@ -26,12 +26,12 @@ try{
  await page.locator('#step').click();
  assert(await panels.nth(1).locator('.instruction-row').count()>0);assert(await panels.nth(2).locator('.instruction-row').count()>0);
  await press(panels.nth(1),'Pause tracker 2');
- const snapshot=await panels.nth(1).locator('pre').textContent();await page.locator('.console-tab',{hasText:/^cdb$/}).first().click();await send('step~!4');assert.equal(await panels.nth(1).locator('pre').textContent(),snapshot);
+ const snapshot=await panels.nth(1).locator('pre').textContent();await send('step~!4');assert.equal(await panels.nth(1).locator('pre').textContent(),snapshot);
  await press(panels.nth(1),'Pause tracker 2');
  await sel(panels.nth(0),'warrior:1');assert.equal(await panels.nth(0).locator('select option:checked').textContent(),'Dwarf');
  await page.screenshot({path:'docs/test-output/consoles-desktop.png',fullPage:true});
  await press(panels.nth(2),'Close tracker 3');assert.equal(await panels.count(),2);
- assert.equal(await page.locator('#execution .output-console').count(),1,'The cdb console stays in the right pane');
+ assert.equal(await page.locator('.log-tracker').count(),1,'The log stays when other trackers close');
  const core=await page.locator('#core').boundingBox();await page.mouse.click(core.x+5,core.y+5);
  const listed=page.locator('.listing-line').nth(3),at=await listed.getAttribute('data-address');
  await listed.click();assert.equal(await page.locator('.listing-line[data-address="'+at+'"]').getAttribute('aria-pressed'),'true','Clicking a core listing line shows its breakpoint at once');

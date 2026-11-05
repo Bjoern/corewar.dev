@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import assert from 'node:assert/strict';
-import {Engine} from './engine.mjs';
+import {Engine, stepAddressHint} from './engine.mjs';
 const e=await Engine.create({warriors:1,cycles:1000});
 e.compile([';redcode\n;assert 1\njmp 0\n']);e.start();
 let output='';const io={output:t=>output+=t};
@@ -21,4 +21,24 @@ r=await cmd('calc 1~!');clearInterval(timer);assert(r.cancelled);assert(pulses>=
 await cmd('calc 6*7');assert(output.includes('42'));
 await cmd('shell');assert(output.includes('unavailable'));
 r=await cmd('step 23');assert.equal(r.action,2);assert.equal(e.update(false).warriors[0].pc,23);
-console.log('PASS: native expressions, variables, fill/edit input, trace/untrace integration, mw.mac, finite loops, real f5, user-defined macros, cancellable infinite loop and native step address semantics.');
+{ // Dwarf vs Imp: plain `s` runs each warrior's own next instruction; `s 1` moves the
+  // current warrior's PC to address 1 first (native pMARS: s,s,s 1,s 1 leaves both at 2).
+  const d=await Engine.create({warriors:2,cycles:80000,rounds:1});
+  d.compile([';redcode-94\n;name Imp\n;assert 1\nmov.i 0, 1\nend\n',';redcode-94\n;name Dwarf\n;assert 1\nadd.ab #4, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat.f #0, #0\nend\n']);
+  let u=d.start();d.setTrace(true);const dwarf=u.warriors[1].pc;
+  const step=async text=>{const r=await d.debuggerCommand(text,{});assert.equal(r.action,2);u=d.advance(r.steps,4);assert.equal(u.trace.length,1);return u.trace[0];};
+  u=d.advance(2,4);assert.deepEqual(u.warriors.map(w=>w.pc),[1,dwarf+1]);
+  let t=await step('s');assert.equal(t.warrior,0);assert.equal(t.address,1);
+  t=await step('s');assert.equal(t.warrior,1);assert.equal(t.address,dwarf+1);assert.match(t.instruction,/^MOV\.I\s+\$\s+2, @\s+2/);
+  assert.deepEqual(u.warriors.map(w=>w.pc),[2,dwarf+2]);
+  t=await step('s 1');assert.equal(t.warrior,0);assert.equal(t.address,1);
+  t=await step('s 1');assert.equal(t.warrior,1);assert.equal(t.address,1,'step <address> jumps the current warrior to that address');
+  assert.deepEqual(u.warriors.map(w=>w.pc),[2,2]);
+}
+console.log('PASS: two-warrior step attribution, native expressions, variables, fill/edit input, trace/untrace integration, mw.mac, finite loops, real f5, user-defined macros, cancellable infinite loop and native step address semantics.');
+assert.match(stepAddressHint('s 1'),/`s 1` moves the PC to address 1/);
+assert.match(stepAddressHint('calc 2~STEP 10'),/address 10/);
+assert.match(stepAddressHint('g 10'),/address 10, then runs to the next breakpoint/);assert.equal(stepAddressHint('g'),null);
+assert.match(stepAddressHint('th 5'),/address 5/);
+for (const text of ['s','step','step~!10','skip 9','stop 1','search mov',' s ',undefined]) assert.equal(stepAddressHint(text),null,String(text));
+console.log('PASS: step/thread address hint.');

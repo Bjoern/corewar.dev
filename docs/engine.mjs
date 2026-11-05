@@ -25,6 +25,23 @@ function compiledWasm() {
 
 // A fresh instance per match isolates pMARS's legacy global state.
 // User source compilation belongs in worker.mjs; the main thread imports banks.
+/* Native cdb `step`/`thread` take an address, not a count: `s 1` moves the current
+   warrior's PC to address 1. Verbs match on their first three letters, like cdb's hash. */
+export function stepAddressHint(text) {
+  if (typeof text !== 'string') return null;
+  for (const part of text.split('~')) {
+    const m = /^\s*([a-z]+)\s+(\S.*?)\s*$/i.exec(part);
+    if (!m) continue;
+    const verb = m[1].slice(0, 3).toLowerCase();
+    if (['g', 'go'].includes(verb))
+      return `Note: \`${part.trim()}\` moves the PC to address ${m[2]}, then runs to the next breakpoint.\n`
+        + 'To run on from where it is: `g`. For N steps: `skip N-1`.\n';
+    if (!['s', 'st', 'ste', 'th', 'thr'].includes(verb)) continue;
+    return `Note: \`${part.trim()}\` moves the PC to address ${m[2]}, then steps.\n`
+      + 'For N steps in place: `s~!N` or `skip N-1`.\n';
+  }
+  return null;
+}
 export class Engine {
   static async create(options, {visual = true, log = () => {}} = {}) {
     const config = settings(options);

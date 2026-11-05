@@ -157,10 +157,8 @@ header h1,header p{margin:0}header p{white-space:nowrap;font-size:14px}
 .output-console{min-width:0}.console-toolbar{margin-bottom:6px}.console-toolbar select{flex:1;min-width:0}.console-toolbar button{padding:3px 8px}
 .console-output,#instruction{box-sizing:border-box;background:#101d29;border:1px solid #2a3d4d;border-radius:6px;padding:8px;height:240px;min-height:0;max-height:none;overflow:auto;white-space:pre;margin:0}
 .command-workspace{display:grid;grid-template-columns:minmax(150px,240px) minmax(0,1fr);gap:8px 12px;margin:12px 0}
-#commandHistory{grid-row:span 2;max-height:106px;overflow:auto;border:1px solid #2a3d4d;border-radius:6px}
-#commandHistory:empty{display:none}#commandHistory button{display:block;width:100%;text-align:left;font:inherit;font-family:monospace;font-size:12px;border:0;border-radius:0;padding:3px 8px;white-space:pre-wrap;overflow-wrap:anywhere;background:transparent}
-#commandHistory button:hover{background:#ffffff10}#commandForm{margin:0;gap:8px}#commandOutput{margin:0;white-space:pre-wrap}
-@media(max-width:650px){.command-workspace{grid-template-columns:1fr}#commandHistory{grid-row:auto;max-height:70px}}
+
+#commandForm{margin:0;gap:8px}#commandOutput{margin:0;white-space:pre-wrap}
 
 .source-editor{border:1px solid #2a3d4d;border-radius:6px;overflow:hidden;min-width:0}.source-editor[hidden]{display:none}
 .source-editor .cm-editor{max-width:100%}.source-editor .cm-button,.source-editor .cm-textfield{font:inherit;padding:3px 6px}
@@ -168,7 +166,6 @@ header h1,header p{margin:0}header p{white-space:nowrap;font-size:14px}
 .process-count{display:inline-block;width:7ch;text-align:right;font-variant-numeric:tabular-nums;font-family:monospace;margin-right:8px}
 .add-console{height:276px;border:1px dashed #375264;background:transparent;color:#91afbf;align-self:start}
 
-.command-workspace:has(#commandHistory:empty){grid-template-columns:1fr}
 
 .warrior-swatch{display:inline-block;position:relative;width:12px;height:12px;background:currentColor;vertical-align:-1px}
 .eliminated-marker{position:absolute;inset:-3px;color:#ff7979;font:bold 24px/18px Arial,sans-serif;text-align:center;text-shadow:0 1px 1px #08131d}
@@ -356,7 +353,6 @@ body[data-welcome=true] .center{flex-basis:100%}
 .output-panel{flex:1;min-height:0;overflow:auto;padding:8px 10px}
 #consoleWindow{margin:0;padding:0;border:0}#consoleWindow summary{cursor:default;margin-bottom:6px;font-size:12px}#consoleWindow summary::before{content:''}#consoleOutput{background:var(--code);max-height:none;min-height:140px}
 .command-workspace{display:flex;flex-direction:column;gap:6px;margin:0;padding:8px 10px;border-top:1px solid var(--border)}
-.command-workspace #commandHistory{max-height:60px;border:0}
 #commandForm{display:flex;flex-wrap:nowrap;gap:6px;margin:0;align-items:center}#commandForm::before{content:'>';font:13px Consolas,monospace;color:var(--accent)}
 #commandForm .prompt{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 #command{flex:1;min-width:0;font:13px Consolas,monospace;background:var(--code)}
@@ -462,12 +458,15 @@ body[data-view=library] .inspector,body[data-view=library] #inspectorSplitter{di
  .phone-bar button{flex:1;border:0;border-radius:0;background:transparent;min-height:52px;color:var(--muted)}.phone-bar [aria-pressed=true]{color:var(--accent);box-shadow:inset 0 2px var(--accent)}
  footer{padding-bottom:64px}
  body[data-pane=core] #consolePanel,body[data-pane=code] #consolePanel,body[data-pane=core] #chartsCard{display:none}
- body[data-pane=debug] .center,body[data-pane=output] .center,body[data-pane=debug] #battleResults,body[data-pane=output] #battleResults,body[data-pane=debug] #chartsCard,body[data-pane=output] #chartsCard{display:none}
+ body[data-pane=output] .center,body[data-pane=debug] #battleResults,body[data-pane=output] #battleResults,body[data-pane=debug] #chartsCard,body[data-pane=output] #chartsCard{display:none}
+ body[data-pane=debug] .inspector,body[data-pane=debug] .arena,body[data-pane=debug] .arena-controls,body[data-pane=debug] #legendNames,body[data-pane=debug] .arena-foot{display:none}
+ body[data-pane=debug] .tracker-strip{height:calc(100dvh - 190px)}
  body[data-pane=code] .inspector,body[data-pane=code] .sidebar,body[data-pane=debug] .sidebar,body[data-pane=output] .sidebar{display:none}
  body[data-pane=debug] #outputTab,body[data-pane=output] .console-tab{display:none}
  .sidebar{flex-direction:row;flex-wrap:wrap;align-items:center;padding:6px}.sidebar .side-head{flex:1}.sidebar .editors{flex:0 0 100%;flex-wrap:nowrap;overflow-x:auto}.sidebar .roster{display:none}
  .sidebar .editor-title .save-warrior{display:none}
  .sidebar .warrior-import{flex:0 0 100%}
+ .add-tracker{writing-mode:vertical-rl;padding:8px 4px}
 }
 .battle-extras button{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;font-size:12px;white-space:nowrap}
 .cdb-head #coreViewTitle{display:none}.cdb-head label{flex:1}
@@ -545,7 +544,8 @@ body[data-mode=trials] #phoneBar{display:none}
 #workspaceDialog p{margin:0 0 14px;line-height:1.45}.dialog-actions{display:flex;justify-content:flex-end;gap:8px}#workspaceDialogOk{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
 /* Trackers sit side by side below the arena: the arena keeps its natural height (Auto sizes cells to leave them room) and the trackers take the rest. */
 .arena:has(.arena-viewport){flex:none}
-.tracker-strip{display:flex;gap:8px;flex:1 1 0;min-height:200px;overflow-x:auto;overflow-y:hidden}
+/* Tall enough for the log's options and cdb command line below a 120px log. */
+.tracker-strip{display:flex;gap:8px;flex:1 1 0;min-height:250px;overflow-x:auto;overflow-y:hidden}
 body[data-welcome=true] .tracker-strip{display:none}
 .tracker{display:flex;flex-direction:column;flex:1 1 260px;min-width:220px;min-height:0}
 .tracker .console-toolbar{margin-bottom:4px}
@@ -553,8 +553,15 @@ body[data-welcome=true] .tracker-strip{display:none}
 .tracker .console-toolbar button[aria-pressed=true]{background:var(--accent);color:var(--bg)}
 .add-tracker{flex:0 0 auto;align-self:stretch;border-style:dashed;background:transparent;color:var(--muted);font-size:12px;white-space:nowrap}
 .add-tracker:hover{color:#e4edf3;border-color:var(--accent)}
+/* The log: executed instructions and cdb commands with their output, with the cdb command line below. */
+.log-tracker{flex:2 1 380px}
+.log-title{font-size:12px;font-weight:600;color:#e4edf3;white-space:nowrap}
+.log-tracker .cdb-head{padding:4px 0 0;border:0}
+.log-tracker .command-workspace{padding:4px 0 0;border:0;gap:2px}
+.log-cmd{display:block;width:max-content;min-width:100%;border:0;border-radius:0;background:transparent;color:var(--accent);font:inherit;font-weight:600;text-align:left;white-space:pre;padding:0 5px;line-height:1.6;margin-top:2px}
+.log-cmd:hover{background:#ffffff10}
 .tracker-strip:not(:has(.tracker))>.add-tracker{flex:1}
-@media(max-width:1099px){.tracker-strip{flex:none;height:240px;min-height:0}}
+@media(max-width:1099px){.tracker-strip{flex:none;height:320px;min-height:0}}
 /* Before any warrior is loaded, the welcome takes the whole centre instead of the strip a short fixed-size arena leaves. */
 @media(min-width:701px){
  body[data-welcome=true] #center .arena{flex:1 0 auto}

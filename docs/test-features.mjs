@@ -72,7 +72,7 @@ try{
  await page.locator('#outputTab').click();
  await page.waitForFunction(()=>document.querySelector('#consoleOutput').textContent.includes('scores'));
  assert((await page.locator('#consoleOutput').textContent()).includes('Program "One"'));
- await page.locator('#inspectorTabs .console-tab').first().click();assert(await page.locator('#command').isVisible());
+ assert(await page.locator('#command').isVisible());
 
  await page.locator('#rounds').fill('1');await page.locator('#cycles').fill('1000');
  await page.locator('#reset').click();await ready('Paused before');

@@ -5,7 +5,7 @@ import {setupTools} from './tools.mjs';
 import {bundledWarriors} from './demo-warriors.mjs?v=bd68579c2c000dd9';
 import {createEditor} from './dist/editor.mjs?v=bd68579c2c000dd9';
 // SPDX-License-Identifier: GPL-2.0-or-later
-import {Engine, settings} from './engine.mjs?v=bd68579c2c000dd9';
+import {Engine, settings, stepAddressHint} from './engine.mjs?v=bd68579c2c000dd9';
 import {CoreDisplay, warriorColor, battleColor, setBattleSlots, setTheme} from './display.mjs?v=bd68579c2c000dd9';
 import {readSettings,setupSettings,settingsSnapshot,applySettingsSnapshot} from './settings-ui.mjs?v=bd68579c2c000dd9';
 import {WORKSPACE_KEY,WORKSPACE_FORMAT,WORKSPACE_VERSION,parseWorkspace} from './workspace.mjs?v=bd68579c2c000dd9';
@@ -32,12 +32,14 @@ let engine = null, worker = null, workerTimer = null, generation = 0;
 let state = 'idle', animation = 0, previous = 0, credit = 0, total = 0;
 let fastMode = false;
 let loadedSlots = [];
-let coreView = 'native', inspectionAddress = 0, listedLines = 0;
-const consoles=[];let consoleSerial=0;const commandHistory=[];
-let nativeBusy=false,nativeResume=false,nativeOutput='',nativeInput=null,nativeCancelled=false;
+let inspectionAddress = 0;
+const consoles=[];let consoleSerial=0;
+let nativeBusy=false,nativeResume=false,nativeInput=null,nativeCancelled=false;
+// The log (the first tracker) interleaves executed instructions with cdb blocks: a command and its output, or a core listing. Both carry a sequence number.
+let logSeq=0,logFrom=0,logStick=false,cdbLog=[],cdbBlock=null,cdbStepping=false,liveTasks=[];
 let maxSlice = 0, pendingReject = null, latest = null, history = [], combined = [];
 let lastText = 0, dirty = false, stepping = false, stepEpoch = 0;
-let collapsedEditors=[], scoreViewKey=null, openTabs=[], originals=[], welcomeDismissed=false, pausedByEditor=false, inspectorActive=null;
+let collapsedEditors=[], scoreViewKey=null, openTabs=[], originals=[], welcomeDismissed=false, pausedByEditor=false;
 let sourceEditors=[], compileIssues=[];
 const demoSources = [";redcode-94\n;name Imp\n;author A. K. Dewdney\n;assert 1\nmov.i 0, 1\nend\n", ";redcode-94\n;name Dwarf\n;author A. K. Dewdney\n;assert 1\nadd.ab #4, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat.f #0, #0\nend\n"];
 let tournaments=null,library=null,tools=null;
@@ -64,7 +66,6 @@ function scheduleValidation(){
 function showConsole() {
  $('consoleWindow').open=true;
  $('consoleOutput').textContent=consoleText || 'Validate a warrior or run a battle to see assembly output here.';
- if(activeEditor()<0)activateInspector('output');
 }
 function refreshCompileButtons() {
  document.querySelectorAll('.compile-warrior').forEach((button,i)=>{
@@ -360,7 +361,7 @@ function controls() {
   renderCenterTabs();
 }
 function stop() {
-  nativeResume=false;nativeOutput='';engine?.setDebugEvents(false);
+  nativeResume=false;clearLog();liveTasks=[];engine?.setDebugEvents(false);
   setFast(false);
   cancelAutoValidation();cancelCompileCheck();
   generation++; stepEpoch++; stepping = false; cancelAnimationFrame(animation);
@@ -368,7 +369,7 @@ function stop() {
   worker = null; clearTimeout(workerTimer);
   if (pendingReject) pendingReject(new DOMException('Stopped', 'AbortError'));
   pendingReject = null; engine = null; latest = null;
-  history = []; combined = []; coreView='native'; renderTrace(); countedCompleted=0;lastScoreSample=-1;
+  history = []; combined = []; renderTrace(); countedCompleted=0;lastScoreSample=-1;
   processChart.clear();scoreChart.clear();
   state = 'idle'; pausedByEditor=false; $('battleResults').hidden=true;$('lastResult').textContent='No battle run yet.'; dirty = false; $('changed').textContent = ''; $('activeSettings').textContent = ''; legend();
   $('progress').hidden = true; status('Stopped. Ready for another battle.'); controls();
@@ -377,7 +378,7 @@ function clearBattle() {
   stop();display.configure(display.size);clearHover();
   $('timing').textContent='Cycle —';$('timing').dataset.instructions='0';
   $('scores').textContent='Add warriors or try the demo.';
-  for(const panel of consoles)panel.output.textContent='Load a battle to inspect its core.';$('coreViewTitle').textContent='Core listing';
+  renderTrace();
 
 
   $('battleTotals').textContent='Warriors · 0 battles this run';
@@ -488,73 +489,52 @@ function instructionRow(address, instruction, owner = null, suffix = '', listing
 function traceRow(entry) {
   return instructionRow(entry.address,entry.instruction,entry.warrior,'  · '+latest.warriors[entry.warrior].name);
 }
-function renderListing(host) {
-  if(!host){for(const panel of consoles.filter(p=>p.select.value==='cdb'))renderListing(panel.output);return;}
-  if (!engine) {host.textContent='Load a battle to inspect its core.';return;}
-  const start = inspectionAddress;listedLines=lineCount();
-  host.replaceChildren(...Array.from({length:listedLines},(_,i) => {
-    const addr=wrap(start+i),owners=latest.warriors.flatMap((w,j)=>w.pc===addr?[j]:[]);
-    return instructionRow(addr,engine.inspect(addr),owners[0]??null,
-      owners.length?'  ← next: '+owners.map(j=>latest.warriors[j].name).join(', '):'',true);
-  }));
+// Clicking the core lists it from there into the log, as it is at that moment.
+function inspect() {
+  if(nativeBusy)return;
+  if(!engine){closeBlock();pushBlock({text:'Load a battle to inspect its core.\n'});renderTrace();return;}
+  closeBlock();
+  const start=inspectionAddress,count=Math.min(40,lineCount());
+  const rows=Array.from({length:count},(_,i)=>{
+    const address=wrap(start+i),owners=latest.warriors.flatMap((w,j)=>w.pc===address?[j]:[]);
+    return {address,instruction:engine.inspect(address),owner:owners[0]??null,suffix:owners.length?'  ← next: '+owners.map(j=>latest.warriors[j].name).join(', '):''};
+  });
+  pushBlock({command:`list ${start},${wrap(start+count-1)}`,rows});renderTrace();
 }
-function inspect() {if(nativeBusy)return;ensureCdbConsole();coreView='inspect';$('coreViewTitle').textContent='Core listing';syncTrace();renderListing();}
-function renderCoreView() {
-  // Only explicit inspection or cdb commands change this console's contents.
-  if(coreView==='native')renderNativeOutput();
-}
-function showAddress(n) { inspectionAddress=wrap(n); inspect();renderCoreView(); }
-// The right pane holds one fixed cdb console; trackers of executed instructions sit side by side below the arena.
+function showAddress(n) { inspectionAddress=wrap(n); inspect(); }
+// Trackers of executed instructions sit side by side below the arena. The first one is the log: the cdb command
+// line sits below it, and it shows each command and its output in time order with the executed instructions.
 function consoleOptions(panel) {
-  if(panel.select.value==='cdb')return;
   const selected=panel.select.value || 'all';
   const names=latest?.warriors.map(w=>w.name) || sources.map((source,i)=>draftName(source,i));
   panel.select.replaceChildren(new Option('All warriors','all'),...names.map((name,i)=>new Option(name,'warrior:'+i)));
   panel.select.value=[...panel.select.options].some(o=>o.value===selected)?selected:'all';
 }
-function renderInspectorTabs(){
- const tabs=consoles.filter(p=>p.select.value==='cdb').map(panel=>{
-  const b=document.createElement('button');b.type='button';b.setAttribute('role','tab');b.className='console-tab';b.textContent='cdb';
-  b.setAttribute('aria-selected',String(inspectorActive===panel));b.onclick=()=>activateInspector(panel);return b;
- });
- for(const old of $('inspectorTabs').querySelectorAll('.console-tab'))old.remove();
- $('inspectorTabs').prepend(...tabs);
- $('outputTab').setAttribute('aria-selected',String(inspectorActive==='output'));
-}
-function activateInspector(target){
- if(target!=='output' && target?.select?.value!=='cdb')target=consoles.find(p=>p.select.value==='cdb')||'output';
- inspectorActive=target;
- for(const panel of consoles)if(panel.select.value==='cdb')panel.element.classList.toggle('active',panel===target);
- $('outputPanel').hidden=target!=='output';
- $('commandWorkspace').hidden=target==='output';$('cdbHead').hidden=target==='output';
- $('consolePanel').dataset.tab=target==='output'?'output':'cdb';
- renderInspectorTabs();
- if(target!=='output')renderCoreView();
-}
-$('outputTab').onclick=()=>activateInspector('output');
-function addConsole(kind='all') {
-  const panel={paused:false},cdb=kind==='cdb';
+function addConsole(kind='all',{log=false}={}) {
+  const panel={paused:false,log,frozen:null},id=++consoleSerial;
   panel.element=document.createElement('section');
   panel.select=document.createElement('select');
   panel.output=document.createElement('pre');panel.output.className='console-output';
-  if(cdb){
-    panel.element.className='output-console';panel.select.append(new Option('cdb','cdb'));
-    panel.output.id='instruction';panel.output.setAttribute('aria-label','cdb console output');
-    panel.element.append(panel.output);consoles.push(panel);$('execution').append(panel.element);
-    renderCoreView();renderInspectorTabs();return panel;
-  }
-  const id=++consoleSerial;
-  panel.element.className='tracker';panel.element.setAttribute('aria-label','Tracker '+id);
+  panel.element.className='tracker'+(log?' log-tracker':'');panel.element.setAttribute('aria-label',log?'Log and cdb console':'Tracker '+id);
   const header=document.createElement('div');header.className='console-toolbar';
-  panel.select.setAttribute('aria-label','Tracker '+id+' warrior');
-  const pauseButton=document.createElement('button');pauseButton.type='button';pauseButton.textContent='Ⅱ';pauseButton.title='Pause tracker';pauseButton.setAttribute('aria-label','Pause tracker '+id);pauseButton.setAttribute('aria-pressed','false');
-  pauseButton.onclick=()=>{panel.paused=!panel.paused;pauseButton.setAttribute('aria-pressed',String(panel.paused));syncTrace();renderTrace();};
-  const close=document.createElement('button');close.type='button';close.textContent='×';close.title='Close tracker';close.setAttribute('aria-label','Close tracker '+id);
-  close.onclick=()=>{consoles.splice(consoles.indexOf(panel),1);panel.element.remove();syncTrace();};
-  panel.output.setAttribute('aria-label','Tracker '+id+' executed instructions');
-  header.append(panel.select,pauseButton,close);panel.element.append(header,panel.output);consoles.push(panel);$('addConsole').before(panel.element);
+  panel.select.setAttribute('aria-label',(log?'Log':'Tracker '+id)+' warrior');
+  const pauseButton=document.createElement('button');pauseButton.type='button';pauseButton.textContent='Ⅱ';pauseButton.title=log?'Pause the executed instructions (cdb output still appears)':'Pause tracker';pauseButton.setAttribute('aria-label','Pause '+(log?'log':'tracker '+id));pauseButton.setAttribute('aria-pressed','false');
+  pauseButton.onclick=()=>{panel.paused=!panel.paused;panel.frozen=panel.paused?traceEntries(panel).slice():null;pauseButton.setAttribute('aria-pressed',String(panel.paused));syncTrace();renderTrace();};
+  header.append(panel.select,pauseButton);
+  if(log){
+    const title=document.createElement('span');title.className='log-title';title.textContent='Log · cdb';header.prepend(title);
+    panel.output.id='instruction';panel.output.setAttribute('aria-label','Executed instructions and cdb output');
+    panel.element.append(header,panel.output,$('cdbHead'),$('commandWorkspace'));
+  }else{
+    const close=document.createElement('button');close.type='button';close.textContent='×';close.title='Close tracker';close.setAttribute('aria-label','Close tracker '+id);
+    close.onclick=()=>{consoles.splice(consoles.indexOf(panel),1);panel.element.remove();syncTrace();};
+    header.append(close);
+    panel.output.setAttribute('aria-label','Tracker '+id+' executed instructions');
+    panel.element.append(header,panel.output);
+  }
+  consoles.push(panel);$('addConsole').before(panel.element);
   consoleOptions(panel);panel.select.value=kind;
-  panel.select.onchange=()=>{syncTrace();renderTrace();};
+  panel.select.onchange=()=>{if(panel.frozen)panel.frozen=traceEntries(panel).slice();syncTrace();renderTrace();};
   syncTrace();renderTrace();return panel;
 }
 // A new tracker follows the first warrior that no tracker follows yet.
@@ -563,21 +543,73 @@ function nextTrackerKind(){
  for(let i=0;i<count;i++)if(!tracked.has('warrior:'+i))return 'warrior:'+i;
  return 'all';
 }
-function ensureCdbConsole(){if(!consoles.some(p=>p.select.value==='cdb'))addConsole('cdb');if(inspectorActive==='output' || inspectorActive?.select?.value!=='cdb')activateInspector(consoles.find(p=>p.select.value==='cdb'));}
+const traceEntries=panel=>panel.select.value==='all'?combined:(history[Number(panel.select.value.split(':')[1])]||[]);
+const traceNode=(panel,e)=>panel.select.value==='all'?traceRow(e):instructionRow(e.address,e.instruction,e.warrior);
+// Trackers also update while a cdb command runs, so long steps or a continue show what was executed.
 function renderTrace() {
-  if(nativeBusy || fastMode || $('pauseViews').checked)return;
+  const frozen=fastMode || $('pauseViews').checked;
   for(const panel of consoles){
-    if(panel.paused || panel.select.value==='cdb')continue;
+    if(panel.log){renderLog(panel);continue;}
+    if(panel.paused || frozen)continue;
     if(!latest){panel.output.textContent='Load a battle to watch executed instructions.';continue;}
-    const index=Number(panel.select.value.split(':')[1]);
-    const entries=panel.select.value==='all'?combined:(history[index]||[]);
-    panel.output.replaceChildren(...entries.map(e=>panel.select.value==='all'?traceRow(e):instructionRow(e.address,e.instruction,e.warrior)));
+    panel.output.replaceChildren(...traceEntries(panel).map(e=>traceNode(panel,e)));
     panel.output.scrollTop=panel.output.scrollHeight;
   }
 }
+function pushBlock(block){
+  block.kind='cdb';block.seq=++logSeq;cdbLog.push(block);logStick=true;
+  if(cdbLog.length>200)cdbLog.shift();
+  return block;
+}
+// A block keeps the program counters of the moment it ended, so its colours do not change as the battle moves on.
+// Only a block at the end of the log says "← next": every earlier line cdb printed has run since.
+function closeBlock(){
+  if(!cdbBlock)return;
+  if(!cdbBlock.command && !cdbBlock.text)cdbLog.splice(cdbLog.indexOf(cdbBlock),1);
+  else cdbBlock.pcs=latest?.warriors.map(w=>w.pc)??[];
+  cdbBlock=null;
+}
+function clearLog(){cdbLog=[];cdbBlock=null;logFrom=logSeq;}
+function blockNodes(block,newest){
+  const nodes=[];
+  if(block.command){
+    const b=document.createElement('button');b.type='button';b.className='log-cmd';b.textContent='> '+block.command;b.title='Run again: '+block.command;
+    b.onclick=()=>{if(!nativeBusy)command(block.command).catch(e=>{$('commandOutput').textContent=e.message;});};
+    nodes.push(b);
+  }
+  if(block.rows)return nodes.concat(block.rows.map(r=>instructionRow(r.address,r.instruction,r.owner,newest?r.suffix:'',true)));
+  const pcs=block.pcs??latest?.warriors.map(w=>w.pc)??[],lines=block.text.split('\n');
+  if(lines.at(-1)==='')lines.pop();
+  for(const line of lines){
+    const match=line.match(/^(\d{5})\s+(.*)$/);
+    if(!match){nodes.push(document.createTextNode(line+'\n'));continue;}
+    if(!match[2].trim())continue; // After the battle ends cdb prints the address with an empty cell view.
+    const address=Number(match[1]),owners=pcs.flatMap((pc,j)=>pc===address?[j]:[]);
+    nodes.push(instructionRow(address,match[2],owners[0]??null,newest&&owners.length?'  ← next: '+owners.map(j=>latest?.warriors[j]?.name).join(', '):'',true));
+  }
+  return nodes;
+}
+function renderLog(panel=consoles.find(p=>p.log)) {
+  if(!panel)return;
+  const host=panel.output,stick=logStick || host.scrollHeight-host.scrollTop-host.clientHeight<24;
+  const entries=(panel.frozen??traceEntries(panel)).filter(e=>e.seq>logFrom);
+  // Once the instruction history is full, older cdb blocks scroll out with it.
+  const cutoff=entries.length>=(panel.select.value==='all'?300:100)?entries[0].seq:logFrom;
+  const blocks=cdbLog.filter(b=>b.seq>cutoff);
+  // An instruction a cdb step ran is left out when cdb's line just before it already showed it, as pMARS shows it once.
+  let shown=null;
+  const items=[...entries,...blocks].sort((a,b)=>a.seq-b.seq).filter(item=>{
+    if(item.kind==='cdb'){const last=item.text?[...item.text.matchAll(/^(\d{5})\s/gm)].at(-1):null;if(last)shown=Number(last[1]);return true;}
+    const hide=item.cdb && item.address===shown;shown=null;return !hide;
+  });
+  const newest=items.at(-1)?.kind==='cdb'?items.at(-1):null; // Once something ran after it, a cdb line is no longer next.
+  if(!items.length)host.textContent=(latest?'Run or step to see executed\ninstructions here.':'Load a battle to see executed\ninstructions here.')+'\ncdb commands go in the line below.';
+  else host.replaceChildren(...items.flatMap(item=>item.kind==='cdb'?blockNodes(item,item===newest):[traceNode(panel,item)]));
+  if(stick){host.scrollTop=host.scrollHeight;logStick=false;}
+}
 function textViews() {
-  if(nativeBusy){renderNativeOutput();return;}
-  if(latest){scores(latest);renderCoreView();}
+  if(nativeBusy){renderTrace();return;}
+  if(latest)scores(latest);
   renderTrace();lastText=performance.now();
 }
 function present(update) {
@@ -586,11 +618,14 @@ function present(update) {
     ' per warrior per round · ' + engine.config.warriors + ' warriors';
   for (const entry of update.trace) {
     if($('pauseViews').checked)continue;
+    entry.seq=++logSeq;entry.cdb=cdbStepping;
     (history[entry.warrior] ||= []).push(entry);
     if (history[entry.warrior].length > 100) history[entry.warrior].shift();
     combined.push(entry);
   }
   if (combined.length > 300) combined.splice(0,combined.length-300);
+  // The log notes when a warrior loses its last process (not in Fast mode, which runs many rounds).
+  update.warriors.forEach((w,i)=>{if(liveTasks[i]>0 && !w.tasks && !fastMode){closeBlock();pushBlock({text:`${w.name} terminated at cycle ${update.cycle.toLocaleString()}.\n`});}liveTasks[i]=w.tasks;});
   total += update.executed;
   $('timing').dataset.instructions=String(total);
 
@@ -711,22 +746,8 @@ async function run() {
 function appendNativeOutput(text) {
   if(text==='(cdb) ')return;
   if(text.includes('\x1b['))text=text.replace(/\x1b\[[0-9;]*[A-Za-z]/g,'');
-  nativeOutput=(nativeOutput+text).slice(-65536);
-}
-function renderNativeOutput(host) {
-  if(!host){for(const panel of consoles.filter(p=>p.select.value==='cdb' && !p.paused))renderNativeOutput(panel.output);return;}
-  $('coreViewTitle').textContent='Native pMARS debugger';
-  if(nativeBusy)host.textContent=nativeOutput;
-  else host.replaceChildren(...nativeOutput.split('\n').map(line=>{
-    const match=line.match(/^(\d{5})\s+(.*)$/);
-    if(match){
-      const address=Number(match[1]);
-      const owner=latest?.warriors.findIndex(w=>w.pc===address)??-1;
-      return instructionRow(address,match[2],owner>=0?owner:null,'',true);
-    }
-    return document.createTextNode(line+'\n');
-  }));
-  host.scrollTop=host.scrollHeight;
+  cdbBlock??=pushBlock({command:null,text:''});
+  cdbBlock.text=(cdbBlock.text+text).slice(-65536);
 }
 async function nativeCommand(text) {
   if(nativeBusy){
@@ -736,15 +757,15 @@ async function nativeCommand(text) {
   pause();nativeResume=false;
   if(!engine && !(await load()))return;
   const instance=engine;instance.setDebugEvents(false);
-  if(typeof text==='string' && text.trim().toLowerCase()==='cls')nativeOutput='';
-  if(nativeOutput && !nativeOutput.endsWith('\n'))appendNativeOutput('\n');
-  ensureCdbConsole();
-  nativeBusy=true;nativeCancelled=false;coreView='native';$('commandOutput').textContent='Working…';controls();
-  const timer=setInterval(renderNativeOutput,100);
+  if(typeof text==='string' && text.trim().toLowerCase()==='cls')clearLog();
+  closeBlock();cdbBlock=pushBlock({command:text?.trim()||null,text:''});
+  const hint=stepAddressHint(text);if(hint)appendNativeOutput(hint);
+  nativeBusy=true;nativeCancelled=false;$('commandOutput').textContent='Working…';controls();
+  const timer=setInterval(renderTrace,100);
   const io={output:appendNativeOutput,command:recordCommand,input:prompt=>{
     if(nativeCancelled)return Promise.resolve(null);
     $('commandOutput').textContent=prompt || 'Enter the requested instruction or expression.';
-    $('command').focus();renderNativeOutput();
+    $('command').focus();renderTrace();
     return new Promise(resolve=>{nativeInput=resolve;});
   }};
   try{
@@ -754,13 +775,19 @@ async function nativeCommand(text) {
       if(result.cancelled || nativeCancelled)break;
       if(state==='done' && result.action!==3){appendNativeOutput('Battle complete. Reset to execute again.\n');break;}
       if(result.action===2){
-        let remaining=result.steps;instance.setDebug(false);
+        // As in pMARS, the log shows a cdb step only through the line cdb prints before its next prompt: the instruction about
+        // to run, which the following step runs. The instructions executed here still reach the other trackers.
+        closeBlock();
+        let remaining=result.steps;instance.setDebug(false);cdbStepping=true;
         while(remaining>0 && !nativeCancelled){
-          const update=instance.advance(Math.min(100000,remaining),4);remaining-=update.executed;present(update);
+          const update=instance.advance(Math.min(100000,remaining),4);remaining-=update.executed;
+          // pMARS prints round results while the step runs; they come after the instructions that led to them.
+          const printed=cdbBlock;present(update);
+          if(printed && cdbLog.includes(printed)){cdbLog.splice(cdbLog.indexOf(printed),1);pushBlock(printed);}
           if(update.done){remaining=0;break;}
           await new Promise(resolve=>setTimeout(resolve,0));
         }
-        instance.setDebug($('debugEnabled').checked);
+        cdbStepping=false;instance.setDebug($('debugEnabled').checked);
         if(state==='done')break;
         continue;
       }
@@ -772,15 +799,14 @@ async function nativeCommand(text) {
       break;
     }
   }finally{
-    clearInterval(timer);nativeBusy=false;nativeInput=null;
-    for(const button of $('commandHistory').querySelectorAll('button'))button.disabled=false;
+    clearInterval(timer);nativeBusy=false;nativeInput=null;cdbStepping=false;
     if(engine===instance){
       instance.setDebug($('debugEnabled').checked);
       latest=instance.update(state==='done');latest.events=new Uint32Array();latest.trace=[];latest.executed=0;
-      if(state!=='running')coreView='native';
-      if(state!=='running')renderNativeOutput();renderTrace();controls();
+      closeBlock(); // After the update, so the block keeps where each warrior really is now.
+      renderTrace();controls();
       $('commandOutput').textContent=nativeCancelled?'Debugger command cancelled.':'Ready.';
-    }
+    }else closeBlock();
   }
 }
 async function command(text) {
@@ -859,16 +885,9 @@ function syncTrace(){
  if(nativeBusy)return;
  engine?.setTrace(!fastMode && !$('pauseViews').checked && consoles.some(p=>!p.paused && p.select.value!=='cdb'));
 }
+// cdb reports the command it runs, which is the last one when Enter is pressed on an empty line.
 function recordCommand(text){
- if(!text)return;
- commandHistory.push(text);if(commandHistory.length>100)commandHistory.shift();
- $('commandHistory').replaceChildren(...commandHistory.map(cmd=>{
-   const button=document.createElement('button');button.type='button';button.textContent=cmd;button.title='Execute again: '+cmd;
-   button.disabled=nativeBusy && !nativeInput;
-   button.onclick=()=>{if(nativeBusy)return;command(cmd).catch(e=>{$('commandOutput').textContent=e.message;});};
-   return button;
- }));
- $('commandHistory').scrollTop=$('commandHistory').scrollHeight;
+ if(text && cdbBlock && !cdbBlock.command)cdbBlock.command=text;
 }
 function battleCount(update){
  sessionBattles += Math.max(0,update.completed-countedCompleted);countedCompleted=update.completed;
@@ -1035,20 +1054,27 @@ function columnSplitter(id,panelId,name,min,max,viewportShare,direction){
 columnSplitter('sidebarSplitter','sidebar','sidebar-w',180,560,.3,1);
 columnSplitter('inspectorSplitter','inspector','inspector-w',260,900,.4,-1);
 
-addConsole('cdb');addConsole('all');
-// Resizing the window or the inspector re-lists the core so the listing keeps filling the console.
-new ResizeObserver(()=>{if(coreView!=='inspect' || !engine || nativeBusy)return;const lines=lineCount();if(lines!==listedLines)renderListing();}).observe($('instruction'));
-activateInspector(consoles[0]);
+addConsole('all',{log:true});
 renderCenterTabs();
 
 // Popovers: one open at a time, closed by outside click or Escape.
+// Popovers hang right-aligned from their button; flip to left-aligned when that would
+// cross the left edge of the viewport or of a clipping ancestor (e.g. the core view).
+function alignPopover(menu){
+ menu.style.left='';menu.style.right='';
+ let edge=0;
+ for(let node=menu.parentElement;node && node!==document.body;node=node.parentElement){
+  if(getComputedStyle(node).overflowX!=='visible')edge=Math.max(edge,node.getBoundingClientRect().left);
+ }
+ if(menu.getBoundingClientRect().left<edge){menu.style.left='0';menu.style.right='auto';}
+}
 const popovers=[['examplesBtn','examplesMenu'],['workspaceBtn','workspaceMenu'],['viewBtn','viewMenu'],['keyBtn','keyMenu'],['debugHelpBtn','debugHelp']];
 function closePopovers(except){
  for(const [b,m] of popovers){if(m===except)continue;$(m).hidden=true;$(b).setAttribute('aria-expanded','false');}
  $('helpLinks').classList.remove('open');$('helpBtn').setAttribute('aria-expanded','false');
 }
 for(const [b,m] of popovers){
- $(b).onclick=event=>{event.stopPropagation();const open=$(m).hidden;closePopovers(m);$(m).hidden=!open;$(b).setAttribute('aria-expanded',String(open));};
+ $(b).onclick=event=>{event.stopPropagation();const open=$(m).hidden;closePopovers(m);$(m).hidden=!open;$(b).setAttribute('aria-expanded',String(open));if(open)alignPopover($(m));};
  $(m).addEventListener('click',event=>{event.stopPropagation();if(event.target.closest('.menu button'))closePopovers();});
 }
 $('helpBtn').onclick=event=>{event.stopPropagation();const open=!$('helpLinks').classList.contains('open');closePopovers();$('helpLinks').classList.toggle('open',open);$('helpBtn').setAttribute('aria-expanded',String(open));};
@@ -1143,8 +1169,7 @@ function setPane(name){
  markPane(name);
  if(name==='code'){if(activeEditor()<0 && sources.length)openWarrior(openTabs[0]??0);}
  else if(activeEditor()>=0)showCore();
- if(name==='debug')activateInspector(consoles.find(p=>p.select.value==='cdb'));
- if(name==='output')activateInspector('output');
+ if(name==='debug')renderTrace();
  if(name==='core'){display.redraw();}
 }
 for(const b of document.querySelectorAll('#phoneBar button'))b.onclick=()=>setPane(b.dataset.pane);
@@ -1188,7 +1213,7 @@ async function debugToolWarrior(source,file,opponent,config){
  excludedWarriors=sources.map((_,i)=>i<first);
  markDirty();editors();rosterCount();controls();legend();
  $('emulatorTab').click();showCore(true);
- if(await load()){ensureCdbConsole();if(getComputedStyle($('phoneBar')).display!=='none')setPane('debug');}
+ if(await load() && getComputedStyle($('phoneBar')).display!=='none')setPane('debug');
 }
 // Tools get the roster and can add a warrior to it, as the library does.
 tools=setupTools({
