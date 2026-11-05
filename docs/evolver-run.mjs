@@ -9,7 +9,7 @@
 // Niching (clearing): survivors are taken best first, but a warrior within `niche` of a better
 // one whose niche already holds `nicheSize` warriors goes to the back of the line, so near-copies
 // of the leader give way to the best of other kinds of warrior.
-import {rng,genomeRules,randomGenome,markovGenome,normalize,mutate,crossover,genomeKey,renderGenome,redcodeHeader,distance} from './evolver-genome.mjs';
+import {rng,genomeRules,randomGenome,markovGenome,normalize,mutate,crossover,genomeKey,renderGenome,redcodeHeader,distance,nicheGroups} from './evolver-genome.mjs';
 
 // niche: the clearing radius (genome distance 0 … 1, 0 = no niching); nicheSize: warriors a niche keeps.
 export const EVOLVER_DEFAULTS={population:40,generations:200,elite:2,tournament:3,crossover:0.5,mutation:1.5,structural:0.3,immigrants:0.05,seedShare:0.5,reseedEvery:5,niche:0.3,nicheSize:2};
@@ -45,7 +45,7 @@ export class Evolution{
  // Clearing: list sorted best first. The best `elite` always stay, then niche leaders and the
  // first `nicheSize` of each niche, then the cleared ones by score if places are left.
  survivors(list,n){
-  const p=this.params;this.niches=null;
+  const p=this.params;
   if(!(p.niche>0))return list.slice(0,n);
   const leaders=[],kept=[],cleared=[];
   list.forEach((m,i)=>{
@@ -54,9 +54,7 @@ export class Evolution{
    else if(leader.count<Math.max(1,p.nicheSize)||i<p.elite){leader.count++;kept.push(m);}
    else cleared.push(m);
   });
-  const out=[...kept,...cleared].slice(0,n),inside=new Set(out);
-  this.niches=leaders.filter(l=>inside.has(l.m)).length;
-  return out;
+  return [...kept,...cleared].slice(0,n);
  }
  unique(list){const seen=new Set();return list.filter(m=>!seen.has(m.key)&&seen.add(m.key));}
  sort(){this.population.sort((a,b)=>b.score-a.score||a.genome.code.length-b.genome.code.length);}
@@ -93,12 +91,18 @@ export class Evolution{
   const scores=this.population.map(m=>m.score),mean=scores.reduce((a,b)=>a+b,0)/scores.length;
   const sorted=scores.slice().sort((a,b)=>a-b),median=sorted[sorted.length>>1];
   const div=this.population.reduce((s,m)=>s+distance(m.genome,top.genome),0)/this.population.length;
-  this.history.push({generation:this.generation,best:this.best.score,top:top.score,mean,median,diversity:div,niches:this.niches??null});
+  // Niches are counted with the clearing radius, or 0.3 when niching is off, so runs compare.
+  const ranked=this.ranked().map(m=>m.genome),niches=nicheGroups(ranked,this.params.niche>0?this.params.niche:0.3).leaders.length;
+  this.history.push({generation:this.generation,best:this.best.score,top:top.score,mean,median,diversity:div,niches});
  }
  stats(){return {...this.history.at(-1),evaluations:this.evaluations};}
+ // The population best first (cleared warriors sit behind kept ones in this.population).
+ ranked(){return this.population.slice().sort((a,b)=>b.score-a.score||a.genome.code.length-b.genome.code.length);}
  bestSource(benchmark=''){
   const b=this.best;if(!b)return '';
   return this.source(b.genome,[`evolved by the corewar.dev evolver, generation ${b.generation}`,`score ${b.score.toFixed(2)}${benchmark?' against '+benchmark:''}`]);
  }
  snapshot(){return this.population.map(m=>m.genome);}
+ // The population with scores, best first, for the population view.
+ view(){return this.ranked().map(m=>({genome:m.genome,score:m.score}));}
 }

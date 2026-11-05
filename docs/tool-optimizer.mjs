@@ -55,7 +55,7 @@ const big=n=>n<1e6?Math.round(n).toLocaleString('en-US'):n.toExponential(2).repl
 function download(text,name){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type:'text/plain'}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 const hashSeed=text=>parseInt(sourceId(String(text)),36)>>>0;
 
-export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
+export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,benchmarks,loadBenchmark}){
  const saved=loadState()||{};
  const field=(...nodes)=>el('div',{className:'tool-field'},...nodes);
  const labelled=(id,text,control)=>{control.id=id;return [el('label',{htmlFor:id,textContent:text}),control];};
@@ -75,8 +75,20 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
    el('div',{},el('strong',{textContent:'One candidate'}),el('pre',{textContent:EXAMPLE_RENDERED}))),
   el('dl',{className:'opt-rules'},...RULES.flatMap(([k,v])=>[el('dt',{textContent:k}),el('dd',{textContent:v})])));
  // Opponents and settings
- const suiteSelect=el('select',{id:'optSuite'},...benchmarkCatalog.map(s=>new Option(s.descriptor.name,s.id)),new Option('Your warriors (roster, Battle settings)','roster'));
- suiteSelect.value=saved.suite&&[...suiteSelect.options].some(o=>o.value===saved.suite)?saved.suite:examples[0].suite;
+ const suiteSelect=el('select',{id:'optSuite'});
+ // The suites of the Tournaments tab's Benchmark mode: built in, then imported or made this session.
+ // Without that tab, the built-in catalog.
+ const suiteList=()=>{let all=null;try{all=benchmarks?.()??null;}catch{}return all??benchmarkCatalog.map(s=>({id:s.id,name:s.descriptor.name,config:s.descriptor.parameters,builtIn:true}));};
+ function fillSuites(){
+  const all=suiteList(),own=all.filter(s=>!s.builtIn),before=suiteSelect.value;
+  suiteSelect.replaceChildren(...all.filter(s=>s.builtIn).map(s=>new Option(s.name,s.id)),
+   ...(own.length?[el('optgroup',{label:'Imported or made this session (Tournaments, Benchmark mode)'},...own.map(s=>new Option(s.name,s.id)))]:[]),
+   new Option('Your warriors (roster, Battle settings)','roster'));
+  const want=before||saved.suite;
+  suiteSelect.value=want&&[...suiteSelect.options].some(o=>o.value===want)?want:examples[0].suite;
+  return suiteSelect.value!==before;
+ }
+ fillSuites();
  const suiteInfo=el('p',{className:'hint'});
  const methodSelect=el('select',{id:'optMethod'},new Option('Simulated annealing','anneal'),new Option('Genetic algorithm','ga'));methodSelect.value=saved.method==='ga'?'ga':'anneal';
  const everyOption=new Option('Every value (!! markers)','every');let searchMethod=methodSelect.value;
@@ -179,7 +191,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
  // ---- opponents
  function matchSettings(){
   if(suiteSelect.value==='roster'){const c=readConfig();return {...c,warriors:2};}
-  return suite?.config??benchmarkCatalog.find(s=>s.id===suiteSelect.value)?.descriptor.parameters??null;
+  return suite?.config??suiteList().find(s=>s.id===suiteSelect.value)?.config??null;
  }
  async function loadSuite(){
   const id=suiteSelect.value;suite=null;
@@ -187,10 +199,12 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
    const list=roster();suite={id,name:'Your warriors',config:readConfig(),warriors:list.map((w,i)=>({name:w.name,source:w.source,id:'roster-'+i}))};
    suiteInfo.textContent=`${list.length} warrior${list.length===1?'':'s'} from the roster · ${describeSettings(suite.config)}`;recheck();return suite;
   }
-  const entry=benchmarkCatalog.find(s=>s.id===id);if(!entry)return null;
   suiteInfo.textContent='Loading opponents…';
   try{
+   if(loadBenchmark){const loaded=await loadBenchmark(id);if(suiteSelect.value!==id)return null;suites.set(id,loaded);}
+   const entry=benchmarkCatalog.find(s=>s.id===id);
    if(!suites.has(id)){
+    if(!entry)throw new Error('this benchmark is no longer loaded');
     const response=await fetch(new URL(entry.data,import.meta.url));if(!response.ok)throw new Error('HTTP '+response.status);
     const {files,scores}=await response.json();suites.set(id,readBenchmark(entry.descriptor,files,id,scores??null));
    }
@@ -456,5 +470,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState}){
 
  new ResizeObserver(()=>{if(run)drawChart(run);}).observe(chart);
  methodVisibility();refreshRoster();loadSuite();
- return {show(){refreshRoster();if(suiteSelect.value==='roster')loadSuite();if(run)draw(run);},hide(){}};
+ // Suites imported, made or edited in the Benchmark mode since the last visit show up here.
+ const idle=()=>!run||run.finished;
+ return {show(){refreshRoster();if(idle()){fillSuites();loadSuite();}if(run)draw(run);},hide(){}};
 }

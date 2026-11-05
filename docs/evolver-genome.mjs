@@ -176,6 +176,15 @@ export function distance(a,b){
  for(let i=0;i<n;i++){const x=a.code[i],y=b.code[i];if(!x||!y){d+=1;continue;}let s=0;for(let k=0;k<6;k++)if(x[k]!==y[k])s++;d+=s/6;}
  return d/n;
 }
+// Niches of a population, best first: each warrior joins the first better leader within `radius`,
+// or leads a new niche. Returns the niche index of every warrior and the leaders' indices.
+export function nicheGroups(genomes,radius){
+ const leaders=[],group=genomes.map((g,i)=>{
+  const k=leaders.findIndex(l=>distance(g,genomes[l])<radius);
+  if(k>=0)return k;leaders.push(i);return leaders.length-1;
+ });
+ return {group,leaders};
+}
 // Redcode that pMARS and exMARS both assemble to exactly this genome.
 export function renderInstruction(ins,coreSize){
  const [op,m,am,a,bm,b]=ins;

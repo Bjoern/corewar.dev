@@ -10,6 +10,8 @@ import {benchmarkCatalog} from './benchmark-catalog.mjs';
 import {readBenchmark} from './benchmarks.mjs';
 import {describeSettings} from './tournaments.mjs';
 import {warriorFilename} from './warrior-files.mjs';
+import {genomeRules,renderGenome,renderInstruction,redcodeHeader,nicheGroups} from './evolver-genome.mjs';
+import {mapLayout} from './evolver-map.mjs';
 
 const STEPS=[
  'Pick a preset (the nano hill is quick) and the benchmark to challenge. Add your own opponents if you like.',
@@ -27,6 +29,7 @@ const TOPICS=[
  ['Markov chain','“A Markov chain of the opponents” assembles the benchmark’s warriors (and yours) and counts how often each instruction shape (opcode, modifier and both addressing modes) follows the one and two before it, and which shapes start and end a warrior. New warriors are drawn from those odds, each instruction with an A and B field seen on that shape. The chain mostly follows the longest context it knows and now and then forgets one, so it recombines warriors rather than copying them. It writes the first population and the immigrants of every generation.'],
  ['Benchmarks','The benchmark list has the preset’s own picks first, then every other suite of the Tournaments tab’s Benchmark mode with the same core size and a length that fits: built-in suites, imported ones and suites made from your warriors or the library this session.'],
  ['Diversity','Parents are picked by small tournaments (3 at a time), so weaker warriors still breed; children that copy a warrior already in the population are dropped; niching keeps near-copies of one warrior from crowding out the rest (see Niching); immigrants bring new code every generation; and with sampled scores the positions change every few generations. The Diversity figure is how unlike the population is from its best warrior (0 = clones, 1 = nothing in common): when it falls near 0 the run has converged, and more immigrants, more mutations or a new seed help.'],
+ ['Population view','“Population and niches” shows one generation at a time: the slider steps back through the run (the page keeps a snapshot of every generation, thinning older ones on long runs). On the map, each dot is a warrior and similar code sits close together; the colour is its score, darker is lower, and ringed dots lead a niche. Below, one row per niche: how many warriors it holds, its best and mean score and its leader’s code. Click a row or a dot to see the code. The small chart shows niches and diversity over the whole run. The view only works while it is open, once per generation, and the battles run in other threads, so it does not slow the run.'],
  ['Off the page’s thread','The search runs in a Web Worker, and the battles in one more worker per CPU core, so the page stays responsive. Battles run on exMARS, the engine the constant optimizer uses.'],
 ];
 const fmt=(n,d=1)=>n===null||n===undefined||!isFinite(n)?'—':Number(n).toFixed(d);
@@ -113,6 +116,19 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const actionStatus=el('p',{className:'hint',role:'status'});
  const opponentsTable=el('table',{className:'tool-table'});
  const opponentsBox=el('details',{className:'opt-opponents-box',hidden:true},el('summary',{textContent:'Score per opponent'}),el('div',{className:'tool-table-wrap'},opponentsTable));
+ // ---- population view
+ const popSlider=el('input',{type:'range',min:'0',max:'0',value:'0',step:'1',ariaLabel:'Generation shown'});
+ const popLatest=el('button',{type:'button',className:'small',textContent:'Latest'});
+ const popLabel=el('p',{className:'hint',role:'status',textContent:'Start a run to see its population.'});
+ const popMap=el('canvas',{className:'evo-map',ariaLabel:'Map of the population: similar warriors sit close together'});
+ const popHistory=el('canvas',{className:'evo-history',ariaLabel:'Niches and diversity per generation'});
+ const nicheTable=el('table',{className:'tool-table evo-niches'});
+ const popCode=el('pre',{className:'opt-best evo-code',hidden:true});
+ const popEdit=el('button',{type:'button',className:'small',textContent:'Open in editor',hidden:true});
+ const popBox=el('details',{className:'opt-advanced evo-population',open:!!saved.populationOpen},el('summary',{textContent:'Population and niches'}),
+  el('div',{className:'tool-actions'},popSlider,popLatest),popLabel,popMap,
+  el('p',{className:'hint',textContent:'Each dot is a warrior; similar code sits close together. Colour: score (darker is lower). Ringed: niche leaders. Click a dot or a row for its code.'}),
+  popHistory,el('div',{className:'tool-table-wrap'},nicheTable),popCode,popEdit);
  const help=el('details',{className:'tool-help',open:!saved.helpClosed},el('summary',{textContent:'How to use the evolver'}),
   el('ol',{className:'tool-steps'},...STEPS.map(s=>el('li',{textContent:s}))),
   el('div',{className:'tool-topics'},...TOPICS.map(([h,body])=>el('details',{},el('summary',{textContent:h}),el('p',{textContent:body})))));
@@ -126,7 +142,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
      field(...labelled('evoSeedShare','Share of mutants of the seed',seedShare)),seedHint)),
    el('section',{className:'t-card'},el('h3',{textContent:'Evolution'}),params)),
   el('div',{className:'opt-main'},
-   el('section',{className:'t-card opt-run'},el('h3',{textContent:'Run'}),el('div',{className:'tool-actions'},start,pause,stop),runStatus,bestScore,stats,chart),
+   el('section',{className:'t-card opt-run'},el('h3',{textContent:'Run'}),el('div',{className:'tool-actions'},start,pause,stop),runStatus,bestScore,stats,chart,popBox),
    el('section',{className:'t-card'},el('h3',{textContent:'Best warrior'}),bestHead,bestCode,
     el('div',{className:'tool-actions'},copyBest,editBest,addBest,downloadBest),
     el('div',{className:'tool-actions'},debugBest,el('label',{className:'hint',textContent:'against'}),debugOpponent),actionStatus,opponentsBox))));
@@ -145,7 +161,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   saveState({preset:presetSelect.value,custom:Object.fromEntries(CUSTOM_FIELDS.map(([k])=>[k,Number(customInputs[k].value)])),suites:{...(saved.suites||{}),[presetSelect.value]:suiteSelect.value},
    own,useRoster:useRoster.checked,seedMode:seedSelect.value,seedText:seedText.value,seedShare:seedShare.value,population:population.value,generations:generations.value,mutation:mutation.value,
    structural:structural.value,crossover:crossoverRate.value,immigrants:immigrants.value,elite:elite.value,niche:niche.value,nicheSize:nicheSize.value,scoring:scoringSelect.value,rounds:rounds.value,workers:workers.value,seed:seed.value,
-   helpClosed:!help.open,advancedOpen:params.querySelector('.opt-advanced').open,lastBest,lastPopulation});
+   helpClosed:!help.open,populationOpen:popBox.open,advancedOpen:params.querySelector('.opt-advanced').open,lastBest,lastPopulation});
   saved.suites={...(saved.suites||{}),[presetSelect.value]:suiteSelect.value};
  }
  let persistTimer=null;const schedulePersist=()=>{clearTimeout(persistTimer);persistTimer=setTimeout(persist,300);};
@@ -264,22 +280,22 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
     elite:Math.max(0,Number(elite.value)|0),niche:Math.min(1,Math.max(0,Number(niche.value)||0)),nicheSize:Math.max(1,Number(nicheSize.value)|0||1),seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0}};
   run?.worker.terminate();
   const worker=new Worker(new URL('./evolver-worker.mjs',import.meta.url),{type:'module'});
-  const r={worker,state:'running',job,opponents:list,history:[],best:null,started:Date.now(),config:c,key:configKey(c)};run=r;
+  const r={worker,state:'running',job,opponents:list,history:[],snapshots:[],best:null,started:Date.now(),config:c,key:configKey(c)};run=r;
   worker.onmessage=({data})=>{if(run===r)message(r,data);};
   worker.onerror=event=>{if(run!==r)return;r.state='finished';setRunning('finished');runStatus.textContent='The evolver stopped: '+(event.message||'worker error');};
   worker.postMessage({type:'start',job});
   bestScore.querySelector('strong').textContent='—';stats.replaceChildren();opponentsBox.hidden=true;
   runStatus.textContent=`Assembling and scoring the first ${job.params.population} warriors against ${list.length} opponents…`;
-  setRunning('running');drawChart();
+  setRunning('running');drawChart();popSlider.max='0';popSlider.value='0';selected=null;showPopulation(true);
  }
  function message(r,data){
   if(data.type==='started'){r.started=data;runStatus.textContent=`Running: ${data.why}, engine ${data.engine==='exmars'?'exMARS':'pMARS (exMARS can’t run '+data.engineWhy+')'}, ${data.workers} battle worker${data.workers===1?'':'s'}${data.nested?'':' (this browser runs no workers inside workers, so battles share one)'}${data.markov?`; Markov chain of ${data.markov.instructions} instructions from ${data.markov.warriors} warriors, ${data.markov.shapes} instruction shapes${data.markov.skipped?` (${data.markov.skipped} did not assemble)`:''}`:''}.`;return;}
   if(data.type==='generation'){
-   r.history.push(data.stats);r.last=data;
+   r.history.push(data.stats);r.last=data;keepSnapshot(r,data);
    if(data.best&&(!r.best||data.best.score!==r.best.score||data.best.source!==r.best.source)){r.best=data.best;showBest(r);}
    lastPopulation={key:r.key,genomes:data.population};
    if(r.best)lastBest={source:r.best.source,score:r.best.score,key:r.key,opponents:r.best.opponents,benchmark:r.job.benchmarkName};
-   showStats(r);drawChart();schedulePersist();return;
+   showStats(r);drawChart();showPopulation(false);schedulePersist();return;
   }
   if(data.type==='paused'){r.state='paused';setRunning('paused');runStatus.textContent=`Paused after generation ${data.generation}. Continue picks up here.`;return;}
   if(data.type==='done'){r.state='finished';setRunning('finished');runStatus.textContent=data.reason+(r.best?` Best score ${fmt(r.best.score,2)}.`:'');r.worker.terminate();persist();return;}
@@ -328,6 +344,115 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   try{await openInDebugger(bestSource(),warriorFilename(bestName()),o?{source:o.source,file:o.file||warriorFilename(o.name)}:null,bestConfig());}catch(error){actionStatus.textContent=error.message;}
  };
 
+ // ---- population view: snapshots of every generation, thinned to a budget of instructions.
+ const SNAPSHOT_BUDGET=1500000;let selected=null;
+ function keepSnapshot(r,data){
+  if(!data.ranked)return;
+  const following=Number(popSlider.value)>=r.snapshots.length-1;
+  r.snapshots.push({generation:data.stats.generation,genomes:data.ranked,scores:data.scores,radius:data.radius});
+  const size=()=>r.snapshots.reduce((t,x)=>t+x.genomes.reduce((u,g)=>u+g.code.length,0),0);
+  // Over budget: drop every other older snapshot, keeping the first and the latest.
+  while(r.snapshots.length>2&&size()>SNAPSHOT_BUDGET)r.snapshots=r.snapshots.filter((x,i,a)=>i===0||i===a.length-1||i%2===0);
+  popSlider.max=String(r.snapshots.length-1);
+  if(following)popSlider.value=popSlider.max;
+ }
+ function snapshotShown(){const list=run?.snapshots;if(!list?.length)return null;return list[Math.min(list.length-1,Number(popSlider.value)||0)];}
+ // Niches and map positions are worked out once per snapshot, when it is first shown.
+ function analyse(snap){
+  if(!snap.groups){const {group,leaders}=nicheGroups(snap.genomes,snap.radius);snap.groups=group;snap.leaders=leaders;}
+  if(!snap.coords)snap.coords=mapLayout(snap.genomes);
+  return snap;
+ }
+ function showPopulation(reset){
+  if(reset){nicheTable.replaceChildren();popCode.hidden=popEdit.hidden=true;popLabel.textContent=run?'Waiting for the first generation…':'Start a run to see its population.';}
+  if(!popBox.open)return;
+  const snap=snapshotShown();
+  drawHistory();
+  if(!snap){drawMap(null);return;}
+  analyse(snap);
+  const latest=snap===run.snapshots.at(-1),n=snap.genomes.length;
+  popLabel.textContent=`Generation ${snap.generation}${latest?' (latest)':''} · ${n} warriors · ${snap.leaders.length} niche${snap.leaders.length===1?'':'s'} (radius ${snap.radius}) · best ${fmt(snap.scores[0],2)}`;
+  if(selected&&selected.snap!==snap)selected=null;
+  drawMap(snap);showNiches(snap);showSelected(snap);
+ }
+ function nicheStats(snap){
+  return snap.leaders.map((leader,k)=>{const members=[];snap.groups.forEach((g,i)=>{if(g===k)members.push(i);});
+   const scores=members.map(i=>snap.scores[i]);return {k,leader,members,best:Math.max(...scores),mean:scores.reduce((a,b)=>a+b,0)/scores.length};});
+ }
+ function oneLine(g){
+  const parts=g.code.slice(0,6).map(ins=>renderInstruction(ins,run.config.coreSize).replace(/\s+/g,' '));
+  return parts.join(' / ')+(g.code.length>6?` / … (${g.code.length})`:'');
+ }
+ function showNiches(snap){
+  const rows=nicheStats(snap),shown=rows.slice(0,40);
+  nicheTable.replaceChildren(el('thead',{},el('tr',{},...['Niche','Warriors','Best','Mean','Leader'].map(h=>el('th',{scope:'col',textContent:h})))),
+   el('tbody',{},...shown.map(row=>{
+    const tr=el('tr',{className:selected?.niche===row.k?'selected':''},el('td',{className:'num',textContent:String(row.k+1)}),el('td',{className:'num',textContent:String(row.members.length)}),
+     el('td',{className:'num',textContent:fmt(row.best,1)}),el('td',{className:'num',textContent:fmt(row.mean,1)}),el('td',{},el('code',{textContent:oneLine(snap.genomes[row.leader])})));
+    tr.tabIndex=0;tr.onclick=tr.onkeydown=event=>{if(event.type==='keydown'&&event.key!=='Enter')return;select(snap,row.leader);};
+    return tr;
+   }),...(rows.length>shown.length?[el('tr',{},el('td',{colSpan:5,className:'hint',textContent:`… and ${rows.length-shown.length} more niches`}))]:[])));
+ }
+ function select(snap,index){selected={snap,index,niche:snap.groups[index]};showPopulation(false);}
+ function warriorSource(snap,index){
+  const rules=genomeRules(run.config);
+  return renderGenome(snap.genomes[index],rules,{name:`Evolved, generation ${snap.generation} #${index+1}`,header:redcodeHeader(run.config),strategy:[`score ${snap.scores[index].toFixed(2)} against ${run.job.benchmarkName}`]});
+ }
+ function showSelected(snap){
+  if(!selected){popCode.hidden=popEdit.hidden=true;return;}
+  popCode.hidden=popEdit.hidden=false;popCode.textContent=warriorSource(snap,selected.index);
+ }
+ popEdit.onclick=()=>{const snap=snapshotShown();if(!snap||!selected)return;const source=warriorSource(snap,selected.index);
+  try{openInEditor(source,warriorFilename(`evolved-g${snap.generation}-${selected.index+1}`),run.config);}catch(error){actionStatus.textContent=error.message;}};
+ popSlider.addEventListener('input',()=>showPopulation(false));
+ popLatest.onclick=()=>{popSlider.value=popSlider.max;showPopulation(false);};
+ popBox.addEventListener('toggle',()=>showPopulation(false));
+ const scoreColour=t=>{const a=[47,74,95],b=[127,240,245];return `rgb(${a.map((x,i)=>Math.round(x+(b[i]-x)*t)).join(',')})`;};
+ let mapPoints=[];
+ function drawMap(snap){
+  if(!popMap.clientWidth)return;
+  const ratio=devicePixelRatio||1,w=popMap.clientWidth,h=popMap.clientHeight||260;popMap.width=w*ratio;popMap.height=h*ratio;
+  const ctx=popMap.getContext('2d');ctx.scale(ratio,ratio);ctx.fillStyle='#101d29';ctx.fillRect(0,0,w,h);
+  mapPoints=[];
+  if(!snap){ctx.font='11px system-ui';ctx.fillStyle='#aec0ce';ctx.fillText(run?'Waiting for the first generation':'Start a run to see the population',12,h/2);return;}
+  const c=snap.coords,pad=14;let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for(const [x,y] of c){x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);}
+  const span=Math.max(x1-x0,y1-y0,1e-9),k=Math.min((w-2*pad)/Math.max(x1-x0,span*0.2),(h-2*pad)/Math.max(y1-y0,span*0.2));
+  const cx=(x0+x1)/2,cy=(y0+y1)/2,lo=Math.min(...snap.scores),hi=Math.max(...snap.scores);
+  const leaders=new Set(snap.leaders),r=snap.genomes.length>150?3:4;
+  // Worst first, so the best are drawn on top.
+  for(let i=snap.genomes.length-1;i>=0;i--){
+   const px=w/2+(c[i][0]-cx)*k,py=h/2-(c[i][1]-cy)*k;mapPoints.push([px,py,i]);
+   const dim=selected&&snap.groups[i]!==selected.niche;
+   ctx.globalAlpha=dim?0.25:1;ctx.fillStyle=scoreColour(hi>lo?(snap.scores[i]-lo)/(hi-lo):1);
+   ctx.beginPath();ctx.arc(px,py,r,0,2*Math.PI);ctx.fill();
+   if(leaders.has(i)){ctx.strokeStyle='#f9a567';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(px,py,r+2.5,0,2*Math.PI);ctx.stroke();}
+   if(selected?.index===i){ctx.strokeStyle='#ffffff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(px,py,r+5,0,2*Math.PI);ctx.stroke();}
+  }
+  ctx.globalAlpha=1;ctx.font='11px system-ui';ctx.fillStyle='#aec0ce';ctx.fillText(`score ${fmt(lo,0)} … ${fmt(hi,0)}`,8,h-6);
+ }
+ popMap.addEventListener('click',event=>{
+  const snap=snapshotShown();if(!snap)return;const box=popMap.getBoundingClientRect(),x=event.clientX-box.left,y=event.clientY-box.top;
+  let best=null,bd=144;for(const [px,py,i] of mapPoints){const d=(px-x)**2+(py-y)**2;if(d<bd){bd=d;best=i;}}
+  if(best===null){selected=null;showPopulation(false);}else select(snap,best);
+ });
+ function drawHistory(){
+  if(!popHistory.clientWidth)return;
+  const ratio=devicePixelRatio||1,w=popHistory.clientWidth,h=120;popHistory.width=w*ratio;popHistory.height=h*ratio;
+  const ctx=popHistory.getContext('2d');ctx.scale(ratio,ratio);ctx.fillStyle='#101d29';ctx.fillRect(0,0,w,h);
+  const pts=(run?.history||[]).filter(p=>p.niches!=null),L=34,R=34,T=18,B=16;ctx.font='11px system-ui';
+  ctx.fillStyle='#f9a567';ctx.fillText('niches',L,12);ctx.fillStyle='#54d8df';ctx.fillText('diversity',L+48,12);
+  if(pts.length<2)return;
+  const first=pts[0].generation,last=pts.at(-1).generation,top=Math.max(2,...pts.map(p=>p.niches));
+  const xs=g=>L+(w-L-R)*(g-first)/Math.max(1,last-first);
+  ctx.strokeStyle='#2a3d4d';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(L,T);ctx.lineTo(L,h-B);ctx.lineTo(w-R,h-B);ctx.lineTo(w-R,T);ctx.stroke();
+  ctx.fillStyle='#aec0ce';ctx.fillText(String(top),4,T+8);ctx.fillText('0',4,h-B);ctx.fillText('1',w-R+6,T+8);ctx.fillText('0',w-R+6,h-B);
+  for(const [key,color,scale] of [['niches','#f9a567',top],['diversity','#54d8df',1]]){
+   ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.beginPath();pts.forEach((p,i)=>{const x=xs(p.generation),y=T+(h-T-B)*(1-p[key]/scale);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();
+  }
+  const snap=snapshotShown();if(snap){ctx.strokeStyle='#ffffff55';ctx.beginPath();ctx.moveTo(xs(snap.generation),T);ctx.lineTo(xs(snap.generation),h-B);ctx.stroke();}
+ }
+ new ResizeObserver(()=>{if(popBox.open)showPopulation(false);}).observe(popMap);
  new ResizeObserver(()=>drawChart()).observe(chart);
  function drawChart(){
   if(!chart.clientWidth)return;

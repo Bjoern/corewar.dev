@@ -4,7 +4,7 @@
 // split; and a short nano run against the nano benchmark raises the best and mean score.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {rng,genomeRules,randomGenome,mutate,mutateOnce,crossover,normalize,renderGenome,genomeKey,signed,MUTATIONS,markovModel,markovGenome} from './evolver-genome.mjs';
+import {rng,genomeRules,randomGenome,mutate,mutateOnce,crossover,normalize,renderGenome,genomeKey,signed,MUTATIONS,markovModel,markovGenome,nicheGroups} from './evolver-genome.mjs';
 import {Evolution} from './evolver-run.mjs';
 import {EVOLVER_PRESETS,checkCustom,splitWarriors,suiteFits} from './evolver-presets.mjs';
 import {Evaluator,runMatch,scoringMode} from './optimizer-fitness.mjs';
@@ -104,10 +104,21 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
  const m=(g,score)=>({genome:normalize(g,rules),score});
  const list=[m(base,200),m(near,190),m(near,180),m(other,100)];
  assert.deepEqual(e.survivors(list,2).map(x=>x.score),[200,100],'the other kind gets in before the near-copies');
- assert.equal(e.niches,2);
  assert.deepEqual(e.survivors(list,4).map(x=>x.score),[200,100,190,180],'cleared warriors fill places left over');
  e.params.elite=2;assert.deepEqual(e.survivors(list,2).map(x=>x.score),[200,190],'elites are kept');
- e.params.niche=0;assert.deepEqual(e.survivors(list,3).map(x=>x.score),[200,190,180]);assert.equal(e.niches,null);
+ assert.deepEqual(nicheGroups(list.map(x=>x.genome),0.3),{group:[0,0,0,1],leaders:[0,3]});
+ e.params.niche=0;assert.deepEqual(e.survivors(list,3).map(x=>x.score),[200,190,180]);
+}
+// The population map: variants of one warrior sit closer together than to another kind.
+{
+ const {mapLayout}=await import('./evolver-map.mjs');
+ const rules=genomeRules(nano),r=rng('map'),a=randomGenome(r,rules,5),b=randomGenome(r,rules,5);
+ const pop=[a,...Array.from({length:12},(_,i)=>mutateOnce(i<6?a:b,r,rules,{structural:0})),b];
+ const c=mapLayout(pop),d=(i,j)=>Math.hypot(c[i][0]-c[j][0],c[i][1]-c[j][1]);
+ assert(c.every(p=>p.every(Number.isFinite)));assert(c[0][0]>=0&&c[0][1]>=0,'the best sits right of and above the middle');
+ const near=[1,2,3,4,5,6].reduce((s,i)=>s+d(0,i),0)/6,far=[7,8,9,10,11,12].reduce((s,i)=>s+d(0,i),0)/6;
+ assert(near<far/2,`variants of a sit near it (${near.toFixed(3)} vs ${far.toFixed(3)})`);
+ assert.deepEqual(mapLayout(pop),c,'deterministic');
 }
 // A Markov chain of the nano benchmark: drawn warriors are valid, use only the shapes and fields
 // it learnt, and score better from the start than random code.
