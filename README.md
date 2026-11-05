@@ -34,6 +34,16 @@ it is selected and prefetches the rest once the page is idle, unless the browser
 The editor bundle is committed. To rebuild it after editor changes, run
 `npm ci` and `npm run build:editor` before the Python build.
 
+## Warrior evolver
+
+Tools → Warrior evolver (`#tools/evolver`) breeds whole warriors, not just constants.
+`docs/evolver-genome.mjs` holds the genome (exMARS's instruction tuples) and the operators: opcode, modifier,
+mode and field mutations, insert/delete/duplicate/swap, and crossover, all keeping warriors valid for the settings.
+`docs/evolver-run.mjs` is the (μ + λ) search, scored by the constant optimizer's `Evaluator` (3 per win, 1 per tie;
+exact on nano). `docs/evolver-worker.mjs` runs it in a Web Worker that hands matches to a pool of
+`optimizer-worker.mjs` workers. Presets (nano, tiny, standard '94, custom) and their benchmarks from
+`warriors_public/` are in `docs/evolver-presets.mjs`; `node docs/test-evolver.mjs` checks validity and that a nano run improves.
+
 ## Trials
 
 `docs/trials.html` is a standalone puzzle game built on the engine; the design is in `TRIALS.md`.

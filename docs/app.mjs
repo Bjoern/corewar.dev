@@ -1162,10 +1162,37 @@ library=setupLibrary({
  // Benchmarks made in the library open in Tournaments, Benchmark mode.
  addBenchmark(descriptor,files){const suite=tournaments.addSuite(descriptor,files);tournaments.selectTab(1);return suite;}
 });
+// A tool hands a warrior to the Battle tab with the tool's match settings (as custom settings).
+function useToolSettings(config){
+ const values={coreSize:config.coreSize,cycles:config.cycles,tasks:config.tasks,maxLength:config.maxLength,distance:config.distance??0,pspace:config.pspace??0,
+  rounds:config.rounds??1,rules88:!!config.rules88,noPspace:!!config.noPspace,permutate:false,fixedSeries:false,fixedPosition:'',formula:config.formula||'(W*W-1)/S'};
+ applySettingsSnapshot({preset:'custom',values});
+}
+// Open in the editor: add it and show its editor tab.
+function openToolWarrior(source,file,config){
+ if(config)useToolSettings(config);
+ addRosterWarrior(source,file);
+ $('emulatorTab').click();openWarrior(sources.length-1);
+}
+// Open in the debugger: add it (and an opponent), run only those, loaded and paused before the
+// first instruction, with the cdb console showing.
+async function debugToolWarrior(source,file,opponent,config){
+ const adding=opponent?2:1;
+ if(sources.length+adding>36)throw new Error('At most 36 warriors can be loaded. Remove some before adding more.');
+ if(config)useToolSettings({...config,rounds:1});
+ const first=sources.length;
+ addRosterWarrior(source,file);if(opponent)addRosterWarrior(opponent.source,opponent.file);
+ excludedWarriors=sources.map((_,i)=>i<first);
+ markDirty();editors();rosterCount();controls();legend();
+ $('emulatorTab').click();showCore(true);
+ if(await load()){ensureCdbConsole();if(getComputedStyle($('phoneBar')).display!=='none')setPane('debug');}
+}
 // Tools get the roster and can add a warrior to it, as the library does.
 tools=setupTools({
  roster:()=>sources.map((source,i)=>({name:draftName(source,i),source})),
  addWarrior:addRosterWarrior,
+ openInEditor:openToolWarrior,
+ openInDebugger:debugToolWarrior,
  readConfig:()=>readSettings({warriors:2})
 });
 tournaments=setupTournaments({
