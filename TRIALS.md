@@ -238,6 +238,9 @@ differ a little from the tables below). Stages are data in `docs/trials-stages.m
 `docs/trials-check.mjs`; `node docs/test-trials.mjs` makes sure every stage's solution passes and a
 known wrong answer fails. Drills use an 800-cell core so each cell is big enough to follow; the
 challenge uses the standard 8,000 cells. Progress is saved in the browser.
+A collapsible Debugger under the core view pauses and steps the run (saying which program ran which
+instruction), lists the core from any clicked cell, and passes other commands to pMARS's cdb
+(`list`, `step`, `continue`, `help`, …).
 
 ## A game on itch.io
 

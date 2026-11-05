@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // The Trials game page: title screen, Academy map, stage card, editor, core view and Kettle's chat.
 import {createEditor} from './dist/editor.mjs';
-import {CoreDisplay} from './display.mjs';
+import {CoreDisplay, battleColor} from './display.mjs';
 import {stages, wings, manual} from './trials-stages.mjs';
 import {runStage} from './trials-check.mjs';
 import {kettleSvg, kettleIcon, setMood, setTalking} from './trials-kettle.mjs';
@@ -111,6 +111,7 @@ function renderSetups(states = []) {
 function open(stage) {
   if (running) running.abort = true;
   current = stage; state.current = stage.id; save();
+  debug.engine = null;
   const saved = record(stage.id);
   $('stageKind').textContent = `${kindLabel(stage)} ${stage.id}`;
   $('stageKind').className = 'kind' + (stage.kind === 'challenge' ? ' challenge' : '');
@@ -190,6 +191,11 @@ async function pace(run) {
   for (;;) {
     if (run.abort) throw new Error('stopped');
     const now = await nextFrame(), speed = $('speed').value;
+    if (run.paused) {
+      run.last = undefined; run.started += 1000 / 60;  // a pause does not count towards Normal's speed-up
+      if (run.steps > 0) { const n = run.steps; run.steps = 0; run.stepped = true; return n; }
+      continue;
+    }
     if (speed === 'fast') return 100000;
     const elapsed = (now - run.started) / 1000, dt = Math.min(0.1, (now - (run.last ?? now)) / 1000);
     run.last = now;
@@ -198,24 +204,38 @@ async function pace(run) {
     if (run.budget >= 1) { const n = Math.floor(run.budget); run.budget -= n; return n; }
   }
 }
-async function play() {
+async function play({paused = false} = {}) {
   if (running) { running.abort = true; return; }
   const stage = current, source = editor ? editor.view.state.doc.toString() : '';
-  const run = running = {started: performance.now()};
+  const run = running = {started: performance.now(), paused, steps: 0};
+  syncPause();
   const setupStates = stage.setups.map(() => '');
   let lastIndex = -1;
   $('run').textContent = '■ Stop'; $('result').hidden = true; $('next').hidden = true;
-  const frame = async (update, {index, setup}) => {
+  const frame = async (update, {index, setup, engine}) => {
+    debug.engine = engine; debug.update = update; debug.stage = stage;
     if (index !== lastIndex) {
       if (lastIndex >= 0) setupStates[lastIndex] = 'pass';
       lastIndex = index; setupStates[index] = 'busy'; renderSetups(setupStates);
       display.configure(stage.settings.coreSize); showMarks(setup);
       run.started = performance.now(); run.last = undefined;
+      if (stage.setups.length > 1 && $('debug').open) printText(`— Setup ${index + 1}${setup.label ? `: dummy at ${setup.label}` : ''} —\n`, 'addr');
     }
     if (update.events.length) display.apply(update.events);
     const rounds = stage.settings.rounds ?? 1;
     $('progress').textContent = [rounds > 1 ? `Round ${Math.min(update.round + 1, rounds)} of ${rounds}` : '',
       `cycle ${update.cycle.toLocaleString('en')}`, stage.setups.length > 1 ? `setup ${index + 1} of ${stage.setups.length}` : ''].filter(Boolean).join(' · ');
+    // While paused, the engine records each instruction it runs, so Step can say who ran what.
+    if (engine.traced !== !!run.paused) { engine.setTrace(!!run.paused); engine.traced = !!run.paused; }
+    if (run.stepped) {
+      run.stepped = false;
+      for (const entry of update.trace) {
+        const who = entry.warrior === 0 ? 'you' : update.warriors[entry.warrior].name;
+        print(`<span class="addr">cycle ${update.cycle.toLocaleString('en')} ·</span> <span style="color:${battleColor(entry.warrior)}">${escapeHtml(who)}</span> ran ${String(entry.address).padStart(3, '0')}: ${escapeHtml(entry.instruction.trimEnd())}\n`);
+      }
+      if (!update.done) listAt(update.warriors[0].pc >= 0 ? update.warriors[0].pc - 2 : 0, 5);
+      else printText(`Over at cycle ${update.cycle.toLocaleString('en')}: ${update.warriors[0].wins ? 'you won' : update.warriors[0].losses ? 'you lost' : 'a tie'}.\n`);
+    }
     return update.done ? 0 : pace(run);
   };
   try {
@@ -229,10 +249,94 @@ async function play() {
     if (error.message !== 'stopped') { showResult(false, 'Something went wrong.', error.message); console.error(error); }
   } finally {
     if (running === run) running = null;
-    $('run').textContent = '▶ Run';
+    $('run').textContent = '▶ Run'; syncPause();
   }
 }
-$('run').addEventListener('click', play);
+$('run').addEventListener('click', () => play());
+
+// ---- Debugger ----------------------------------------------------------------------------------
+// The panel works on the engine of the current or last run: Pause and Step drive the run, clicking a cell
+// lists the core from there, and other commands go to pMARS's own debugger, cdb.
+const debug = {engine: null, update: null, stage: null};
+const TERM_LIMIT = 64 * 1024;
+function print(html) {
+  const term = $('term');
+  term.insertAdjacentHTML('beforeend', html);
+  if (term.innerHTML.length > TERM_LIMIT) term.innerHTML = term.innerHTML.slice(-TERM_LIMIT / 2).replace(/^[^\n]*\n/, '');
+  term.scrollTop = term.scrollHeight;
+}
+const printText = (text, cls = '') => print(cls ? `<span class="${cls}">${escapeHtml(text)}</span>` : escapeHtml(text));
+function syncPause() {
+  $('pause').textContent = running?.paused ? 'Resume' : 'Pause';
+  $('pause').disabled = !running;
+}
+function pauseRun() { if (running && !running.paused) { running.paused = true; syncPause(); } }
+$('pause').addEventListener('click', () => {
+  if (!running) return;
+  running.paused = !running.paused; syncPause();
+  if (running.paused) printText('Paused at cycle ' + (debug.update?.cycle ?? 0).toLocaleString('en') + '.\n');
+});
+$('step').addEventListener('click', () => {
+  $('debug').open = true;
+  if (!running) { play({paused: true}); printText('Loaded. Step again to run the first instruction.\n'); return; }
+  pauseRun(); running.steps += 1;
+});
+syncPause();
+$('clearTerm').addEventListener('click', () => { $('term').textContent = ''; });
+
+// The owner colour of a cell is the warrior that wrote it last, as the core view shows it.
+function ownerOf(address) {
+  for (let q = 0; q < 4; ++q) { const owner = display.cells[address * 4 + q]; if (owner) return owner - 1; }
+  return -1;
+}
+function listAt(start, count = 10) {
+  const {engine, update, stage} = debug;
+  if (!engine) { printText('Run the stage first, then click the core.\n'); return; }
+  const size = stage.settings.coreSize, names = update.warriors.map((w, i) => i === 0 ? 'you' : w.name);
+  const lines = [];
+  for (let i = 0; i < count; ++i) {
+    const address = ((start + i) % size + size) % size, owner = ownerOf(address);
+    const pcs = update.warriors.flatMap((w, j) => w.pc === address && w.tasks ? [names[j]] : []);
+    const text = escapeHtml(engine.inspect(address).trimEnd());
+    const relative = address > size / 2 ? address - size : address;
+    lines.push(`<span class="addr">${String(address).padStart(String(size - 1).length, '0')} ${('(' + (relative > 0 ? '+' : '') + relative + ')').padEnd(7)}</span>` +
+      (owner >= 0 ? `<span style="color:${battleColor(owner)}">${text}</span>` : text) +
+      (pcs.length ? `<span class="pc">  ← next: ${escapeHtml(pcs.join(', '))}</span>` : ''));
+  }
+  print(lines.join('\n') + '\n');
+}
+$('core').addEventListener('click', event => {
+  const address = display.addressAt(event);
+  if (address === null) return;
+  $('debug').open = true; pauseRun();
+  printText(`list ${address}\n`, 'cmdline'); listAt(address);
+});
+$('core').addEventListener('mousemove', event => {
+  const address = display.addressAt(event);
+  $('hoverCell').textContent = address === null ? '' : `cell ${address}`;
+});
+$('core').addEventListener('mouseleave', () => { $('hoverCell').textContent = ''; });
+
+let cdbBusy = false;
+$('cmdForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const text = $('cmd').value.trim(); $('cmd').value = '';
+  if (!text || cdbBusy) return;
+  printText(`(cdb) ${text}\n`, 'cmdline');
+  const {engine} = debug;
+  if (!engine) { printText('Run the stage first. Step loads it without running.\n'); return; }
+  pauseRun();
+  cdbBusy = true;
+  try {
+    // cdb prints its own prompt; the panel already shows the command. Paged output ("RET for more") is shown in full.
+    const result = await engine.debuggerCommand(text, {output: chunk => printText(chunk.replace(/\(cdb\) /g, '')),
+      input: prompt => Promise.resolve(/more/i.test(prompt ?? '') ? 'a' : null)});
+    if (result.action === 2) {
+      if (running) running.steps += result.steps; else printText('The run is over. Press Step or Run to start again.\n');
+    } else if ((result.action === 0 || result.action === 1) && running) { running.paused = false; syncPause(); }
+  } catch (error) { printText(error.message + '\n', 'err'); }
+  finally { cdbBusy = false; }
+});
 
 function showResult(passed, title, detail = '', pre = '') {
   const box = $('result');
