@@ -34,6 +34,11 @@ it is selected and prefetches the rest once the page is idle, unless the browser
 The editor bundle is committed. To rebuild it after editor changes, run
 `npm ci` and `npm run build:editor` before the Python build.
 
+## Trials
+
+`docs/trials.html` is a standalone puzzle game built on the engine; the design is in `TRIALS.md`.
+Its stages are data in `docs/trials-stages.mjs`, and `node docs/test-trials.mjs` checks that each one is solvable.
+
 ## Warrior library
 
 The Library tab searches published warriors from Koenigstuhl snapshots in `koenigstuhl/<hill>/`.

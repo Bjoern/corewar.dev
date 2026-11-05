@@ -229,6 +229,16 @@ What this means for the design:
   stages between the existing ones; the level numbers above stay stable because stages are
   identified by id, not position.
 
+### The page so far
+
+`docs/trials.html` (served as `corewar.dev/trials.html`) is the game: a title screen, the Academy
+map, the stage card with editor and core view, and Kettle's chat. It has the prologue and the
+Corridors wing (levels 1–6 above, drafted as stages 1.1–1.6; the Imp drill and the two target drills
+differ a little from the tables below). Stages are data in `docs/trials-stages.mjs`, checked by
+`docs/trials-check.mjs`; `node docs/test-trials.mjs` makes sure every stage's solution passes and a
+known wrong answer fails. Drills use an 800-cell core so each cell is big enough to follow; the
+challenge uses the standard 8,000 cells. Progress is saved in the browser.
+
 ## A game on itch.io
 
 People arriving from itch.io expect a game, not a Core War workbench. The Trials should work as one:

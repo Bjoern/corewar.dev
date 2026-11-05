@@ -63,7 +63,7 @@ for meta, warriors, files in koenigstuhl_library(ROOT):
     hills.append({**meta, "index": name, "text": text_name})
 (OUT / "library-catalog.mjs").write_text("// Generated from the koenigstuhl/ snapshots.\nexport const libraryCatalog = " + json.dumps(hills, ensure_ascii=True) + ";\n", encoding="utf-8")
 write_presets(WEB / "config", OUT / "presets.mjs")
-text_paths = sorted(OUT.glob("*.mjs")) + [OUT / "index.html", OUT / "style.css", OUT / "favicon.svg"]
+text_paths = sorted(OUT.glob("*.mjs")) + [OUT / "index.html", OUT / "trials.html", OUT / "style.css", OUT / "trials.css", OUT / "favicon.svg"]
 normalized = {p: re.sub(r"\?v=[A-Za-z0-9_-]+", "", p.read_text(encoding="utf-8")) for p in text_paths}
 digest = hashlib.sha256()
 for p, text in normalized.items():
@@ -76,8 +76,8 @@ version = digest.hexdigest()[:16]
 for p, text in normalized.items():
     if p.suffix == ".mjs":
         text = re.sub(r"(['\"])(\./[^'\"]+\.mjs)(['\"])", lambda m: m[1]+m[2]+"?v="+version+m[3], text)
-    elif p.name == "index.html":
-        for asset in ("style.css", "app.mjs", "favicon.svg"):
+    elif p.name in ("index.html", "trials.html"):
+        for asset in ("style.css", "app.mjs", "trials.css", "trials.mjs", "favicon.svg"):
             text = text.replace(asset+'"', asset+'?v='+version+'"')
     p.write_text(text, encoding="utf-8", newline="\n")
 # Include the app build inputs alongside the separate unchanged engine source archive.

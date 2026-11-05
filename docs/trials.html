@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Core War Trials</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta name="description" content="A puzzle game about fighting programs. Rebuild the Academy of the Hill, one line of Redcode at a time.">
+<link rel="stylesheet" href="trials.css">
+</head>
+<body data-screen="title">
+<section id="title" class="title-screen" aria-labelledby="gameTitle">
+  <div class="title-box">
+    <p class="signal">▒ CHANNEL 7 ▒</p>
+    <h1 id="gameTitle">Core War Trials</h1>
+    <p class="tagline">Rebuild an academy of fighting programs, one line of assembly at a time.</p>
+    <div class="title-actions">
+      <button id="continueGame" type="button" class="primary" hidden>Continue</button>
+      <button id="newGame" type="button">New game</button>
+    </div>
+    <p class="title-foot">No account, no install. Progress stays in this browser. Built on <a href="./" target="_blank" rel="noopener">corewar.dev</a> and pMARS.</p>
+  </div>
+</section>
+
+<div id="game" class="game" hidden>
+  <header class="game-bar">
+    <button id="mapToggle" type="button" class="icon phone-only" aria-expanded="false" aria-controls="map" title="Academy map">☰</button>
+    <strong class="game-name">Core War Trials</strong>
+    <span id="wingName" class="wing-name"></span>
+    <span class="spacer"></span>
+    <a href="redcode.html" target="_blank" rel="noopener">Redcode reference</a>
+    <a href="./" target="_blank" rel="noopener">corewar.dev</a>
+    <button id="toTitle" type="button" class="small">Menu</button>
+  </header>
+  <main class="game-main">
+    <nav id="map" class="map" aria-label="Academy map"></nav>
+    <section class="stage" aria-labelledby="stageTitle">
+      <div class="card">
+        <div class="card-head">
+          <span id="stageKind" class="kind"></span>
+          <h2 id="stageTitle"></h2>
+          <span id="stageStars" class="stars" aria-label="Stars"></span>
+        </div>
+        <p id="stageGoal" class="goal"></p>
+        <ul id="stageFacts" class="facts"></ul>
+        <div id="stageSetups" class="setups"></div>
+        <details id="manual" class="manual"><summary>Field manual</summary><dl id="manualList"></dl></details>
+      </div>
+      <div id="editorBox" class="editor-box"></div>
+      <div class="controls">
+        <button id="run" type="button" class="primary">▶ Run</button>
+        <label>Speed <select id="speed"><option value="slow">Slow</option><option value="normal" selected>Normal</option><option value="fast">Fast</option></select></label>
+        <button id="hint" type="button">Hint</button>
+        <button id="resetCode" type="button" class="small">Reset code</button>
+        <span class="spacer"></span>
+        <button id="next" type="button" class="primary" hidden>Next →</button>
+      </div>
+      <div class="arena">
+        <div id="viewport" class="viewport"><canvas id="core" aria-label="The core"></canvas><div id="marks" class="marks" aria-hidden="true"></div></div>
+        <p id="progress" class="progress" aria-live="off"></p>
+      </div>
+      <div id="result" class="result" role="status" hidden></div>
+    </section>
+    <aside class="chat" aria-label="Kettle">
+      <div class="chat-head"><span class="led" aria-hidden="true"></span> Kettle · channel 7</div>
+      <ol id="chatLog" class="chat-log" aria-live="polite"></ol>
+    </aside>
+  </main>
+</div>
+<script type="module" src="trials.mjs"></script>
+</body>
+</html>
