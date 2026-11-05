@@ -13,14 +13,18 @@ export function warriorSource(text, name = 'Recruit') {
   return /^\s*;redcode/im.test(text) ? text : `;redcode-94\n;name ${name}\n${text}\n`;
 }
 
+// How setups name their opponent: the dummy is a thing, the others are programs with names.
+export const opponentName = setup => setup.opponent === 'dummy' ? 'dummy' : opponents[setup.opponent]?.match(/;name (.*)/)?.[1] ?? 'opponent';
+
 function setupLabel(stage, setup, index) {
-  return stage.setups.length < 2 ? '' : `Setup ${index + 1}${setup.label ? ` (dummy at ${setup.label})` : ''}: `;
+  return stage.setups.length < 2 ? '' : `Setup ${index + 1}${setup.label ? ` (${opponentName(setup)} at ${setup.label})` : ''}: `;
 }
 
 // Returns {passed, message, length, wins, ties, losses, rounds, stars: [bool per stage.stars]}.
 // A failure carries `reason`: 'assembly', 'limit' or 'goal'.
 export async function runStage(stage, source, {frame = async () => 100000, log = () => {}} = {}) {
-  const result = {passed: true, length: 0, wins: 0, ties: 0, losses: 0, rounds: 0};
+  // `cycles` is the slowest setup's last cycle, for speed stars.
+  const result = {passed: true, length: 0, wins: 0, ties: 0, losses: 0, rounds: 0, cycles: 0};
   for (const [index, setup] of stage.setups.entries()) {
     const names = setup.warriors ?? [null, ...(setup.opponent ? [setup.opponent] : [])];
     const sources = names.map(name => name ? opponents[name] : warriorSource(source));
@@ -46,6 +50,7 @@ export async function runStage(stage, source, {frame = async () => 100000, log =
     }
     const me = update.warriors[0];
     result.wins += me.wins; result.ties += me.ties; result.losses += me.losses; result.rounds += me.wins + me.ties + me.losses;
+    result.cycles = Math.max(result.cycles, update.cycle);
     const fail = message => ({...result, passed: false, reason: 'goal', message: setupLabel(stage, setup, index) + message});
     const check = stage.check;
     if (check.type === 'copy') {
@@ -68,6 +73,7 @@ export async function runStage(stage, source, {frame = async () => 100000, log =
   if (stage.check.type === 'wins' && result.wins < stage.check.wins)
     return {...result, passed: false, reason: 'goal', message: `${plural(result.wins, 'win')} of ${result.rounds}. You need ${stage.check.wins}.`};
   result.stars = (stage.stars ?? []).map(star =>
-    star.metric === 'size' ? result.length <= star.par : star.metric === 'wins' ? result.wins >= star.par : false);
+    star.metric === 'size' ? result.length <= star.par : star.metric === 'wins' ? result.wins >= star.par :
+    star.metric === 'cycles' ? result.cycles <= star.par : false);
   return result;
 }

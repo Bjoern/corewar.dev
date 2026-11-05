@@ -58,8 +58,11 @@ select{font:inherit;background:var(--panel);color:var(--fg);border:1px solid #38
 .card-head h2{margin:0;font-size:20px}
 .kind{font:700 11px Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);border:1px solid #2f5866;border-radius:4px;padding:2px 6px}
 .kind.challenge{color:var(--warm);border-color:#6b4a30}
-.stars{margin-left:auto;color:var(--sys);letter-spacing:2px;font-size:18px}
-.stars .off{color:#3a4c5a}
+.stars{color:var(--sys);letter-spacing:2px}
+.card-head .stars{margin-left:auto;font-size:18px}
+.stars .check{color:var(--good);margin-right:2px}
+.stars .check.off{color:#3a4c5a}
+.stars .off{color:#6b5f2e}
 .goal{font-size:16px;margin:10px 0 6px}
 .facts{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:6px 16px;color:var(--muted);font-size:13px}
 .setups{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}

@@ -3,7 +3,7 @@
 import {createEditor} from './dist/editor.mjs';
 import {CoreDisplay, battleColor} from './display.mjs';
 import {stages, wings, manual} from './trials-stages.mjs';
-import {runStage} from './trials-check.mjs';
+import {runStage, opponentName} from './trials-check.mjs';
 import {kettleSvg, kettleIcon, setMood, setTalking} from './trials-kettle.mjs';
 
 const $ = id => document.getElementById(id);
@@ -62,6 +62,18 @@ function say(lines, vars = {}, mood = '') {
 function divider(text) { queue = queue.then(() => { append('divider', text); remember('divider', text); }); }
 $('chatLog').addEventListener('click', () => { flushed = queued; });
 
+// ---- Stars ------------------------------------------------------------------------------------
+// One convention for the map and the stage card: ✓ once the stage is cleared, then one star per optional goal,
+// ★ when reached and ☆ while not yet. The tooltip spells the goals out.
+function badge(stage) {
+  const saved = state.stages[stage.id] ?? {}, stars = stage.stars ?? [];
+  const title = [saved.cleared ? '✓ Cleared' : 'Not cleared yet',
+    ...stars.map((star, i) => `${saved.stars?.[i] ? '★' : '☆'} ${star.text}${saved.stars?.[i] ? '' : ': not yet'}`)].join(' · ');
+  const html = `<span class="check${saved.cleared ? '' : ' off'}">✓</span>` +
+    stars.map((_, i) => `<span class="${saved.stars?.[i] ? 'on' : 'off'}">${saved.stars?.[i] ? '★' : '☆'}</span>`).join('');
+  return {html, title, cleared: !!saved.cleared};
+}
+
 // ---- Map --------------------------------------------------------------------------------------
 function renderMap() {
   const map = $('map'); map.replaceChildren();
@@ -76,8 +88,9 @@ function renderMap() {
       button.type = 'button'; button.disabled = !unlocked(stage);
       if (stage.kind === 'challenge') button.classList.add('challenge');
       button.setAttribute('aria-current', String(stage.id === state.current));
-      const stars = (stage.stars ?? []).map((_, i) => saved.stars?.[i] ? '★' : '☆').join('');
-      button.innerHTML = `<span class="num">${stage.id}</span><span class="label">${escapeHtml(stage.title)}</span><span class="state">${saved.cleared ? '✓' + stars : button.disabled ? '🔒' : ''}</span>`;
+      const marks = badge(stage);
+      button.innerHTML = `<span class="num">${stage.id}</span><span class="label">${escapeHtml(stage.title)}</span><span class="state stars">${marks.cleared ? marks.html : button.disabled ? '🔒' : ''}</span>`;
+      if (marks.cleared) button.title = marks.title;
       button.addEventListener('click', () => { open(stage); $('map').classList.remove('open'); });
       item.append(button); list.append(item);
     }
@@ -93,10 +106,9 @@ $('mapToggle').addEventListener('click', () => {
 // ---- Stage card and editor --------------------------------------------------------------------
 let current = null, editor = null, running = null, display = null, marks = [];
 function renderStars(stage) {
-  const saved = state.stages[stage.id] ?? {};
-  const all = [saved.cleared, ...(stage.stars ?? []).map((_, i) => saved.stars?.[i])];
-  $('stageStars').innerHTML = all.map(on => `<span class="${on ? '' : 'off'}">★</span>`).join('');
-  $('stageStars').title = ['Cleared', ...(stage.stars ?? []).map(star => star.text)].join(' · ');
+  const marks = badge(stage);
+  $('stageStars').innerHTML = marks.html;
+  $('stageStars').title = marks.title;
 }
 function renderSetups(states = []) {
   const box = $('stageSetups'); box.replaceChildren();
@@ -104,12 +116,13 @@ function renderSetups(states = []) {
   current.setups.forEach((setup, i) => {
     const pill = document.createElement('span');
     pill.className = states[i] ?? '';
-    pill.textContent = `Setup ${i + 1}: dummy at ${setup.label ?? '?'}${states[i] === 'pass' ? ' ✓' : states[i] === 'fail' ? ' ✗' : ''}`;
+    pill.textContent = `Setup ${i + 1}: ${opponentName(setup)} at ${setup.label ?? '?'}${states[i] === 'pass' ? ' ✓' : states[i] === 'fail' ? ' ✗' : ''}`;
     box.append(pill);
   });
 }
 function open(stage) {
   if (running) running.abort = true;
+  switchTerminal(current, stage);
   current = stage; state.current = stage.id; save();
   debug.engine = null;
   const saved = record(stage.id);
@@ -213,13 +226,14 @@ async function play({paused = false} = {}) {
   let lastIndex = -1;
   $('run').textContent = '■ Stop'; $('result').hidden = true; $('next').hidden = true;
   const frame = async (update, {index, setup, engine}) => {
+    if (current !== stage) throw new Error('stopped');  // another stage is open: drop this run, print nothing
     debug.engine = engine; debug.update = update; debug.stage = stage;
     if (index !== lastIndex) {
       if (lastIndex >= 0) setupStates[lastIndex] = 'pass';
       lastIndex = index; setupStates[index] = 'busy'; renderSetups(setupStates);
       display.configure(stage.settings.coreSize); showMarks(setup);
       run.started = performance.now(); run.last = undefined;
-      if (stage.setups.length > 1 && $('debug').open) printText(`— Setup ${index + 1}${setup.label ? `: dummy at ${setup.label}` : ''} —\n`, 'addr');
+      if (stage.setups.length > 1 && $('debug').open) printText(`— Setup ${index + 1}${setup.label ? `: ${opponentName(setup)} at ${setup.label}` : ''} —\n`, 'addr');
     }
     if (update.events.length) display.apply(update.events);
     const rounds = stage.settings.rounds ?? 1;
@@ -258,6 +272,15 @@ $('run').addEventListener('click', () => play());
 // The panel works on the engine of the current or last run: Pause and Step drive the run, clicking a cell
 // lists the core from there, and other commands go to pMARS's own debugger, cdb.
 const debug = {engine: null, update: null, stage: null};
+// Each stage has its own debugger log, kept while the page is open, so output never leaks between stages.
+const terminals = new Map(), TERM_INTRO = $('term').innerHTML;
+function switchTerminal(from, to) {
+  if (from) terminals.set(from.id, $('term').innerHTML);
+  if (from === to) return;
+  $('term').innerHTML = terminals.get(to.id) ?? TERM_INTRO;
+  $('term').scrollTop = $('term').scrollHeight;
+  $('cmd').value = '';
+}
 const TERM_LIMIT = 64 * 1024;
 function print(html) {
   const term = $('term');
@@ -366,10 +389,10 @@ function finish(stage, result) {
   save();
   const earned = result.stars?.filter(Boolean).length ?? 0, possible = stage.stars?.length ?? 0;
   showResult(true, stage.kind === 'demo' ? 'Handshake complete.' : 'Cleared!',
-    stage.kind === 'demo' ? '' : `${result.length} instruction${result.length === 1 ? '' : 's'}.${score}${possible ? ` Stars: ${earned + 1} of ${possible + 1}.` : ''}`);
+    stage.kind === 'demo' ? '' : `${result.length} instruction${result.length === 1 ? '' : 's'}.${score}${possible ? ' ' + (stage.stars.map((star, i) => `${result.stars[i] ? '★' : '☆'} ${star.text}${result.stars[i] ? '' : ' (not yet)'}`).join(' · ')) : ''}`);
   renderStars(stage); renderMap();
   $('next').hidden = !nextStage();
-  const missed = possible && earned < possible && stage.missed ? stage.missed : [];
+  const missed = (stage.stars ?? []).flatMap((star, i) => !result.stars?.[i] && star.missed ? [star.missed] : []);
   if (first) say([...(stage.debrief ?? []), ...missed], result, 'happy').then(() => { if (!nextStage()) say(['▒ END OF THE DRAFT · MORE WINGS SOON ▒']); });
   else say([earned === possible ? 'Cleared again. The logs are getting long.' : 'Cleared again.'], {}, 'happy');
 }

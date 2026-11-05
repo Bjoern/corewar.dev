@@ -13,12 +13,18 @@ for (const stage of stages) {
     assert((await runStage(stage, '')).passed, `${stage.id}: demo does not finish`);
     continue;
   }
-  const good = await runStage(stage, stage.solution);
-  assert(good.passed, `${stage.id} ${stage.title}: solution fails: ${good.message}`);
-  assert(good.stars.every(Boolean), `${stage.id}: solution misses a star`);
+  // Every solution passes, and each star is earned by at least one of them.
+  const results = [];
+  for (const solution of [stage.solution, ...(stage.solutions ?? [])]) {
+    const result = await runStage(stage, solution);
+    assert(result.passed, `${stage.id} ${stage.title}: solution ${JSON.stringify(solution)} fails: ${result.message}`);
+    results.push(result);
+  }
+  (stage.stars ?? []).forEach((star, i) => assert(results.some(r => r.stars[i]), `${stage.id}: no solution earns ★ ${star.text}`));
+  const good = results[0];
   const bad = await runStage(stage, stage.wrong);
   assert(!bad.passed, `${stage.id} ${stage.title}: wrong answer passes`);
-  console.log(`${stage.id} ${stage.title}: ok (${good.length} lines, ${good.wins}/${good.ties}/${good.losses}); wrong answer: ${bad.message}`);
+  console.log(`${stage.id} ${stage.title}: ok (${results.map(r => `${r.length} lines, cycle ${r.cycles}, stars ${r.stars.map(x => x ? '★' : '☆').join('')}`).join('; ')}); wrong answer: ${bad.message}`);
 }
 const tooLong = await runStage(stages.find(s => s.id === '1.6'), 'jmp 0, <-2\ndat 0, 0');
 assert.equal(tooLong.reason, 'limit');
