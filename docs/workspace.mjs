@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Saved workspace: warrior sources, roster choices and settings, never battle state or results.
+// Saved workspace: warrior sources, roster choices, settings and the user's own benchmark suites,
+// never battle state or results.
 export const WORKSPACE_KEY='corewar-workspace';
 export const WORKSPACE_FORMAT='corewar.dev-workspace';
 export const WORKSPACE_VERSION=1;
-const MAX_WARRIORS=36,MAX_SOURCE=65536;
+const MAX_WARRIORS=36,MAX_SOURCE=65536,MAX_BENCHMARKS=100;
 const fail=message=>{throw new Error('Not a corewar.dev workspace: '+message+'.');};
 const text=(value,max,name)=>{if(typeof value!=='string' || value.length>max)fail(name+' must be text of at most '+max+' characters');return value;};
 // Returns a normalized copy, or throws with a message suitable for the status line.
@@ -24,11 +25,17 @@ export function parseWorkspace(data) {
  const battle=data.battle && typeof data.battle==='object'?data.battle:{};
  const tournament=data.tournament && typeof data.tournament==='object'?data.tournament:{};
  const pick=(source,key,type)=>typeof source[key]===type?source[key]:undefined;
+ // Benchmarks are checked in full when they are restored (readBenchmark); here only their shape,
+ // and a bad entry is dropped rather than failing the whole workspace.
+ const plain=v=>v&&typeof v==='object'&&!Array.isArray(v);
+ const benchmarks=(Array.isArray(data.benchmarks)?data.benchmarks:[]).filter(b=>plain(b)&&typeof b.id==='string'&&b.id.length<=64&&plain(b.descriptor)&&plain(b.files)
+  &&Object.values(b.files).every(f=>typeof f==='string')&&(b.scores===undefined||plain(b.scores))).slice(0,MAX_BENCHMARKS)
+  .map(b=>({id:b.id,descriptor:b.descriptor,files:b.files,...(b.scores?{scores:b.scores}:{})}));
  return {format:WORKSPACE_FORMAT,version:WORKSPACE_VERSION,warriors,openTabs,active:index(data.active)?data.active:-1,
   mode:['tournament','library','tools'].includes(data.mode)?data.mode:'battle',welcomeDismissed:data.welcomeDismissed===true,
   settings:{preset:typeof settings.preset==='string'?settings.preset:'custom',values},
   battle:{speed:pick(battle,'speed','string'),debugEnabled:pick(battle,'debugEnabled','boolean')},
   tournament:{mode:['melee','round-robin','benchmark','challenge'].includes(tournament.mode)?tournament.mode:undefined,
    rounds:pick(tournament,'rounds','string'),seed:pick(tournament,'seed','string'),selfFights:pick(tournament,'selfFights','boolean'),
-   suite:pick(tournament,'suite','string')}};
+   suite:pick(tournament,'suite','string')},benchmarks};
 }

@@ -16,10 +16,12 @@ export function describeSettings(c){
  return `${c.rules88?'ICWS ’88':'ICWS ’94'} · core ${c.coreSize} · cycles ${c.cycles} · processes ${c.tasks} · length ${c.maxLength} · distance ${c.distance||c.maxLength} · ${c.noPspace?'no P-space':`P-space ${c.pspace||'auto'}`}${c.permutate?` · permutation: ${positions} rounds per full pass`:''}`;
 }
 const authorOf=source=>/^\s*;\s*author\s+(.*?)\s*$/im.exec(source)?.[1]||'Anonymous';
-export function setupTournaments({roster,readConfig,onTab}) {
+// onSuitesChanged: called when the user's own suites change, so the workspace saves them.
+export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}}) {
  // Catalog suites start as their descriptors; warriors and hill scores load on first use.
  const suites=benchmarkCatalog.map(s=>({id:s.id,descriptor:s.descriptor,...benchmarkHeader(s.descriptor),data:s.data,warriors:null}));
  const loading=new Map();
+ const builtIn=suite=>benchmarkCatalog.some(c=>c.id===suite.id);
  function loadSuite(suite){
   if(suite.warriors)return Promise.resolve(suite);
   if(!loading.has(suite.id))loading.set(suite.id,(async()=>{
@@ -112,6 +114,8 @@ export function setupTournaments({roster,readConfig,onTab}) {
    $('benchmarkSummary').textContent=`${suite.name} · ${pending?suite.loadError||'loading opponents…':suite.warriors.length+' opponents'} · default ${suite.rounds} rounds`;
    $('benchmarkMembers').replaceChildren(...(suite.warriors||[]).map(w=>{const li=document.createElement('li');li.textContent=w.name+' ('+w.file+')';return li;}));
    $('benchmarkDescriptor').value=JSON.stringify(suite.descriptor,null,2);
+   $('removeBenchmark').hidden=builtIn(suite);resetRemove();
+   $('benchmarkEditHint').textContent=builtIn(suite)?'Editing a built-in suite changes it for this session only.':'Your suite: changes are saved with your workspace in this browser. Download benchmark (.zip) keeps a copy elsewhere.';
    const hillDefault=defaultHillRounds(suite.config);$('hillRounds').value=hillDefault.rounds;$('hillPermutate').checked=hillDefault.permutate;
   }
   // Benchmark runs use the suite's own settings; the shared match settings do not apply.
@@ -316,8 +320,8 @@ export function setupTournaments({roster,readConfig,onTab}) {
    descriptor.parameters.rounds=Number($('tournamentRounds').value);
    suites.push(readBenchmark(descriptor,Object.fromEntries(warriors.map((w,i)=>[descriptor.warriors[i],w.source])),id));
    refresh();$('benchmarkSuite').value=id;refresh();
-   feedback.dataset.result='ok';feedback.textContent=`Created “${name}” with ${warriors.length} opponent${warriors.length===1?'':'s'} and selected it in Opponent suite above. Available until you reload or close this page.`;
-   $('tournamentStatus').textContent=`Saved “${name}” for this session.`;
+   feedback.dataset.result='ok';feedback.textContent=`Created “${name}” with ${warriors.length} opponent${warriors.length===1?'':'s'} and selected it in Opponent suite above. It is saved with your workspace in this browser.`;
+   $('tournamentStatus').textContent=`Saved “${name}”.`;onSuitesChanged();
   }catch(error){feedback.dataset.result='failed';feedback.textContent=error.message;}
  };
  $('tournamentExport').onclick=()=>{
@@ -342,11 +346,11 @@ export function setupTournaments({roster,readConfig,onTab}) {
  };
  function suiteDefaults(){const suite=suites.find(s=>s.id===$('benchmarkSuite').value);if($('tournamentMode').value==='benchmark')$('tournamentRounds').value=suite.rounds;refresh();}
  for(const id of ['benchmarkFiles','benchmarkFolder'])$(id).onchange=async()=>{
-  try{const suite=await importBenchmarkFiles($(id).files,'import-'+(++serial));suites.push(suite);refresh();$('benchmarkSuite').value=suite.id;suiteDefaults();$('tournamentStatus').textContent=`Imported “${suite.name}” (${suite.warriors.length} opponents).`;}
+  try{const suite=await importBenchmarkFiles($(id).files,'import-'+(++serial));suites.push(suite);refresh();$('benchmarkSuite').value=suite.id;suiteDefaults();$('tournamentStatus').textContent=`Imported “${suite.name}” (${suite.warriors.length} opponents). It is saved with your workspace in this browser.`;onSuitesChanged();}
   catch(error){$('tournamentStatus').textContent=error.message;}finally{$(id).value='';}
  };
  $('applyBenchmark').onclick=async()=>{
-  try{const text=$('benchmarkDescriptor').value,old=await loadSuite(currentSuite()),updated=readBenchmark(JSON.parse(text),old.files,old.id,old.scoresData);suites[suites.indexOf(old)]=updated;suiteDefaults();$('tournamentStatus').textContent='Benchmark updated for this session.';}
+  try{const text=$('benchmarkDescriptor').value,old=await loadSuite(currentSuite()),updated=readBenchmark(JSON.parse(text),old.files,old.id,old.scoresData);suites[suites.indexOf(old)]=updated;suiteDefaults();$('tournamentStatus').textContent=builtIn(updated)?'Benchmark updated for this session.':'Benchmark updated and saved with your workspace.';onSuitesChanged();}
   catch(error){$('tournamentStatus').textContent=error.message;}
  };
  $('downloadBenchmarkZip').onclick=async()=>{
@@ -356,6 +360,15 @@ export function setupTournaments({roster,readConfig,onTab}) {
  };
  $('downloadBenchmark').onclick=()=>{
   const suite=suites.find(s=>s.id===$('benchmarkSuite').value),a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify(suite.descriptor,null,2)],{type:'application/json'}));a.href=url;a.download='suite.benchmark.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ };
+ // Removing a suite of your own takes a second click, so a stray click does not lose it.
+ let removeTimer=null;
+ function resetRemove(){clearTimeout(removeTimer);removeTimer=null;$('removeBenchmark').textContent='Remove suite';}
+ $('removeBenchmark').onclick=()=>{
+  const suite=currentSuite();if(!suite||builtIn(suite))return;
+  if(!removeTimer){$('removeBenchmark').textContent=`Click again to remove “${suite.name}”`;removeTimer=setTimeout(resetRemove,4000);return;}
+  resetRemove();suites.splice(suites.indexOf(suite),1);displayedSuite=null;$('benchmarkSuite').value=suites[0].id;suiteDefaults();
+  $('tournamentStatus').textContent=`Removed “${suite.name}”.`;onSuitesChanged();
  };
  $('benchmarkSuite').addEventListener('change',suiteDefaults);
  $('tournamentMode').addEventListener('change',suiteDefaults);
@@ -368,16 +381,33 @@ export function setupTournaments({roster,readConfig,onTab}) {
   const idle=()=>window.requestIdleCallback?requestIdleCallback(prefetch,{timeout:5000}):setTimeout(prefetch,1000);
   if(document.readyState==='complete')idle();else addEventListener('load',idle,{once:true});
  }
- // A suite made elsewhere (the library) joins this session's suites and is selected in Benchmark mode.
+ // A suite made elsewhere (the library) joins the user's suites and is selected in Benchmark mode.
  function addSuite(descriptor,files){
   const suite=readBenchmark(descriptor,files,'suite-'+(++serial));
   suites.push(suite);refresh();$('benchmarkSuite').value=suite.id;
   chooseMode(modeTabs.find(tab=>tab.dataset.mode==='benchmark'));
-  $('tournamentStatus').textContent=`Created “${suite.name}” from the library with ${suite.warriors.length} opponent${suite.warriors.length===1?'':'s'}. Available until you reload or close this page.`;
-  return suite;
+  $('tournamentStatus').textContent=`Created “${suite.name}” from the library with ${suite.warriors.length} opponent${suite.warriors.length===1?'':'s'}. It is saved with your workspace in this browser.`;
+  onSuitesChanged();return suite;
  }
- // The suites of this session (built in, imported, made from the roster or the library), for the tools.
+ // All suites (built in, imported, made from the roster or the library), for the tools.
  const benchmarks=()=>suites.map(s=>({id:s.id,name:s.name,config:s.config,builtIn:benchmarkCatalog.some(c=>c.id===s.id)}));
  const loadBenchmark=id=>{const suite=suites.find(s=>s.id===id);return suite?loadSuite(suite):Promise.reject(new Error('That benchmark is gone; reload the page or pick another.'));};
- return {refresh,selectTab,addSuite,benchmarks,loadBenchmark};
+ // The user's own suites (imported, made from the roster or the library) for the workspace, and
+ // back: restoring replaces them, keeps their ids (the saved selection refers to them) and skips
+ // any that no longer read, saying which.
+ const userSuites=()=>suites.filter(s=>!builtIn(s)).map(s=>({id:s.id,descriptor:s.descriptor,files:s.files,...(s.scoresData?{scores:s.scoresData}:{})}));
+ function restoreSuites(list=[]){
+  for(let i=suites.length-1;i>=0;i--)if(!builtIn(suites[i]))suites.splice(i,1);
+  const problems=[];
+  for(const x of list){
+   try{
+    if(suites.some(s=>s.id===x.id))throw new Error('its id is used twice');
+    suites.push(readBenchmark(x.descriptor,x.files,x.id,x.scores??null));
+    const n=Number(/-(\d+)$/.exec(x.id)?.[1]);if(n>serial)serial=n;
+   }catch(error){problems.push(`${typeof x.descriptor?.name==='string'?x.descriptor.name:x.id} (${error.message})`);}
+  }
+  if(!suites.some(s=>s.id===$('benchmarkSuite').value))$('benchmarkSuite').value=suites[0].id;
+  displayedSuite=null;refresh();return problems;
+ }
+ return {refresh,selectTab,addSuite,benchmarks,loadBenchmark,userSuites,restoreSuites};
 }

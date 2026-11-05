@@ -76,13 +76,13 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
   el('dl',{className:'opt-rules'},...RULES.flatMap(([k,v])=>[el('dt',{textContent:k}),el('dd',{textContent:v})])));
  // Opponents and settings
  const suiteSelect=el('select',{id:'optSuite'});
- // The suites of the Tournaments tab's Benchmark mode: built in, then imported or made this session.
+ // The suites of the Tournaments tab's Benchmark mode: built in, then your own (imported or made, saved with the workspace).
  // Without that tab, the built-in catalog.
  const suiteList=()=>{let all=null;try{all=benchmarks?.()??null;}catch{}return all??benchmarkCatalog.map(s=>({id:s.id,name:s.descriptor.name,config:s.descriptor.parameters,builtIn:true}));};
  function fillSuites(){
   const all=suiteList(),own=all.filter(s=>!s.builtIn),before=suiteSelect.value;
   suiteSelect.replaceChildren(...all.filter(s=>s.builtIn).map(s=>new Option(s.name,s.id)),
-   ...(own.length?[el('optgroup',{label:'Imported or made this session (Tournaments, Benchmark mode)'},...own.map(s=>new Option(s.name,s.id)))]:[]),
+   ...(own.length?[el('optgroup',{label:'Your suites (Tournaments, Benchmark mode)'},...own.map(s=>new Option(s.name,s.id)))]:[]),
    new Option('Your warriors (roster, Battle settings)','roster'));
   const want=before||saved.suite;
   suiteSelect.value=want&&[...suiteSelect.options].some(o=>o.value===want)?want:examples[0].suite;

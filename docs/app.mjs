@@ -980,12 +980,16 @@ function workspaceSnapshot(){
   warriors:sources.map((source,i)=>({source,original:originals[i]===undefined || originals[i]===source?null:originals[i],file:sourceFiles[i]??null,excluded:!!excludedWarriors[i]})),
   openTabs:openTabs.filter(i=>i<sources.length),active:activeEditor(),mode,welcomeDismissed,
   settings:settingsSnapshot(),battle:{speed:$('speed').value,debugEnabled:$('debugEnabled').checked},
-  tournament:{mode:$('tournamentMode').value,rounds:$('tournamentRounds').value,seed:$('tournamentSeed').value,selfFights:$('selfFights').checked,suite:$('benchmarkSuite').value}};
+  tournament:{mode:$('tournamentMode').value,rounds:$('tournamentRounds').value,seed:$('tournamentSeed').value,selfFights:$('selfFights').checked,suite:$('benchmarkSuite').value},
+  benchmarks:tournaments?tournaments.userSuites():[]};
 }
 function persistNow(){
  clearTimeout(persistTimer);persistTimer=null;
  if(!persistReady)return;
- try{localStorage.setItem(WORKSPACE_KEY,JSON.stringify(workspaceSnapshot()));persistWarned=false;}
+ const snapshot=workspaceSnapshot();
+ try{localStorage.setItem(WORKSPACE_KEY,JSON.stringify(snapshot));persistWarned=false;return;}catch{}
+ // Too big for this browser's storage: keep the warriors and settings, and say the suites did not fit.
+ try{localStorage.setItem(WORKSPACE_KEY,JSON.stringify({...snapshot,benchmarks:[]}));if(!persistWarned){persistWarned=true;status('Your benchmark suites are too big to save in this browser. Use Export workspace or Download benchmark (.zip) to keep them.');}}
  catch{if(!persistWarned){persistWarned=true;status('This browser did not save the workspace. Use Export workspace to keep a copy.');}}
 }
 function schedulePersist(){if(!persistReady)return;clearTimeout(persistTimer);persistTimer=setTimeout(persistNow,500);}
@@ -1000,6 +1004,7 @@ function applyWorkspace(w){
 }
 function applyTournamentWorkspace(w){
  const t=w.tournament;
+ const problems=tournaments.restoreSuites(w.benchmarks);
  if(t.suite!==undefined && [...$('benchmarkSuite').options].some(o=>o.value===t.suite))$('benchmarkSuite').value=t.suite;
  if(t.mode)$('tournamentMode').value=t.mode;
  if(t.rounds!==undefined)$('tournamentRounds').value=t.rounds;
@@ -1007,6 +1012,8 @@ function applyTournamentWorkspace(w){
  if(t.selfFights!==undefined)$('selfFights').checked=t.selfFights;
  tournaments.refresh();
  if(w.mode!==mode)tournaments.selectTab(MODE_NAMES.indexOf(w.mode));
+ // Said after the caller's own message, so it is not overwritten.
+ return problems.length?' Some saved benchmark suites could not be read and were left out: '+problems.join('; ')+'.':'';
 }
 let restoredWorkspace=null;
 try{const saved=localStorage.getItem(WORKSPACE_KEY);if(saved!==null)restoredWorkspace=parseWorkspace(saved);}
@@ -1226,6 +1233,7 @@ tools=setupTools({
 tournaments=setupTournaments({
  roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),
  readConfig:()=>readSettings({warriors:2}),
+ onSuitesChanged:()=>schedulePersist(),
  onTab:index=>{
   const from=shownMode(),name=MODE_NAMES[index];
   // The match settings move into the tournament view and back out to the battle view.
@@ -1245,8 +1253,9 @@ tournaments=setupTournaments({
  }
 });
 if(restoredWorkspace){
- routing=true;try{applyTournamentWorkspace(restoredWorkspace);}finally{routing=false;}
- if(sources.length)status('Restored '+sources.length+' warrior'+(sources.length===1?'':'s')+' saved in this browser. Run or Reset to load them.');
+ let problems='';routing=true;try{problems=applyTournamentWorkspace(restoredWorkspace);}finally{routing=false;}
+ if(sources.length)status('Restored '+sources.length+' warrior'+(sources.length===1?'':'s')+' saved in this browser. Run or Reset to load them.'+problems);
+ else if(problems)status(problems.trim());
 }
 // A mode in the address wins over the saved one; otherwise the address shows the saved mode.
 if(hashMode()!==null)showMode(hashMode());
@@ -1267,8 +1276,8 @@ async function importWorkspace(file){
  const w=parseWorkspace(await file.text());
  if(sources.length && !(await askUser('Replace the '+sources.length+' loaded warrior'+(sources.length===1?'':'s')+' and the settings with “'+file.name+'”?','Replace')))return;
  if(nativeBusy)throw new Error('Cancel the running debugger command before importing a workspace.');
- clearBattle();applyWorkspace(w);markDirty();editors();applyTournamentWorkspace(w);persistNow();
- status('Imported workspace with '+sources.length+' warrior'+(sources.length===1?'':'s')+'. Run or Reset to load them.');
+ clearBattle();applyWorkspace(w);markDirty();editors();const problems=applyTournamentWorkspace(w);persistNow();
+ status('Imported workspace with '+sources.length+' warrior'+(sources.length===1?'':'s')+'. Run or Reset to load them.'+problems);
 }
 // An in-page dialog: some embedded browsers answer confirm() and alert() with false without showing anything.
 function askUser(message,ok,cancel=true){
