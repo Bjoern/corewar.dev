@@ -122,6 +122,7 @@ function renderSetups(states = []) {
 }
 function open(stage) {
   if (running) running.abort = true;
+  switchTerminal(current, stage);
   current = stage; state.current = stage.id; save();
   debug.engine = null;
   const saved = record(stage.id);
@@ -225,6 +226,7 @@ async function play({paused = false} = {}) {
   let lastIndex = -1;
   $('run').textContent = '■ Stop'; $('result').hidden = true; $('next').hidden = true;
   const frame = async (update, {index, setup, engine}) => {
+    if (current !== stage) throw new Error('stopped');  // another stage is open: drop this run, print nothing
     debug.engine = engine; debug.update = update; debug.stage = stage;
     if (index !== lastIndex) {
       if (lastIndex >= 0) setupStates[lastIndex] = 'pass';
@@ -270,6 +272,15 @@ $('run').addEventListener('click', () => play());
 // The panel works on the engine of the current or last run: Pause and Step drive the run, clicking a cell
 // lists the core from there, and other commands go to pMARS's own debugger, cdb.
 const debug = {engine: null, update: null, stage: null};
+// Each stage has its own debugger log, kept while the page is open, so output never leaks between stages.
+const terminals = new Map(), TERM_INTRO = $('term').innerHTML;
+function switchTerminal(from, to) {
+  if (from) terminals.set(from.id, $('term').innerHTML);
+  if (from === to) return;
+  $('term').innerHTML = terminals.get(to.id) ?? TERM_INTRO;
+  $('term').scrollTop = $('term').scrollHeight;
+  $('cmd').value = '';
+}
 const TERM_LIMIT = 64 * 1024;
 function print(html) {
   const term = $('term');
