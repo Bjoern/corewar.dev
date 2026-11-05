@@ -3,7 +3,7 @@
 import {createEditor} from './dist/editor.mjs';
 import {CoreDisplay, battleColor} from './display.mjs';
 import {stages, wings, manual} from './trials-stages.mjs';
-import {runStage} from './trials-check.mjs';
+import {runStage, opponentName} from './trials-check.mjs';
 import {kettleSvg, kettleIcon, setMood, setTalking} from './trials-kettle.mjs';
 
 const $ = id => document.getElementById(id);
@@ -116,7 +116,7 @@ function renderSetups(states = []) {
   current.setups.forEach((setup, i) => {
     const pill = document.createElement('span');
     pill.className = states[i] ?? '';
-    pill.textContent = `Setup ${i + 1}: dummy at ${setup.label ?? '?'}${states[i] === 'pass' ? ' ✓' : states[i] === 'fail' ? ' ✗' : ''}`;
+    pill.textContent = `Setup ${i + 1}: ${opponentName(setup)} at ${setup.label ?? '?'}${states[i] === 'pass' ? ' ✓' : states[i] === 'fail' ? ' ✗' : ''}`;
     box.append(pill);
   });
 }
@@ -231,7 +231,7 @@ async function play({paused = false} = {}) {
       lastIndex = index; setupStates[index] = 'busy'; renderSetups(setupStates);
       display.configure(stage.settings.coreSize); showMarks(setup);
       run.started = performance.now(); run.last = undefined;
-      if (stage.setups.length > 1 && $('debug').open) printText(`— Setup ${index + 1}${setup.label ? `: dummy at ${setup.label}` : ''} —\n`, 'addr');
+      if (stage.setups.length > 1 && $('debug').open) printText(`— Setup ${index + 1}${setup.label ? `: ${opponentName(setup)} at ${setup.label}` : ''} —\n`, 'addr');
     }
     if (update.events.length) display.apply(update.events);
     const rounds = stage.settings.rounds ?? 1;
@@ -381,7 +381,7 @@ function finish(stage, result) {
     stage.kind === 'demo' ? '' : `${result.length} instruction${result.length === 1 ? '' : 's'}.${score}${possible ? ' ' + (stage.stars.map((star, i) => `${result.stars[i] ? '★' : '☆'} ${star.text}${result.stars[i] ? '' : ' (not yet)'}`).join(' · ')) : ''}`);
   renderStars(stage); renderMap();
   $('next').hidden = !nextStage();
-  const missed = possible && earned < possible && stage.missed ? stage.missed : [];
+  const missed = (stage.stars ?? []).flatMap((star, i) => !result.stars?.[i] && star.missed ? [star.missed] : []);
   if (first) say([...(stage.debrief ?? []), ...missed], result, 'happy').then(() => { if (!nextStage()) say(['▒ END OF THE DRAFT · MORE WINGS SOON ▒']); });
   else say([earned === possible ? 'Cleared again. The logs are getting long.' : 'Cleared again.'], {}, 'happy');
 }
