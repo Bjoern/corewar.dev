@@ -1,18 +1,29 @@
 # Trials: design draft
 
-A story-driven series of Core War challenges for the **Trials** tab. A battle-worn training robot
-contacts the player through a chat window and talks them into rebuilding a lost academy, one
-challenge at a time. Each trial asks for a warrior that meets a goal the app can check by itself,
-from "beat an Imp with one line" up to climbing a mini Koenigstuhl hill.
+A story-driven puzzle game built on corewar.dev, played like *7 Billion Humans*, *TIS-100* or
+*Infinifactory*: short stages, each teaching one idea, each with a goal the app checks by itself and
+optional size and speed targets to come back for. A battle-worn training robot contacts the player
+through a chat window and talks them into rebuilding a lost academy.
 
-This is a draft to react to. The story, names and tone are proposals; the challenge mechanics and
-the numbers in [Calibration](#calibration) are measured with the app's engine
-(`node trials/calibrate.mjs`).
+The first release is **a game of 20 stages** with a beginning, a boss and an ending, playable by
+someone who arrives from itch.io knowing nothing about Core War (see
+[First release](#first-release-20-stages) and [A game on itch.io](#a-game-on-itchio)). Stages are
+data, so the [full campaign](#full-campaign) of about 60 stages and later wings can be added without
+code changes.
 
-**Contents:** [Story](#story) · [Sample chat](#sample-chat) · [How a trial works](#how-a-trial-works) ·
-[Chapters and trials](#chapters-and-trials) · [What the app checks](#what-the-app-checks) ·
-[Calibration](#calibration) · [Screen layout](#screen-layout) · [Data format](#data-format) ·
-[Build plan](#build-plan) · [Open questions](#open-questions)
+Most stages are **training**: small, deterministic puzzles in which the player learns one technique
+(copy a cell, hit a target at a known place, keep eight processes alive). Each chapter ends with a
+**challenge**: a real fight with random starting positions against an opponent, where the player
+shows the chapter's techniques work. The campaign ends with a **boss** on the real hill rules.
+
+This is a draft to react to. The story, names and tone are proposals; the numbers marked as measured
+come from the app's engine (`node trials/calibrate.mjs`).
+
+**Contents:** [Story](#story) · [Sample chat](#sample-chat) · [Playing it like a puzzle game](#playing-it-like-a-puzzle-game) ·
+[Stage kinds](#stage-kinds) · [How a stage works](#how-a-stage-works) · [First release](#first-release-20-stages) ·
+[A game on itch.io](#a-game-on-itchio) · [Full campaign](#full-campaign) ·
+[Expansions](#expansions) · [What the app checks](#what-the-app-checks) · [Calibration](#calibration) ·
+[Screen layout](#screen-layout) · [Data format](#data-format) · [Build plan](#build-plan) · [Open questions](#open-questions)
 
 ## Story
 
@@ -28,32 +39,33 @@ listening on an old debugging channel ever since, until the player's browser tur
 Kettle does not know what the Janitor is. The player finds out in chapter 2, by writing one.
 
 **Why the player keeps going.** Kettle wants the Academy rebuilt and the Hill retaken, and it needs
-someone to write the warriors. It never says "tutorial"; it says "training". Each chapter restores
-one wing of the Academy (shown as a small map), and the last chapter takes the player out of the
-Academy onto the real Koenigstuhl hills, whose warriors are already in the Library tab.
+someone to write the warriors. It never says "tutorial"; it says "training". The training stages are
+Kettle's old drills, run on its practice dummies; the challenges are the fights that win back each
+wing of the Academy (shown as a map). The last chapter takes the player out onto the real
+Koenigstuhl hills, whose warriors are already in the Library tab.
 
 **Tone.** Warm, a little melancholic, never sarcastic toward the player. Kettle celebrates clever
 solutions ("I have never seen a one-line gate used like that. Logging it under 'unfair'.") and
 treats failure as data ("You lost 31 rounds. Want to watch one of them?"). System messages appear in
 capitals with a glitch character (`▒`). The Janitor speaks exactly once.
 
-**Arc in one line per chapter**
+**Arc**
 
-| Chapter | Academy wing | Beat |
-|---|---|---|
-| 0 Cold boot | Terminal | A signal on an old channel; Kettle checks the player is a human who can run a battle. |
-| 1 Imps in the walls | Corridors | The empty core is crawling with leftover Imps. Learn to move, to stop an Imp, and to survive a bomber. |
-| 2 Throwing stones | Firing range | Bombers, steps, and the practice dummy that survives three bombs in four. The player writes a sweeper; Kettle recognises the pattern: that is the Janitor. |
-| 3 Paper trail | Dormitory | You cannot out-sweep a sweeper, but you can out-number it: processes, SPL, self-copying warriors. |
-| 4 Eyes in the dark | Observatory | Scanners: look before you shoot. Kettle finds the Janitor's trail in old logs. |
-| 5 The ring | Hall of fame | Imp rings and launchers. Kettle's old champion was an imp spiral; the player rebuilds it. |
-| 6 Know your enemy | Workshop | Build and improve sweepers, and the defences against them. |
-| 7 Back on the Hill | The Hill | Benchmarks, a mini hill of real Koenigstuhl warriors, and the Janitor itself. |
-| Epilogue | Academy restored | Kettle asks the player to train the next recruits: endless and daily trials unlock. |
+| Chapter | Academy wing | Training | Challenge that wins the wing |
+|---|---|---|---|
+| 0 Cold boot | Terminal | Run and step a battle | – |
+| 1 Imps in the walls | Corridors | `MOV`, relative addresses, `DAT`, `JMP`, `DJN`, hitting a target | Beat an Imp with one line |
+| 2 Throwing stones | Firing range | `ADD`, `@`, steps, coverage, sweeping; **reveal: a sweeper is the Janitor** | Range day: a bomber against the Imp and the dummy |
+| 3 Paper trail | Dormitory | `SPL`, the process queue, imp trains, self-copying | Paper beats stone |
+| 4 Eyes in the dark | Observatory | `SEQ`/`SNE`/`JMZ`, scanning, decoys; Kettle finds the Janitor's trail | Find the paper |
+| 5 The ring | Hall of fame | Imp rings, launch tables, spirals | Kettle's champion |
+| 6 Know your enemy | Workshop | Decrement streams, `SPL` carpets, two-pass clears | A sweeper with a gate; faster broom |
+| 7 Back on the Hill | The Hill | Hill rules and benchmarks | Mini hill, then the Janitor (boss) |
+| Epilogue | Academy restored | – | Endless hill climb, daily stage |
 
 ## Sample chat
 
-How it could read, from the first contact to the first real trial.
+How it could read, from the first contact to the first training stage.
 
 > `▒ CARRIER DETECTED ON CHANNEL 7 ▒`
 >
@@ -61,33 +73,45 @@ How it could read, from the first contact to the first real trial.
 >
 > **Kettle:** Sorry. Static. I have been talking to an empty core for a long time.
 >
-> **Kettle:** If you are a person, do something only a person would do. Load two warriors and run a battle.
-> The Battle tab. The big button. I will wait.
+> **Kettle:** If you are a person, do something only a person would do. Press the big button. I will wait.
 >
-> *(the player runs a battle; trial 0.1 completes)*
+> *(the player presses Run; two of Kettle's old warriors fight in the core view)*
 >
 > **Kettle:** You did it. You actually did it. Hello, operator.
 >
 > **Kettle:** I am K-7. The recruits called me Kettle. I used to train warriors here, a long time ago.
 > I can still read Redcode and run it. I cannot write it. My hands shake.
 >
-> **Kettle:** You will be my hands.
+> **Kettle:** You will be my hands. But not yet. First, drills.
 
-Later, trial 1.2:
+Training stage 1.1:
 
-> **Kettle:** The corridors are full of Imps. One instruction each, `MOV 0, 1`, copying themselves forward forever.
-> They never stop and they are almost impossible to kill.
+> **Kettle:** Every recruit starts here. One instruction: `MOV`. It copies one cell to another.
+> Addresses are counted from the instruction itself: `1` is the next cell, `-1` the one before.
 >
-> **Kettle:** Almost. Write me a warrior **one line long** that beats an Imp. Not ties. *Beats.*
+> **Kettle:** Put a copy of your first instruction five cells ahead. That is all.
 >
-> **Trial card:** Beat the Imp in at least 90 of 100 rounds · 1 instruction · standard core (8,000 cells)
+> **Stage card:** Training · Cell +5 holds your first instruction · ★ 1 instruction · ★ 1 cycle
+>
+> *(the player submits `mov 0, 5`; the core view shows the copy landing)*
+>
+> **Kettle:** Clean. That one line is half of the most famous warrior ever written. Keep it in mind.
+
+A few stages later, the wing's challenge:
+
+> **Kettle:** The corridors are full of Imps. One instruction each, `mov 0, 1`, copying themselves forward forever.
+> In the last drill you stopped one that came at you from a place you knew. Out there, you will not know.
+>
+> **Kettle:** Write me a warrior **one line long** that beats an Imp. Not ties. *Beats.* Random starts, 100 rounds.
+>
+> **Stage card:** Challenge · At least 90 wins of 100 against the Imp · 1 instruction
 >
 > *(the player submits `jmp 0, <-2` and wins 100 of 100)*
 >
 > **Kettle:** …100 to 0. You did not even move. You just stood there and let it walk into you.
 >
-> **Kettle:** That is a gate. Your `<-2` takes one off a number two cells behind you every turn, and the Imp has to walk through that cell to reach you.
-> Each Imp that arrives gets its copy broken and walks straight into empty core. We used to paint these on the doors.
+> **Kettle:** That is a gate. Your `<-2` takes one off a number two cells behind you every turn, and the Imp has to
+> walk through that cell to reach you. We used to paint these on the doors. The corridors are ours again.
 
 Hints come in three steps, each costing nothing but pride:
 
@@ -95,163 +119,358 @@ Hints come in three steps, each costing nothing but pride:
 2. **Kettle:** You cannot outrun an Imp with one line. Let it come to you, and damage the cell it is about to copy.
 3. **Kettle:** Look up the `<` addressing mode in the Redcode reference. It changes a number *before* using it.
 
-## How a trial works
+## Playing it like a puzzle game
 
-Every trial has the same parts, so the screen and the data format can be generic:
+What the Trials take from *7 Billion Humans*, *TIS-100* and *Infinifactory*:
+
+- **One idea per stage, a few minutes each.** Many small stages rather than a few big ones. A new
+  instruction or addressing mode is introduced in a stage where it is the obvious tool, then used
+  again in a harder one.
+- **Training is deterministic.** Training stages place the dummy at a fixed position (the engine's
+  fixed-position setting, pMARS `-F`) and run once. The result is exact, instant and replayable, so
+  "you killed it in 312 cycles" means something, and the player can step through the replay.
+- **Several test setups.** Like the random floors in *7 Billion Humans* or the test inputs in
+  *TIS-100*, a training stage can have two to ten setups (the target at +100, at +3001, behind you…).
+  The solution has to pass all of them, so hard-coding one address does not work. The trial card
+  shows the setups as tabs.
+- **Two optimisation targets per stage.** Size (instructions) and speed (cycles until the goal is
+  met; for fights, wins). Each has a par value shown as a star, like the size and speed challenges in
+  *7 Billion Humans*. Completing the stage never needs them.
+- **Histograms.** After a stage, show where the solution falls, as *Infinifactory* does. Without a
+  server, the first version compares against Kettle's reference and a distribution recorded in
+  playtesting and shipped with the stage; real player histograms come with a server.
+- **Solution slots.** Each stage keeps several saved solutions (for size, for speed, the first one
+  that worked), so returning to optimise does not lose the working version.
+- **Starting code.** Many training stages start with a warrior already in the editor: one to finish,
+  one to fix, or one to make smaller. Writing from an empty editor comes once the player knows the
+  instruction set.
+- **A map, not a list.** Each wing has a small graph of stages: two or three are open at a time, the
+  challenge opens once the required training is done, and optional side stages (◇) branch off for
+  players who want more. The challenge unlocks the next wing.
+- **Everything is visible.** Every stage runs in the normal core view, so the player sees the bomb
+  land, the Imp walk and the process count grow.
+
+## Stage kinds
+
+| Kind | The player… | Checked by | Example |
+|---|---|---|---|
+| **Build** | makes the core look a certain way | Core contents after the warrior stops or after N cycles (solo) | 2.3 Fifty bombs: every 4th cell up to +200 holds a `DAT` |
+| **Run** | makes their own warrior behave a certain way | Process count, instructions executed, alive or dead (solo) | 1.5 Countdown: execute exactly 10 instructions, then die |
+| **Target** | kills a practice dummy at a known place | Dummy dead, at fixed positions, one run per setup; speed = cycle of the kill | 1.7 Target practice |
+| **Survive** | stays alive while a dummy attacks from a known place | Alive after N cycles, fixed positions | 3.7 Hold the line |
+| **Repair** | fixes a broken warrior with few changes | Goal met and at most N lines changed | 2.4 Friendly fire |
+| **Predict** | answers a question about a short program before running it | The answer, then the program runs to show why | 1.6 Where does it land? |
+| **Challenge** | wins a real fight | Wins, ties and losses over 100 rounds with random positions, fixed seed | 3.8 Paper beats stone |
+| **Boss** | beats the Janitor on hill rules | As Challenge | 7.5 The Janitor |
+
+Build, Run, Target, Survive and Repair are the training stages. Predict stages are short
+breathers between them (one question, no editor) and are never required to unlock a challenge.
+
+## How a stage works
+
+Every stage has the same parts, so the screen and the data format can be generic:
 
 - **Briefing:** Kettle's chat lines that set up the task (and the story).
-- **Goal:** one sentence on the trial card, plus the machine check behind it
-  (for example: 100 rounds against the Imp, at least 90 wins).
-- **Limits:** the rules for the submitted warrior, such as maximum length, allowed instructions, or
-  "no SPL". Checked on the assembled warrior before any battle runs.
-- **Stars:** completing the goal earns the trial; two optional stars reward a shorter warrior and a
-  stronger result (inspired by size and speed goals in puzzle games such as *7 Billion Humans*).
+- **Goal:** one sentence on the stage card, plus the check behind it.
+- **Setups:** for training stages, the fixed positions of the player and the dummy, one or more.
+- **Limits:** rules for the submitted warrior, such as maximum length, allowed instructions, or
+  "no `SPL`". Checked on the assembled warrior before anything runs.
+- **Starting code:** optional; what the editor holds when the stage opens.
+- **Stars:** completing the goal clears the stage; two stars reward size and speed (or strength).
 - **Hints:** three steps from a nudge to a near-answer, in Kettle's voice.
 - **Debrief:** Kettle explains why the solution works, names the technique, and moves the story on.
-- **On failure:** the result in numbers ("won 61, tied 8, lost 31"), which limit or goal failed, and
-  a button to watch a losing round in the Battle tab.
+- **On failure:** which setup or limit failed, the numbers ("won 61, tied 8, lost 31"), and a
+  button to replay the failing setup or a lost round in the Battle tab.
 
-The player writes the warrior in the normal editor, among their own warriors, and picks which one to
-submit. Progress, stars and the submitted source are saved in the browser.
+The player writes in the normal editor and picks which warrior to submit. Progress, stars and the
+solution slots are saved in the browser and in workspace exports.
 
-## Chapters and trials
+## First release: 20 stages
 
-Status: **✓ measured** means a reference solution meets the goal in the engine (see
-[Calibration](#calibration)); **to calibrate** means the goal is designed but its numbers still need a
-reference solution. Unless noted, trials use the standard core (8,000 cells, 80,000 cycles,
-100 lines) and 100 rounds.
+A complete game in about one to two hours: four wings of training, each ending in a challenge,
+then the Janitor. It picks the stages from the [full campaign](#full-campaign) that a newcomer
+needs to beat the boss; the numbers in brackets refer to the full campaign. Scanners, clears and
+the real hills wait for later releases.
 
-### Chapter 0 — Cold boot
+| Level | Wing | Stage | Kind | What the player learns |
+|---|---|---|---|---|
+| 1 | Corridors | Echo (1.1) | Build | `MOV`, relative addresses |
+| 2 | Corridors | Lights out (1.3) | Run | `DAT` kills, execution runs downwards |
+| 3 | Corridors | Move along (1.4) | Run | The Imp |
+| 4 | Corridors | Target practice (1.7) | Target | Overwriting the enemy's code |
+| 5 | Corridors | Behind you (1.9) | Target | Predecrement `<` |
+| 6 | Corridors | ⚔ Beat an Imp with one line (1.10) | Challenge | Gates · ✓ measured |
+| 7 | Firing range | Step by step (2.2) | Build | `ADD`, `@`, loops |
+| 8 | Firing range | Friendly fire (2.4) | Repair | Steps and core size |
+| 9 | Firing range | Dead angle (2.5) | Target | Which cells a step can reach |
+| 10 | Firing range | Broom (2.7) | Build | Sweeping with `>`; **reveal: this is the Janitor** |
+| 11 | Firing range | ⚔ Range day (2.8) | Challenge | Choosing a bomber · ✓ measured |
+| 12 | Dormitory | Split personality (3.3) | Run | `SPL`, the process queue |
+| 13 | Dormitory | Copy machine (3.5) | Build | Copy loops |
+| 14 | Dormitory | Hold the line (3.7) | Survive | Survival through numbers |
+| 15 | Dormitory | ⚔ Paper beats stone (3.8) | Challenge | Replicators · ✓ measured |
+| 16 | Hall of fame | Three points (5.2) | Run | Imp rings |
+| 17 | Hall of fame | Launch table (5.3) | Run | `JMP @` launch tables |
+| 18 | Hall of fame | ⚔ Kettle's champion (5.5) | Challenge | Imp spirals · ✓ measured |
+| 19 | The Hill | The Janitor's trail | Survive | Watch the Janitor at fixed positions and outlast it for 10,000 cycles |
+| 20 | The Hill | ☠ The Janitor | Boss | Beat it in at least 55 of 100 rounds |
 
-| # | Trial | Goal and check | Limits | Teaches | Status |
-|---|---|---|---|---|---|
-| 0.1 | Handshake | Run any battle to the end in the Battle tab | – | Loading warriors, running a battle | UI event |
-| 0.2 | Slow motion | Step through 10 instructions and open the core listing | – | Step, the core view, cdb | UI event |
+What this means for the design:
+
+- **Every stage counts.** Side stages, Predict stages and chapter 0's UI stages are left out; the
+  intro is a short chat cutscene before level 1.
+- **The boss must be beatable with what levels 1–19 teach.** In the full campaign the Janitor
+  comes after scanners and clears. For the first release it is tuned so that a paper (level 15) or
+  an imp spiral (level 18) can beat it, with level 19 showing the player how it moves. It must be
+  written and calibrated before the release; the spiral and Silk are its first test opponents.
+- **An ending.** After the boss: a short closing chat, the restored Academy map, the player's stars,
+  and an invitation to the rest of corewar.dev (the Library, Tournaments, the real hills).
+- **Room to grow.** Later releases add whole wings (Observatory, Workshop, the real Hill) and side
+  stages between the existing ones; the level numbers above stay stable because stages are
+  identified by id, not position.
+
+### The page so far
+
+`docs/trials.html` (served as `corewar.dev/trials.html`) is the game: a title screen, the Academy
+map, the stage card with editor and core view, and Kettle's chat. It has the prologue and the
+Corridors wing (levels 1–6 above, drafted as stages 1.1–1.6; the Imp drill and the two target drills
+differ a little from the tables below). Stages are data in `docs/trials-stages.mjs`, checked by
+`docs/trials-check.mjs`; `node docs/test-trials.mjs` makes sure every stage's solution passes and a
+known wrong answer fails. Drills use an 800-cell core so each cell is big enough to follow; the
+challenge uses the standard 8,000 cells. Progress is saved in the browser.
+A collapsible Debugger under the core view pauses and steps the run (saying which program ran which
+instruction), lists the core from any clicked cell, and passes other commands to pMARS's cdb
+(`list`, `step`, `continue`, `help`, …).
+
+## A game on itch.io
+
+People arriving from itch.io expect a game, not a Core War workbench. The Trials should work as one:
+
+- **Its own entry point.** A URL such as `corewar.dev/trials/` opens straight into the game: a title
+  screen (Continue / New game), then Kettle's chat. No header, tabs or settings from the rest of the
+  site; only the editor, the core view and the stage card. A small "Open in the full corewar.dev"
+  link stays out of the way.
+- **Plain-language onboarding.** Level 1 assumes nothing: Kettle explains the core, the editor and the
+  run button in the briefing. A Redcode quick reference opens from the stage card and only lists the
+  instructions unlocked so far.
+- **Game feel.** Sound for bombs and deaths (with a mute switch), a short animation when a stage
+  clears, the wing map filling in, the stars. Every stage runs visibly in the core view at a speed
+  the player can follow, with a fast-forward button.
+- **Saves.** Progress and solutions saved in the browser, with export and import of a save file;
+  nothing needs an account.
+- **Publishing.** itch.io can either link to the site or host the game as an HTML upload that plays in
+  the page. Linking is simplest and keeps one save across itch.io and corewar.dev. Hosting in the page
+  needs the Trials to build as a self-contained folder (engine Wasm included) and keeps a separate
+  save, because the game then runs on itch.io's own domain. Worth deciding before the build.
+- **Store page.** A short GIF of a bomb hitting the Imp, three screenshots (chat, core view, wing
+  map), and one line: "Rebuild an academy of fighting programs, one line of assembly at a time."
+
+## Full campaign
+
+The full set of stages, of which the first release uses 20. Later releases add the rest.
+Training stages use the standard core (8,000 cells, 80,000 cycles) with the dummy at fixed
+positions; challenges use the standard core with random positions and 100 rounds, unless noted.
+**✓ measured** means a reference solution meets the goal in the engine (see
+[Calibration](#calibration)); the other stages still need a reference solution.
+◇ marks an optional side stage.
+
+### Chapter 0 — Cold boot (Terminal)
+
+| # | Stage | Kind | Goal | Teaches |
+|---|---|---|---|---|
+| 0.1 | Handshake | UI | Run any battle to the end in the Battle tab | Loading warriors, running a battle |
+| 0.2 | Slow motion | UI | Step through 10 instructions and open the core listing | Step, the core view, cdb |
 
 Chapter 0 doubles as the "how to play" half of a tutorial; the site tour can stay separate.
 
-### Chapter 1 — Imps in the walls
+### Chapter 1 — Imps in the walls (Corridors)
 
-| # | Trial | Goal and check | Limits | Stars | Teaches | Status |
-|---|---|---|---|---|---|---|
-| 1.1 | Move along | Alone in the core: still running after 80,000 cycles and has written at least 1,000 cells | 1 line | – | `MOV`, relative addresses, the Imp | by design |
-| 1.2 | Beat an Imp with one line | Against the Imp: at least 90 wins of 100 | 1 line | ★ 100 of 100 | Gates, predecrement `<` | ✓ measured (gate: 100/0/0) |
-| 1.3 | Strength in numbers | Against the Dwarf: at most 35 losses of 100 | ≤ 4 lines | ★ ≤ 3 lines | `SPL`, processes, imp trains | ✓ measured (3 lines: 19–28 losses) |
+| # | Stage | Kind | Goal | Limits / stars | Teaches |
+|---|---|---|---|---|---|
+| 1.1 | Echo | Build | Cell +5 holds a copy of your first instruction | ★ 1 instruction | `MOV`, relative addresses |
+| 1.2 | Two echoes | Build | Cells +5 and +10 both hold your first instruction | ≤ 3 lines · ★ 2 lines | Addresses count from the running instruction |
+| 1.3 | Lights out | Run | Execute exactly 3 instructions, then die | ★ 3 lines | `DAT` kills, execution runs downwards |
+| 1.4 | Move along | Run | Alone: still running after 80,000 cycles, having written at least 1,000 cells | 1 line | The Imp |
+| 1.5 | Countdown | Run | Execute exactly 10 instructions, then die | ≤ 3 lines · ★ 2 lines | `DJN`, a B-field as a counter |
+| 1.6 | Where does it land? | Predict | Given `mov 0, 2` at cell 0: which cells hold a copy after 4 cycles? | – | Following an Imp-like program by hand |
+| 1.7 | Target practice | Target | Kill the Sitting Duck (`jmp 0`); setups at +100 and +2500 | ≤ 2 lines · ★ 1 line, ★ 1 cycle | Overwriting code with `DAT` |
+| 1.8 | Moving target | Target | Kill an Imp that starts at +50 and walks away from you | ≤ 4 lines · ★ fastest kill | Timing; hitting where the Imp *will* be |
+| 1.9 | Behind you | Target | Kill an Imp that starts at -100 and walks towards you | ≤ 2 lines · ★ 1 line | Predecrement `<`, letting the enemy come to you |
+| 1.10 | **Beat an Imp with one line** | Challenge | At least 90 wins of 100 against the Imp | 1 line · ★ 100 of 100 | Gates |
+| ◇ 1.a | Backwards | Run | Alone: still running after 80,000 cycles, writing cells *behind* you | 1 line | Negative addresses |
 
-### Chapter 2 — Throwing stones
+1.10 ✓ measured: the gate `jmp 0, <-2` wins 100 of 100, in the Tiny core as well.
 
-| # | Trial | Goal and check | Limits | Stars | Teaches | Status |
-|---|---|---|---|---|---|---|
-| 2.1 | Your first bomber | Against the Imp: at least 15 wins of 100 | ≤ 6 lines, no `SPL` | ★ ≤ 4 lines | `ADD`, `@` indirection, bombing | ✓ measured (Dwarf, 4 lines: 20–28 wins) |
-| 2.2 | The practice dummy | Against the Sitting Duck (`jmp 0`): at least 50 wins of 100 | ≤ 6 lines | ★ 75 wins | Step sizes and coverage: the Dwarf only kills it 25 times in 100 because it bombs every 4th cell | to calibrate |
-| 2.3 | Leave no cell unturned | Against the Sitting Duck: 100 wins of 100 | ≤ 6 lines | ★ ≤ 4 lines | Pointers with `>`, sweeping; **story reveal: this is the Janitor** | ✓ measured (sweeper, 4 lines: 100/0/0) |
+### Chapter 2 — Throwing stones (Firing range)
 
-The step lesson in 2.2 is where a step calculator in the Tools tab would plug in: Kettle can say
-"there is a step table in the Tools tab now", and the tool unlocks or is highlighted.
+| # | Stage | Kind | Goal | Limits / stars | Teaches |
+|---|---|---|---|---|---|
+| 2.1 | Pointer | Build | Put a `DAT` at the address held in the B-field of cell +10; two setups with different addresses | ≤ 2 lines | `@` indirection |
+| 2.2 | Step by step | Build | `DAT` bombs at +100, +104, +108 and +112, with a loop | ≤ 4 lines · ★ fewest cycles | `ADD`, loops with `JMP` |
+| 2.3 | Fifty bombs | Build | Every 4th cell from +4 to +200 holds a `DAT`, and you are still alive | ≤ 4 lines · ★ fewest cycles | The bomber loop |
+| 2.4 | Friendly fire | Repair | This bomber kills itself after a few hundred cycles; change one number so it survives 80,000 alone | 1 change | Steps, core size, bombing your own code |
+| 2.5 | Dead angle | Target | The Dwarf can never hit a dummy at +3002; change it so it does | ≤ 2 changes · ★ fastest kill | Which cells a step can reach |
+| 2.6 | Anywhere | Target | Kill the Sitting Duck in at least 50 of 100 random placements | ≤ 6 lines · ★ 75 | Coverage: the Dwarf only gets 24–25 in 100 |
+| 2.7 | Broom | Build | `DAT` in each of the 200 cells from +10 to +209 | ≤ 4 lines · ★ fewest cycles | Postincrement `>`, sweeping; **reveal: this is the Janitor** |
+| 2.8 | **Range day** | Challenge | At least 15 wins against the Imp and 15 against the Sitting Duck | ≤ 6 lines, no `SPL` · ★ ≤ 4 lines | Choosing a bomber |
+| ◇ 2.a | Leave no cell unturned | Challenge | 100 wins of 100 against the Sitting Duck | ≤ 6 lines · ★ ≤ 4 lines | A sweep never misses |
 
-### Chapter 3 — Paper trail
+2.6 is where a step calculator in the Tools tab plugs in: Kettle can say "there is a step table in
+the Tools tab now". 2.8 ✓ measured: the 4-line Dwarf wins 20–28 against the Imp and 24–25 against
+the Sitting Duck; the 4-line sweeper (2.a) wins 100 of 100 against the Duck but ties every round
+against the Imp, which is why it is not the answer to 2.8.
 
-| # | Trial | Goal and check | Limits | Stars | Teaches | Status |
-|---|---|---|---|---|---|---|
-| 3.1 | Split personality | Alone: exactly 8 processes, held for 1,000 cycles | ≤ 5 lines | ★ ≤ 4 lines | The process queue, how `SPL` interleaves | to calibrate |
-| 3.2 | Paper beats stone | Against the Stone: at least 50 wins of 100 | ≤ 6 lines | ★ 60 wins | Self-copying warriors (Silk-style) | ✓ measured (Silk, 5 lines: 57–62 wins) |
-| 3.3 | Don't get swept | Against the player's own sweeper from 2.3: at most 50 losses | ≤ 8 lines | ★ 30 losses | Why replicators survive clears | to calibrate (Silk alone loses 84–86) |
+### Chapter 3 — Paper trail (Dormitory)
 
-3.3 deliberately reuses the player's own warrior from 2.3 as the opponent.
+| # | Stage | Kind | Goal | Limits / stars | Teaches |
+|---|---|---|---|---|---|
+| 3.1 | Two at once | Run | Alone: exactly 2 processes alive after 100 cycles | ≤ 3 lines · ★ 2 lines | `SPL` |
+| 3.2 | Taking turns | Predict | With 2 processes, which instruction runs on cycle 5? | – | The process queue |
+| 3.3 | Split personality | Run | Alone: exactly 8 processes, held for 1,000 cycles | ≤ 5 lines · ★ ≤ 4 lines | Doubling with `spl 1` |
+| 3.4 | Imp train | Run | Alone: at least 3 processes, all still running after 80,000 cycles | ≤ 3 lines | Several processes on one Imp |
+| 3.5 | Copy machine | Build | A copy of your own code at +2000, with a process running in it | ≤ 8 lines · ★ fewest cycles | Copy loops |
+| 3.6 | Paper | Run | Alone: at least 10 copies of your code in the core after 10,000 cycles | ≤ 8 lines · ★ ≤ 5 lines | Self-copying warriors (Silk-style) |
+| 3.7 | Hold the line | Survive | The Dwarf at fixed positions: still alive after 80,000 cycles in all 3 setups | ≤ 4 lines | Survival through numbers |
+| 3.8 | **Paper beats stone** | Challenge | At least 50 wins of 100 against the Stone | ≤ 6 lines · ★ 60 wins | Replicators against bombers |
+| ◇ 3.a | Strength in numbers | Challenge | At most 35 losses of 100 against the Dwarf | ≤ 4 lines · ★ ≤ 3 lines | Imp trains tie |
+| ◇ 3.b | Don't get swept | Challenge | At most 50 losses against your own broom from 2.7 | ≤ 8 lines · ★ 30 losses | Why replicators survive clears |
 
-### Chapter 4 — Eyes in the dark
+3.8 ✓ measured: the 5-line Silk wins 57–62 against the Stone. 3.a ✓ measured: a 3-line imp train
+loses 17–28 to the Dwarf. 3.b reuses the player's own warrior as the opponent; Silk alone loses
+84–86 of 100 to the 4-line sweeper, so it needs a better paper.
 
-| # | Trial | Goal and check | Limits | Stars | Teaches | Status |
-|---|---|---|---|---|---|---|
-| 4.1 | Quick draw | Against the Sitting Duck: 100 wins, average kill before cycle 6,000 | ≤ 10 lines | ★ before 3,000 | `SEQ`/`SNE`/`JMZ`, scanning, speed versus a sweeper | to calibrate (the 4-line sweeper needs 7,100 on average, up to 15,700) |
-| 4.2 | Find the paper | Against Silk: at least 60 wins of 100 | ≤ 10 lines | ★ 75 wins | Scan-and-clear | to calibrate |
+### Chapter 4 — Eyes in the dark (Observatory)
 
-### Chapter 5 — The ring
+| # | Stage | Kind | Goal | Limits / stars | Teaches |
+|---|---|---|---|---|---|
+| 4.1 | Anybody there? | Build | If cell +500 is empty, put a `DAT` at +1000, otherwise at +1001; two setups | ≤ 4 lines | `SEQ`, `SNE`, `JMZ` |
+| 4.2 | Search party | Target | The Sitting Duck is somewhere between +100 and +200; 5 setups | ≤ 6 lines · ★ fastest average kill | Scanning a range |
+| 4.3 | Long range | Target | The Sitting Duck is anywhere; 10 setups | ≤ 8 lines · ★ fastest average kill | Scanning with a step |
+| 4.4 | Decoy | Target | Kill the dummy hidden behind a block of non-empty decoy cells; 5 setups | ≤ 10 lines | Why scanners get fooled |
+| 4.5 | Quick draw | Challenge-like training | 100 kills of 100 against the Sitting Duck, average kill before cycle 6,000 | ≤ 10 lines · ★ before 3,000 | Speed versus a sweeper (the broom needs 7,100 on average) |
+| 4.6 | **Find the paper** | Challenge | At least 60 wins of 100 against Silk | ≤ 10 lines · ★ 75 wins | Scan and clear; Kettle finds the Janitor's trail |
 
-| # | Trial | Goal and check | Limits | Stars | Teaches | Status |
-|---|---|---|---|---|---|---|
-| 5.1 | Two steps forward | Explain-and-fix: Kettle shows `mov.i 0, 2667` dying alone; make a warrior using that instruction survive 80,000 cycles alone | ≤ 6 lines | – | Why an imp ring needs all its points, process order | to calibrate |
-| 5.2 | Kettle's champion | An imp launcher: against the Dwarf at least 70 wins and against the Stone at least 70 wins | ≤ 12 lines | ★ ≤ 9 lines | Imp spirals, launching with a jump table | ✓ measured (spiral, 9 lines: 84–90 and 85–92 wins) |
+### Chapter 5 — The ring (Hall of fame)
 
-5.2 is the "build an imp launcher in x instructions" idea. Getting the launch order right is the
-whole puzzle: my first three launchers all died within a dozen cycles, because the first imp
-moved on before the others had reached their posts.
+| # | Stage | Kind | Goal | Limits / stars | Teaches |
+|---|---|---|---|---|---|
+| 5.1 | Two steps forward | Repair | `mov.i 0, 2667` dies alone; make a warrior using that instruction survive 80,000 cycles | ≤ 6 lines | Why an imp ring needs all its points |
+| 5.2 | Three points | Run | Alone: an imp ring with 3 points, alive after 80,000 cycles | ≤ 6 lines · ★ ≤ 5 lines | Ring step = (core size + 1) / points |
+| 5.3 | Launch table | Run | Processes at +100, +200 and +300 by cycle 20 | ≤ 6 lines · ★ fewest cycles | `JMP @` with a table, `>` on the table |
+| 5.4 | Spiral | Run | Alone: a 3-point ring with at least 2 processes on each point | ≤ 10 lines | Imp spirals, launch order |
+| 5.5 | **Kettle's champion** | Challenge | At least 70 wins against the Dwarf and at least 70 against the Stone | ≤ 12 lines · ★ ≤ 9 lines | Launchers |
+| ◇ 5.a | Seven points | Run | Alone: a 7-point ring, alive after 80,000 cycles | ≤ 14 lines | Step 1143, since 7 × 1143 = 8,001 |
 
-### Chapter 6 — Know your enemy
+5.5 ✓ measured: a 9-line spiral wins 84–90 against the Dwarf and 85–92 against the Stone. Getting
+the launch order right is the whole puzzle: my first three launchers died within a dozen cycles,
+because the first imp moved on before the others reached their posts. 5.3 and 5.4 are the drills
+that make 5.5 fair.
 
-| # | Trial | Goal and check | Limits | Stars | Teaches | Status |
-|---|---|---|---|---|---|---|
-| 6.1 | A sweeper with a gate | Against the Imp at least 50 wins, against Silk at least 70 | ≤ 6 lines | ★ ≤ 4 lines | Combining a clear with a gate (`djn.f` stream) | ✓ measured (4 lines: 68–70 and 86–88 wins) |
-| 6.2 | Faster broom | Against Silk at least 85 wins and against the Dwarf at least 55 | ≤ 10 lines | ★ 95 against Silk | `SPL` carpets, two-pass clears | to calibrate |
+### Chapter 6 — Know your enemy (Workshop)
 
-### Chapter 7 — Back on the Hill
+| # | Stage | Kind | Goal | Limits / stars | Teaches |
+|---|---|---|---|---|---|
+| 6.1 | Stream | Build | Decrement each of the 500 cells behind you while you loop | ≤ 2 lines | `djn.f` decrement streams |
+| 6.2 | Stun | Target | The dummy at +1000 must have at least 50 processes and never reach its own attack | ≤ 6 lines | `SPL 0` carpets |
+| 6.3 | Two passes | Build | First fill +10…+209 with `SPL`, then all of them with `DAT` | ≤ 6 lines · ★ fewest cycles | Two-pass clears |
+| 6.4 | Fix the broom | Repair | This gated sweeper erases itself; change at most 2 lines | 2 changes | Where a clear must stop |
+| 6.5 | **A sweeper with a gate** | Challenge | At least 50 wins against the Imp and at least 70 against Silk | ≤ 6 lines · ★ ≤ 4 lines | Clear plus gate |
+| 6.6 | **Faster broom** | Challenge | At least 85 wins against Silk and at least 55 against the Dwarf | ≤ 10 lines · ★ 95 against Silk | Combining everything in this wing |
 
-| # | Trial | Goal and check | Limits | Stars | Teaches | Status |
-|---|---|---|---|---|---|---|
-| 7.1 | Benchmarked | Score at least X% against the Wilkies benchmark (already in Tournaments) | 94 rules | ★ higher score | Benchmarks, scoring 3/1/0 | to calibrate |
-| 7.2 | Small world | Score at least X% against Metcalf's Tiny benchmark 2004 | Tiny rules | ★ higher score | Other hills and their settings | to calibrate |
-| 7.3 | Challenger | Join a mini hill of 10 real 94nop Koenigstuhl warriors from the Library (ranks about 400–600) and finish in the top 5 after the push-off | 94nop rules | ★ top 2 | Hills, push-off, the Library | to calibrate |
-| 7.4 | The Janitor | Against the Janitor (a sweeper/stone hybrid written for the boss fight): at least 55 wins of 100 | 94nop rules | ★ 70 wins | Everything | boss not written yet |
+6.5 ✓ measured: a 4-line gated sweeper wins 68–74 against the Imp and 86–93 against Silk.
 
-7.3 can reuse the existing push-off machinery from Tournaments; the warriors and their real
-Koenigstuhl ranks come from the Library.
+### Chapter 7 — Back on the Hill (The Hill)
+
+| # | Stage | Kind | Goal | Limits / stars | Teaches |
+|---|---|---|---|---|---|
+| 7.1 | Small world | Challenge | Your champion under Tiny rules (core 800, 20 lines): beat the Imp and the Dwarf | Tiny rules | Hill settings change everything |
+| 7.2 | Benchmarked | Challenge | Score at least X% against the Wilkies benchmark (already in Tournaments) | 94 rules · ★ higher score | Benchmarks, scoring 3/1/0 |
+| 7.3 | Tiny benchmark | Challenge | Score at least X% against Metcalf's Tiny benchmark 2004 | Tiny rules · ★ higher score | Other hills |
+| 7.4 | Challenger | Challenge | Join a mini hill of 10 real 94nop Koenigstuhl warriors from the Library (ranks about 400–600) and finish in the top 5 after the push-off | 94nop rules · ★ top 2 | Hills, push-off, the Library |
+| 7.5 | **The Janitor** | Boss | At least 55 wins of 100 against the Janitor, a sweeper/stone hybrid written for the boss fight | 94nop rules · ★ 70 wins | Everything |
+
+7.4 reuses the push-off machinery from Tournaments; the warriors and their Koenigstuhl ranks come
+from the Library.
 
 ### Epilogue
 
 Kettle asks the player to train the next recruits. Unlocks: an **endless hill climb** (beat Library
-warriors from the bottom of a hill upwards), a **daily trial** (one generated goal per day), and a
+warriors from the bottom of a hill upwards), a **daily stage** (one generated goal per day), and a
 pointer to the real hills for submitting warriors.
+
+### Count
+
+| | Training | Predict | Challenge / boss | Side ◇ | Total |
+|---|---|---|---|---|---|
+| Chapters 0–7 | 34 | 3 | 13 | 6 | 56 |
+| First release | 14 | 0 | 6 | 0 | 20 |
+
+## Expansions
+
+Because stages are data, new wings can follow the campaign without code changes:
+
+- **Nano** (core 80, 5 lines): every chapter's ideas squeezed into tiny warriors; good for size stars.
+- **Memory** (P-space): warriors that remember the last round and switch strategy.
+- **Old school** (ICWS-88 rules): what changes without `SPL` modifiers and `.i`.
+- **Library drills**: Target and Survive stages built around famous Library warriors ("survive
+  Blue Funk for 10,000 cycles").
 
 ## What the app checks
 
-All checks use data the engine already reports (`docs/engine.mjs`):
+All checks use what the engine already offers (`docs/engine.mjs`, `docs/settings.mjs`):
 
 | Check | Used by | Source |
 |---|---|---|
-| Length, allowed or forbidden opcodes | All limits | The assembled warrior (`compile` returns length and code) |
-| Wins / ties / losses against one or more opponents | Most trials | Tournament workers (`planTournament`), as in Benchmark and Challenge modes |
-| Alive after N cycles, peak or exact process count | 1.1, 3.1, 5.1 | `update.warriors[i].tasks` and `cycle` while stepping a solo battle |
-| Cells written | 1.1 | Write events (`update.events`, kinds 1 and 3–6) |
-| Average cycle of the kill | 4.1 | The cycle at which each round ends |
-| Benchmark score | 7.1, 7.2 | Existing benchmark suites |
-| Hill placement | 7.3 | Existing push-off ranking |
+| Length, allowed or forbidden opcodes, lines changed | All limits, Repair | The assembled warrior (`compile` returns length and code) and a diff against the starting code |
+| Fixed positions for training setups | Target, Survive | The `fixedPosition` setting (pMARS `-F`) |
+| Core contents | Build | `engine.inspect(address)` after the run |
+| Processes, alive or dead, instructions executed | Run, Survive, 6.2 | `update.warriors[i].tasks` and `cycle` while stepping |
+| Cells written | 1.4, 1.a | Write events (`update.events`, kinds 1 and 3–6) |
+| Cycle of the kill | Target speed stars, 4.5 | The cycle at which the round ends |
+| Wins / ties / losses | Challenges | Tournament workers (`planTournament`), as in Benchmark and Challenge modes |
+| Benchmark score, hill placement | 7.2–7.4 | Existing benchmark suites and push-off ranking |
 | UI events | 0.1, 0.2 | Battle finished, steps taken, listing opened |
 
-Results vary between runs because starting positions are random: the Imp Train lost 19, 23 and 28
-of 100 rounds to the Dwarf in three runs. Trials should run with a fixed seed per attempt, and goals
-should keep a margin of about 10 rounds below what the reference solution achieves.
+Challenge results vary between runs because starting positions are random: the imp train lost 17,
+19, 23 and 28 of 100 rounds to the Dwarf in four runs. Challenges should run with a fixed seed per
+attempt, and goals should keep a margin of about 10 rounds below the reference solution. Training
+stages do not have this problem: with fixed positions they give the same result every time.
 
 ## Calibration
 
-`trials/calibrate.mjs` plays every reference solution against its opponents with the real engine
-(standard core, 100 rounds). One run:
+`trials/calibrate.mjs` plays every challenge's reference solution against its opponents with the
+real engine (standard core, 100 rounds). Two runs, as ranges:
 
-| Trial | Reference | Lines | Opponent | Wins / ties / losses |
+| Stage | Reference | Lines | Opponent | Wins / ties / losses |
 |---|---|---|---|---|
-| 1.2 Beat an Imp with one line | Gate | 1 | Imp | 100 / 0 / 0 |
-| 1.2 (Tiny core) | Gate | 1 | Imp | 100 / 0 / 0 |
-| 1.3 Strength in numbers | Imp Train | 3 | Dwarf | 0 / 77 / 23 |
-| 2.1 Your first bomber | Dwarf | 4 | Imp | 20 / 80 / 0 |
-| 2.2 The practice dummy (problem) | Dwarf | 4 | Sitting Duck | 25 / 75 / 0 |
-| 2.3 Leave no cell unturned | Sweeper | 4 | Sitting Duck | 100 / 0 / 0 |
-| 2.3 | Sweeper | 4 | Silk | 86 / 0 / 14 |
-| 3.2 Paper beats stone | Silk | 5 | Stone | 62 / 0 / 38 |
-| 3.2 | Silk | 5 | Dwarf | 9 / 46 / 45 |
-| 5.2 Kettle's champion | Spiral | 9 | Dwarf | 85 / 0 / 15 |
-| 5.2 | Spiral | 9 | Stone | 86 / 0 / 14 |
-| 5.2 | Spiral | 9 | Imp | 54 / 46 / 0 |
-| 6.1 A sweeper with a gate | Gated Sweeper | 4 | Imp | 68 / 32 / 0 |
-| 6.1 | Gated Sweeper | 4 | Silk | 86 / 0 / 14 |
-| 6.1 | Gated Sweeper | 4 | Dwarf | 62 / 0 / 38 |
+| 1.10 Beat an Imp with one line | Gate | 1 | Imp | 100 / 0 / 0 |
+| 1.10 (Tiny core) | Gate | 1 | Imp | 100 / 0 / 0 |
+| 2.8 Range day | Dwarf | 4 | Imp | 20–28 / 72–80 / 0 |
+| 2.8 Range day | Dwarf | 4 | Sitting Duck | 24–25 / 75–76 / 0 |
+| 2.a Leave no cell unturned | Sweeper | 4 | Sitting Duck | 100 / 0 / 0 |
+| 2.a | Sweeper | 4 | Imp | 0 / 100 / 0 |
+| 2.a | Sweeper | 4 | Silk | 79–86 / 0–1 / 14–20 |
+| 3.8 Paper beats stone | Silk | 5 | Stone | 60–62 / 0 / 38–40 |
+| 3.8 | Silk | 5 | Dwarf | 5–9 / 45–46 / 45–50 |
+| 3.a Strength in numbers | Imp Train | 3 | Dwarf | 0 / 77–83 / 17–23 |
+| 5.5 Kettle's champion | Spiral | 9 | Dwarf | 84–85 / 0 / 15–16 |
+| 5.5 | Spiral | 9 | Stone | 86–87 / 0 / 13–14 |
+| 5.5 | Spiral | 9 | Imp | 54–66 / 34–46 / 0 |
+| 6.5 A sweeper with a gate | Gated Sweeper | 4 | Imp | 68–74 / 26–32 / 0 |
+| 6.5 | Gated Sweeper | 4 | Silk | 86–93 / 0 / 7–14 |
+| 6.5 | Gated Sweeper | 4 | Dwarf | 61–62 / 0 / 38–39 |
 
 Things the measurements taught, which belong in Kettle's debriefs:
 
 - A one-line gate beats an Imp every time, in the Tiny core as well as the standard one.
 - The Dwarf kills a warrior that never moves in only a quarter of the rounds: it bombs every 4th
-  cell. A sweeper kills it every time.
+  cell. A sweeper kills it every time, but cannot catch an Imp.
 - Small warriors do not follow rock-paper-scissors neatly: the 5-line Silk loses more to the Dwarf
   than it wins, yet beats the Stone. Goals must be measured, not assumed.
 - An imp spiral beats both bombers but only half the time against a lone Imp; ties are its weakness.
+
+The training stages need their own references next: one solution per stage that passes every setup,
+and the par values for the stars taken from the best solution found.
 
 ## Screen layout
 
@@ -259,71 +478,85 @@ The Trials tab reuses the existing three columns:
 
 ```
 ┌ Warriors ─────────┐┌ Trials ───────────────────────────────┐┌ Kettle ───────────────┐
-│ 01 / Gate     ✓   ││ Chapter 1 · Imps in the walls  ■■□     ││ ▒ CHANNEL 7 ▒         │
-│ 02 / Imp Train    ││                                        ││ Kettle: The corridors │
-│ + New warrior     ││ 1.2 Beat an Imp with one line   ★★☆    ││ are full of Imps…     │
-│                   ││ Goal: ≥ 90 wins of 100 vs Imp          ││                       │
-│                   ││ Limits: 1 instruction                  ││ Kettle: Write me a    │
-│                   ││ Submit: [01 / Gate ▾]  [▶ Run trial]   ││ warrior one line long │
-│                   ││                                        ││ that beats an Imp.    │
-│                   ││ Result: 100 wins · 0 ties · 0 losses ✓ ││                       │
-│                   ││ [Watch a round] [Hint] [Next trial →]  ││ [Hint 1/3]            │
+│ 1.7 / slot A  ✓   ││ Corridors  ●●●●●●○○○ ⚔                 ││ ▒ CHANNEL 7 ▒         │
+│ 1.7 / slot B      ││                                        ││ Kettle: The dummy     │
+│ + New slot        ││ 1.7 Target practice · Training ★☆☆     ││ never moves. It just  │
+│                   ││ Goal: kill the Sitting Duck            ││ sits there, waiting.  │
+│                   ││ Setups: [+100 ✓] [+2500 ✗]             ││                       │
+│                   ││ Limits: ≤ 2 lines                      ││ Kettle: Be kinder     │
+│                   ││ Submit: [slot A ▾]  [▶ Run]            ││ than it deserves.     │
+│                   ││ Size 2 (par 1) · Speed 1 cycle (par 1) ││                       │
+│                   ││ [Replay setup 2] [Hint] [Next →]       ││ [Hint 1/3]            │
 └───────────────────┘└────────────────────────────────────────┘└───────────────────────┘
 ```
 
-- **Left:** the normal warrior roster and editor; the trial card picks the warrior to submit.
-- **Centre:** the chapter map (Academy wings) and the current trial card with goal, limits, stars,
-  the run button and the last result.
+- **Left:** the stage's solution slots, edited in the normal editor.
+- **Centre:** the wing map (stages as dots, the challenge as ⚔) and the stage card with goal, setups,
+  limits, stars, the run button, the result and a histogram once the stage is cleared.
 - **Right:** Kettle's chat, with hints and debriefs appended as the player progresses. On phones the
   chat becomes its own pane in the phone bar, like Battle / Code / Debug / Output today.
-- **Watch a round** opens the Battle tab with the trial's opponent, settings and the seed of a lost
-  round.
+- **Replay** opens the Battle tab with the stage's dummy, settings and positions (or the seed of a
+  lost challenge round).
 
 ## Data format
 
-Trials are data, so new chapters need no code. A sketch:
+Stages are data, so new chapters need no code. A sketch:
 
 ```js
 // docs/trials/chapter-1.mjs
 export default {
   id: 'imps', title: 'Imps in the walls', wing: 'Corridors',
-  trials: [{
-    id: '1.2', title: 'Beat an Imp with one line',
-    briefing: ['The corridors are full of Imps…', 'Write me a warrior one line long that beats an Imp. Not ties. Beats.'],
+  stages: [{
+    id: '1.7', title: 'Target practice', kind: 'target', requires: ['1.1'],
+    briefing: ['The dummy never moves…'],
+    settings: {coreSize: 8000, cycles: 80000, tasks: 8000, maxLength: 100},
+    setups: [{opponent: 'sittingDuck', position: 100}, {opponent: 'sittingDuck', position: 2500}],
+    limits: {maxLength: 2},
+    goal: {opponentDead: true},
+    stars: [{metric: 'size', par: 1}, {metric: 'cycles', par: 1}],
+    hints: ['…', '…', '…'],
+    debrief: ['…'],
+    reference: 'mov 1, 100',  // checked in CI, never shown to the player
+  }, {
+    id: '1.10', title: 'Beat an Imp with one line', kind: 'challenge', requires: ['1.7', '1.9'],
     settings: {coreSize: 8000, cycles: 80000, tasks: 8000, maxLength: 100, rounds: 100},
     limits: {maxLength: 1},
-    check: {type: 'battle', opponents: ['imp'], goal: {wins: 90}},
-    stars: [{text: '100 of 100', goal: {wins: 100}}],
-    hints: ['An Imp only dies if it runs into something it cannot execute…', '…', '…'],
-    debrief: ['…100 to 0. You did not even move.', 'That is a gate…'],
-    reference: 'jmp 0, <-2',  // used by the calibration test, never shown to the player
+    goal: {against: {imp: {wins: 90}}},
+    stars: [{metric: 'wins', against: 'imp', par: 100}],
+    reference: 'jmp 0, <-2',
   }],
 };
 ```
 
-Opponents live in `docs/trials/opponents/*.red`, written for the Trials (except Dewdney's Imp and
-Dwarf, which the app already ships as demos). Later chapters can name Library warriors by hill and
-file instead.
+Opponents and dummies live in `docs/trials/opponents/*.red`, written for the Trials (except
+Dewdney's Imp and Dwarf, which the app already ships as demos). Later chapters can name Library
+warriors by hill and file instead.
 
 ## Build plan
 
-1. **Playable first chapters.** Trials tab with chat, trial card and chapter list; battle checks
-   with length limits; progress saved in the browser (and in workspace exports); chapters 0–2.
-   The calibration script becomes a CI test: every reference solution must meet its own goal.
-2. **Richer checks.** Solo checks (processes, cells written, kill speed), stars, hints, "watch a
-   round", chapters 3–5.
-3. **The Hill.** Benchmark and mini-hill trials using the Library, the Janitor boss, chapters 6–7,
-   epilogue modes.
+1. **The stage engine.** The standalone game page with title screen, chat, map and stage card; the
+   Build, Run, Target, Survive, Repair and Challenge kinds with setups and limits; solution slots and
+   saves. The calibration script becomes a CI test: every reference solution must pass its own
+   stage.
+2. **The first release.** The 20 stages, their reference solutions and par values, hints, replays,
+   stars; the Janitor written and calibrated; intro, ending, sound; the itch.io page.
+3. **More wings.** The rest of the full campaign: side stages, Predict stages, the Observatory and
+   Workshop wings, the real Hill (benchmarks, mini hill), the epilogue modes.
+4. **Expansions.** Nano, P-space and ICWS-88 wings; Library drills.
 
 ## Open questions
 
 - **Names and tone:** Kettle, the Janitor and the Academy are placeholders you may want to change.
   Is the melancholic-but-warm tone right, or should it be lighter?
-- **Core size for the first chapters:** the standard 8,000-cell core matches the hills; a Tiny core
-  (800 cells) is easier to watch on screen. The one-line gate works in both.
-- **Progression:** strictly linear, or chapters unlocked in order with optional side trials?
+- **Core size for training:** the standard 8,000-cell core matches the hills; a Tiny core (800
+  cells) is easier to watch on screen. Training stages could use the Tiny core and challenges the
+  standard one.
+- **itch.io:** link to corewar.dev, or host the game in the itch.io page (separate saves)?
+- **Unlocking:** how much of a wing must be cleared before its challenge opens: all training, or
+  most of it, as in *7 Billion Humans*?
+- **Histograms:** ship playtest distributions now, or wait for a server with real player data?
 - **Tutorial:** should the header's "Tutorial (soon)" link point to Trials chapter 0, with a short
   site tour added later?
-- **Tools:** should trial 2.2 introduce the step calculator once your Tools code is in?
+- **Tools:** should stage 2.6 introduce the step calculator in the Tools tab?
 - **The Janitor:** write it from scratch for the boss fight, or would you like to supply a warrior?
 - **Sharing:** solution sharing or leaderboards would need a server; leave out for now?

@@ -26,6 +26,7 @@ jobs:
       - run: node docs/test-stepfinder.mjs
       - run: node docs/test-optimizer.mjs
       - run: node docs/test-exmars.mjs
+      - run: node docs/test-trials.mjs
       - run: npm ci
       - run: npm install --no-save playwright@1.62.1
       - run: npx playwright install --with-deps chromium
