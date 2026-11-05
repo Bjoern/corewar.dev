@@ -182,9 +182,13 @@ export function mount(root,{loadState,saveState}){
   ctx.strokeStyle=css('--accent')||'#54d8df';ctx.lineWidth=1.6;ctx.beginPath();
   for(let n=1;n<=p.hits;n++){const x=xs(n),y=ys(p.maxRun[n]);n===1?ctx.moveTo(x,y):ctx.lineTo(x,y);}
   ctx.stroke();
-  list.forEach(x=>{
-   const y=ys(x);ctx.strokeStyle='#d68a24';ctx.lineWidth=1;ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(w-R,y);ctx.stroke();ctx.setLineDash([]);
-   ctx.fillStyle='#f1c96b';ctx.fillText('x='+x,w-R-40,y-3);
+  // Labels sit at the left, where the falling curve leaves room; close ones step sideways.
+  let prevY=-Infinity,prevX=L+4,prevW=0;
+  [...list].sort((a,b)=>b-a).forEach(x=>{
+   const y=ys(x),label='x='+x,lw=ctx.measureText(label).width;
+   const lx=y-prevY<11?prevX+prevW+6:L+4;prevY=y;prevX=lx;prevW=lw;
+   ctx.strokeStyle='#d68a24';ctx.lineWidth=1;ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(w-R,y);ctx.stroke();ctx.setLineDash([]);
+   ctx.fillStyle='#f1c96b';ctx.fillText(label,lx,y-3);
    const n=findxFrom(p.maxRun,p.hits,x);if(n!==null){ctx.beginPath();ctx.arc(xs(n),ys(p.maxRun[n]),3.5,0,7);ctx.fill();}
   });
  }
