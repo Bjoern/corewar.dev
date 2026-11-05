@@ -29,7 +29,7 @@ try {
  const edit=async(id,text)=>{if(!await page.locator(id).isVisible())await page.locator('#editors .warrior').nth(id==='#first'?0:1).click();await page.locator(id).fill(text);};
  await edit('#first',marked);
  await edit('#second',';redcode\n;assert 1\njmp 0\n');await page.locator('.core-tab').click();
- await page.locator('#debugRun').click();await ready('Debug marker:');
+ await page.locator('#debugEnabled').check();await page.locator('#run').click();await ready('Debug marker:');
  assert(await page.locator('#debugEnabled').isChecked());assert.equal(await count(),2);
  await page.locator('#step').click();assert.equal(await count(),3);
  await page.locator('#debugEnabled').uncheck();
@@ -52,7 +52,7 @@ try {
   await page.setViewportSize({width,height:1000});
   const rects=await page.evaluate(()=>Object.fromEntries(['run','rounds','timing','speed'].map(id=>{const r=document.getElementById(id).getBoundingClientRect();return [id,{x:r.x,y:r.y,bottom:r.bottom,right:r.right}];})));
   assert(Object.values(rects).every(r=>r.right<=width),'Toolbar should fit viewport');
-  for(const id of ['run','step','reset','debugRun','fast','rounds','speed'])assert(await page.locator('#'+id).isVisible(),id+' should stay visible at '+width+'px');
+  for(const id of ['run','step','reset','fast','rounds','speed'])assert(await page.locator('#'+id).isVisible(),id+' should stay visible at '+width+'px');
   const clear=await page.evaluate(()=>{const hit=(a,b)=>a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;const arena=document.querySelector('.arena-viewport').getBoundingClientRect();return ['legendNames','timing'].every(id=>!hit(document.getElementById(id).getBoundingClientRect(),arena));});
   assert(clear,'Warrior chips and timing should not cover the core at '+width+'px');
   await page.screenshot({path:'docs/test-output/toolbar-'+width+'.png',fullPage:true});

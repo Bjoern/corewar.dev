@@ -15,7 +15,7 @@ try{
  await empty();
  assert.equal(await page.locator('#warriorCount').textContent(),'0 warriors loaded - upload or create warriors, then run battles and tournaments');
  assert(await page.locator('#examplesBtn').isVisible());assert(await page.locator('#toggleEditors').isHidden());
- for(const id of ['run','step','reset','fast','debugRun'])assert(await page.locator('#'+id).isDisabled());
+ for(const id of ['run','step','reset','fast'])assert(await page.locator('#'+id).isDisabled());
  await page.waitForTimeout(150);assert.equal(await page.locator('#timing').getAttribute('data-instructions'),'0');
  await page.locator('#newWarrior').click();assert(await page.locator('#first').isVisible());assert(await page.locator('#demos').isHidden());
  await page.locator('.core-tab').click();await page.locator('#step').click();await page.waitForFunction(()=>document.querySelector('#timing').dataset.instructions==='1');

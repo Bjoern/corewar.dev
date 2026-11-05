@@ -353,7 +353,6 @@ function controls() {
   $('run').disabled = !nativeBusy && (empty || (busy && !['series','series-paused'].includes(state)) || state==='done');
   const running=['running','series'].includes(state), done=state==='done';
   $('run').innerHTML='<span class="control-icon" aria-hidden="true">'+(nativeBusy?'■':running?'Ⅱ':done?'✓':'▶')+'</span> '+(nativeBusy?'Cancel':running?'Pause':done?'Done':'Run');
-  $('debugRun').disabled=empty || busy || state==='done';
   $('fast').disabled=empty || busy || state==='done';
   $('step').disabled = empty || busy || state === 'running' || state === 'done';
   $('reset').disabled = nativeBusy || noSelection || state === 'loading';
@@ -827,12 +826,6 @@ $('fast').onclick=safe(async()=>{
  if((!engine || (total===0 && dirty)) && !(await load()))return;
  setFast(enable);
  if(enable && state==='paused')resume();
-});
-$('debugRun').onclick=safe(async()=>{
- $('debugEnabled').checked=true;
- pause();
- if((!engine || (total===0 && dirty)) && !(await load()))return;
- engine.setDebug(true);resume();
 });
 $('debugEnabled').onchange=()=>{if(!nativeBusy)engine?.setDebug($('debugEnabled').checked);};
 $('diagnostics').ontoggle=()=>{if($('diagnostics').open)$('sliceTiming').textContent='Peak simulation slice: '+maxSlice.toFixed(1)+' ms';};

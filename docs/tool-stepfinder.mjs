@@ -170,13 +170,13 @@ export function mount(root,{loadState,saveState}){
  function canvasSize(c,h){const r=devicePixelRatio||1,w=Math.max(200,c.clientWidth);c.width=w*r;c.height=h*r;const ctx=c.getContext('2d');ctx.scale(r,r);return [ctx,w,h];}
  function drawChart(){
   if(!current||!chart.isConnected||!chart.clientWidth)return;
-  const {N,p,targets:list}=current,[ctx,w,h]=canvasSize(chart,240),L=44,R=10,T=10,B=26;
+  const {N,p,targets:list}=current,[ctx,w,h]=canvasSize(chart,240),L=44,R=10,T=26,B=26;
   ctx.fillStyle=css('--panel')||'#101d29';ctx.fillRect(0,0,w,h);
   const xs=n=>L+(w-L-R)*Math.log(n)/Math.log(p.hits||2),ymax=Math.log(N),ys=v=>T+(h-T-B)*(1-Math.log(Math.max(1,v))/ymax);
   ctx.font='11px system-ui';ctx.fillStyle=css('--muted')||'#aec0ce';ctx.strokeStyle='#2a3d4d';ctx.lineWidth=1;
   for(let v=1;v<=N;v*=10){ctx.beginPath();ctx.moveTo(L,ys(v));ctx.lineTo(w-R,ys(v));ctx.stroke();ctx.fillText(fmt(v),4,ys(v)+4);}
   for(let n=1;n<=p.hits;n*=10){ctx.fillText(fmt(n),xs(n)-4,h-8);}
-  ctx.fillText('longest empty run · hits on a log scale',L+6,T+10);
+  ctx.fillText('longest empty run · hits on a log scale',L,14);
   // Ideal N/n
   ctx.setLineDash([4,4]);ctx.strokeStyle='#5f7a8e';ctx.beginPath();for(let n=1;n<=p.hits;n=Math.ceil(n*1.05)+0){const x=xs(n),y=ys(N/n);n===1?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.setLineDash([]);
   ctx.strokeStyle=css('--accent')||'#54d8df';ctx.lineWidth=1.6;ctx.beginPath();
