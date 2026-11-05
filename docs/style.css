@@ -536,6 +536,10 @@ button.small{white-space:nowrap}
 .reference-bar strong{white-space:nowrap}.reference-bar{display:flex;align-items:center;gap:14px;padding:6px var(--gap);background:var(--panel);border-bottom:1px solid var(--border);font-size:13px}
 .reference-view iframe{flex:1;width:100%;border:0;background:var(--bg)}
 body[data-reference=true] #phoneBar{display:none}
+.trials-view{position:fixed;left:0;right:0;bottom:0;top:var(--reference-top,48px);z-index:25;display:flex;background:var(--bg)}
+.trials-view[hidden]{display:none}
+.trials-view iframe{flex:1;width:100%;border:0;background:var(--bg)}
+body[data-mode=trials] #phoneBar{display:none}
 .help-links a[aria-current=page]{color:#e4edf3}
 .workspace-menu #startClean{border-top:1px solid var(--border);border-radius:0;margin-top:4px;padding-top:8px}
 #workspaceDialog p{margin:0 0 14px;line-height:1.45}.dialog-actions{display:flex;justify-content:flex-end;gap:8px}#workspaceDialogOk{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
@@ -608,6 +612,7 @@ button.tools-card:hover{border-color:var(--accent)}
 .tools-card-open{margin-top:auto;color:var(--accent);font-weight:600}
 .tools-card-ideas{border-style:dashed}.tools-card-ideas ul{margin:0;padding-left:18px}
 .tool-help{border:1px solid var(--border);border-radius:8px;background:var(--panel);padding:8px 14px;margin:0 0 12px}
+.sf-layout+.tool-help{margin:12px 0 0}
 .tool-help summary{margin:0;font-weight:600;color:#e4edf3}
 .tool-help[open]{display:block}.tool-help[open] summary{margin-bottom:6px}
 .tool-help>div{max-width:80ch}.tool-help strong{font-size:13px;color:#e4edf3}.tool-help p{margin:2px 0 10px;font-size:13px}

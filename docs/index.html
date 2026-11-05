@@ -13,9 +13,10 @@
 <header class="topbar">
 <a class="wordmark" href="./" id="wordmark">corewar.dev</a>
 <nav id="modeTabs" class="mode-nav" role="tablist" aria-label="Mode"></nav>
-<nav class="help-nav" aria-label="Help"><button id="helpBtn" class="phone-only" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Tutorial, reference and about">?</button><div id="helpLinks" class="help-links"><span class="soon-link" title="The tutorial is coming soon">Tutorial <small>soon</small></span><a id="referenceLink" href="#reference">Redcode reference</a><a id="aboutLink" href="#about">About</a></div></nav>
+<nav class="help-nav" aria-label="Help"><button id="helpBtn" class="phone-only" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Tutorial, reference and about">?</button><div id="helpLinks" class="help-links"><a id="tutorialLink" href="#trials" title="Learn Redcode stage by stage in the Trials">Tutorial</a><a id="referenceLink" href="#reference">Redcode reference</a><a id="aboutLink" href="#about">About</a></div></nav>
 </header>
 <section id="referenceView" class="reference-view" hidden aria-label="Redcode reference"><div class="reference-bar"><strong id="referenceTitle">Redcode reference</strong><a id="referenceNewTab" href="redcode.html" target="_blank" rel="noopener">Open in new tab</a><span class="foot-spacer"></span><button id="closeReference" type="button" class="small">Back to the app</button></div><iframe id="referenceFrame" title="Redcode reference"></iframe></section>
+<section id="trialsPanel" class="trials-view" role="tabpanel" aria-labelledby="trialsTab" hidden><iframe id="trialsFrame" title="Core War Trials" allow="clipboard-write"></iframe></section>
 <main id="app">
 <aside id="sidebar" class="sidebar" aria-label="Warriors">
 <div class="side-head"><h2>Warriors</h2><div class="side-actions">
@@ -65,7 +66,7 @@
 <button type="button" class="demo-card" data-demo="multiDemo"><span class="demo-art" aria-hidden="true"><i style="background:#54d8df"></i><i style="background:#f9a567"></i><i style="background:#b79cff"></i><i style="background:#a7e8a3"></i></span><strong>Multiwarrior</strong><span>Every bundled warrior in one free-for-all.</span><em>▶ Watch</em></button>
 </div>
 <div class="welcome-foot"><span>Already know Redcode?</span><button id="welcomeNew" type="button" class="primary">+ Write a new warrior</button><button id="welcomeUpload" type="button">Upload .red files</button></div>
-<p class="welcome-soon"><span class="soon-badge">Coming soon</span> A step-by-step tutorial for your first warrior.</p>
+<p class="welcome-soon">New to Redcode? <a href="#trials">Play the Trials</a>, a step-by-step course from your first instruction to your first warrior.</p>
 </section></div>
 <div id="legendNames" class="warrior-chips" aria-label="Warriors"></div>
 </section>

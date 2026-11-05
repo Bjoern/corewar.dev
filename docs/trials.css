@@ -5,6 +5,7 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);min-height:100vh}
 a{color:var(--accent)}
+[data-embed] .standalone-only{display:none}
 code,pre,.mono{font-family:Consolas,ui-monospace,monospace}
 button{font:inherit;font-weight:600;padding:9px 16px;border-radius:6px;border:1px solid #385469;background:#182b3b;color:var(--fg);cursor:pointer}
 button:hover{border-color:var(--accent)}

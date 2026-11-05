@@ -76,7 +76,7 @@ export function setupTournaments({roster,readConfig,onTab}) {
    chooseMode(modeTabs[next]);modeTabs[next].focus();
   };
  });
- const tabs=[$('emulatorTab'),$('tournamentTab'),$('libraryTab'),$('toolsTab')];
+ const tabs=[$('emulatorTab'),$('tournamentTab'),$('libraryTab'),$('toolsTab'),$('trialsTab')];
  function selectTab(index){
   tabs.forEach((tab,i)=>{tab.setAttribute('aria-selected',String(i===index));tab.tabIndex=i===index?0:-1;});
   $('changed').hidden=index!==0;

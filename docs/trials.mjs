@@ -7,6 +7,8 @@ import {runStage, opponentName} from './trials-check.mjs';
 import {kettleSvg, kettleIcon, setMood, setTalking} from './trials-kettle.mjs';
 
 const $ = id => document.getElementById(id);
+// Inside corewar.dev's Trials tab (trials.html?embed) the site's header already links the reference and the app.
+if (window.parent !== window && new URLSearchParams(location.search).has('embed')) document.documentElement.dataset.embed = '';
 $('titleKettle').innerHTML = kettleSvg({label: 'Kettle, the training robot'});
 $('chatKettle').innerHTML = kettleSvg();
 document.documentElement.style.setProperty('--kettle-icon', kettleIcon());

@@ -58,7 +58,7 @@ export function mount(root,{loadState,saveState}){
   el('p',{className:'hint',textContent:'Each square is one cell, in rows from address 0. Bombed cells are bright; the longest empty run is outlined in orange.'}));
  const help=el('details',{className:'tool-help',open:!saved.helpClosed},el('summary',{textContent:'How to read this'}),...HELP.map(([h,t])=>el('div',{},el('strong',{textContent:h}),el('p',{textContent:t}))));
  help.addEventListener('toggle',persist);
- root.append(help,el('div',{className:'sf-layout'},el('section',{className:'t-card'},el('h3',{textContent:'Scan'}),form,tableWrap),detail));
+ root.append(el('div',{className:'sf-layout'},el('section',{className:'t-card'},el('h3',{textContent:'Scan'}),form,tableWrap),detail),help);
 
  let rows=[],sortKey='rank',sortDir=1,worker=null,scanned=null;
  const coreSize=()=>Math.max(2,Math.min(65536,Math.floor(Number(core.value)||8000)));
@@ -157,7 +157,11 @@ export function mount(root,{loadState,saveState}){
   hits.max=String(p.hits);if(Number(hits.value)>p.hits||!hits.dataset.touched)hits.value=String(Math.min(p.hits,Math.max(1,findxFrom(p.maxRun,p.hits,list.at(-1))??Math.ceil(p.hits/4))));
   drawChart();drawStrip();
  }
- detailStep.addEventListener('change',()=>showDetail(Math.floor(Number(detailStep.value))||1));
+ // Update as the step is typed, not only when the field loses focus.
+ let typing=0;
+ const typedStep=()=>{clearTimeout(typing);const v=Math.floor(Number(detailStep.value));if(v>=1)showDetail(v);};
+ detailStep.addEventListener('input',()=>{clearTimeout(typing);typing=setTimeout(typedStep,250);});
+ detailStep.addEventListener('change',typedStep);
  sign.onchange=drawDetail;
  hits.addEventListener('input',()=>{hits.dataset.touched='1';drawStrip();});
  copy.onclick=async()=>{try{await navigator.clipboard.writeText(snippet.textContent);copy.textContent='Copied';}catch{copy.textContent='Copy failed';}setTimeout(()=>copy.textContent='Copy',1200);};

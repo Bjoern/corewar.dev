@@ -17,7 +17,7 @@ const MODES=[
  {id:'tournamentTab',label:'Tournaments',panel:'tournamentPanel'},
  {id:'libraryTab',label:'Library',panel:'libraryPanel'},
  {id:'toolsTab',label:'Tools',panel:'toolsPanel'},
- {id:'trialsTab',label:'Trials',soon:true}
+ {id:'trialsTab',label:'Trials',panel:'trialsPanel'}
 ];
 $('modeTabs').replaceChildren(...MODES.filter(m=>!m.hidden).map((m,i)=>{
  const b=document.createElement('button');b.id=m.id;b.type='button';b.setAttribute('role','tab');b.textContent=m.label;
@@ -253,7 +253,7 @@ function editorVisibility(){
   if(!area.hidden)sourceEditors[i].view.requestMeasure();
  });
  const view=active>=0?'editor':mode==='battle'?'core':mode;
- $('sharedEditor').hidden=active<0;$('coreView').hidden=view!=='core';$('tournamentPanel').hidden=view!=='tournament';$('libraryPanel').hidden=view!=='library';$('toolsPanel').hidden=view!=='tools';
+ $('sharedEditor').hidden=active<0;$('coreView').hidden=view!=='core';$('tournamentPanel').hidden=view!=='tournament';$('libraryPanel').hidden=view!=='library';$('toolsPanel').hidden=view!=='tools';$('trialsPanel').hidden=mode!=='trials';
  $('coreInspector').hidden=view!=='core';$('editorInspector').hidden=active<0;
  document.body.dataset.view=view;
  $('runFromEditor').textContent=mode==='tournament'?'▶ Run tournament':'▶ Run battle';
@@ -1068,6 +1068,9 @@ document.addEventListener('keydown',event=>{if(event.key==='Escape')closePopover
 // The Redcode reference (#reference or #reference/<section>) and the About page (#about) open over the app; Back or "Back to the app" closes them.
 const PAGES={reference:{file:'redcode.html',title:'Redcode reference',link:'referenceLink'},about:{file:'about.html',title:'About corewar.dev',link:'aboutLink'}};
 let referenceFromHash=false;
+// The Trials game is its own page (trials.html, also played standalone on itch.io), shown in a frame below the header and loaded on first use.
+// The release from app.mjs?v=… keeps the frame from showing a cached trials.html after a deploy.
+function showTrials(){placeReference();const frame=$('trialsFrame'),release=new URL(import.meta.url).searchParams.get('v');if(!frame.src)frame.src='trials.html?embed'+(release?'&v='+release:'');}
 function placeReference(){document.body.style.setProperty('--reference-top',document.querySelector('.topbar').getBoundingClientRect().bottom+'px');}
 function showReference(){
  const match=location.hash.match(/^#(reference|about)(?:\/([\w-]+))?$/), open=!!match, page=open&&PAGES[match[1]];
@@ -1086,10 +1089,10 @@ function closeReference(){
  if(referenceFromHash)window.history.back();
  else{pendingMode=null;window.history.replaceState(null,'',modeUrl(shownMode()));showReference();}
 }
-// Each mode has an address: #battle (or no hash), #tournaments, #library and #tools. The history keeps at most one entry per mode:
+// Each mode has an address: #battle (or no hash), #tournaments, #library, #tools and #trials. The history keeps at most one entry per mode:
 // choosing the mode of the entry underneath steps Back instead of adding an entry.
-const MODE_HASHES=['battle','tournaments','library','tools'];
-const MODE_NAMES=['battle','tournament','library','tools'];
+const MODE_HASHES=['battle','tournaments','library','tools','trials'];
+const MODE_NAMES=['battle','tournament','library','tools','trials'];
 let routing=false, pendingMode=null;
 const shownMode=()=>Math.max(0,MODE_NAMES.indexOf(mode));
 // #tools/<tool> opens a tool inside the Tools mode.
@@ -1115,7 +1118,7 @@ function route(){
 }
 // Moving between the reference and About keeps the flag; only arriving from the app sets it.
 addEventListener('hashchange',event=>{if(!/#(reference|about)/.test(new URL(event.oldURL).hash))referenceFromHash=pageOpen();route();});
-addEventListener('resize',()=>{if(!$('referenceView').hidden)placeReference();});
+addEventListener('resize',()=>{if(!$('referenceView').hidden||!$('trialsPanel').hidden)placeReference();});
 addEventListener('message',event=>{
  if(event.origin!==location.origin)return;
  if(event.data?.type==='corewar-reference-close')setTimeout(closeReference,50);
@@ -1203,13 +1206,15 @@ tournaments=setupTournaments({
   // The match settings move into the tournament view and back out to the battle view.
   if(name==='tournament')$('tournamentSettingsSlot').append($('settingsDock'));else $('settingsDock').closest('#tournamentSettingsSlot')&&document.querySelector('.core-view .arena-foot').prepend($('settingsDock'));
   MODES.filter(m=>m.panel).forEach((m,i)=>{if(i===index)$(m.id).setAttribute('aria-current','page');else $(m.id).removeAttribute('aria-current');});
+  $(MODES.filter(m=>m.panel)[index].id).scrollIntoView({block:'nearest',inline:'nearest'}); // On phones the tab row scrolls sideways.
   if(name!=='battle' && state==='running')pause();
   mode=name;document.body.dataset.mode=mode;
-  $('phoneBar').querySelector('[data-pane=core]').textContent={tournament:'Tournament',library:'Library',tools:'Tools'}[name]||'Battle';
+  $('phoneBar').querySelector('[data-pane=core]').textContent={tournament:'Tournament',library:'Library',tools:'Tools',trials:'Trials'}[name]||'Battle';
   if(name!=='battle' && ['debug','output'].includes(document.body.dataset.pane))setPane('core');
   editorVisibility();
   if(name==='library')library.show();else library.hide();
   if(name==='tools')tools.show();else tools.hide();
+  if(name==='trials')showTrials();
   if(name==='battle' && activeEditor()<0){display.redraw();processChart.draw();scoreChart.draw();}
   if(!routing)modeChosen(from,index);
  }
