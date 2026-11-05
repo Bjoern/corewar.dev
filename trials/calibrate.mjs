@@ -20,14 +20,14 @@ export const opponents = {
 
 // Reference solutions: proof that a challenge can be met, not the best answer.
 export const references = [
-  {trial: '1.2 Beat an Imp with one line', settings: STANDARD, warrior: red('Gate', 'jmp 0, <-2'), against: ['imp']},
-  {trial: '1.2 (Tiny core)', settings: TINY, warrior: red('Gate', 'jmp 0, <-2'), against: ['imp']},
-  {trial: '1.3 Strength in numbers', settings: STANDARD, warrior: red('Imp Train', 'spl 1\nspl 1\nmov.i 0, 1'), against: ['dwarf', 'imp']},
-  {trial: '2.1 Your first bomber (the Dwarf)', settings: STANDARD, warrior: opponents.dwarf, against: ['imp', 'sittingDuck']},
-  {trial: '2.3 Leave no cell unturned', settings: STANDARD, warrior: red('Sweeper', 'loop mov.i bomb, >ptr\n     jmp loop\nptr  dat 0, 2\nbomb dat 0, 0'), against: ['sittingDuck', 'imp', 'silk']},
-  {trial: '6.1 A sweeper with a gate', settings: STANDARD, warrior: red('Gated Sweeper', 'loop mov.i bomb, >ptr\n     djn.f loop, <ptr-5\nptr  dat 0, 2\nbomb dat 0, 0'), against: ['sittingDuck', 'imp', 'dwarf', 'silk']},
-  {trial: '3.2 Paper beats stone', settings: STANDARD, warrior: opponents.silk, against: ['stone', 'dwarf', 'imp']},
-  {trial: "5.2 Kettle's champion", settings: STANDARD,
+  {trial: '1.10 Beat an Imp with one line', settings: STANDARD, warrior: red('Gate', 'jmp 0, <-2'), against: ['imp']},
+  {trial: '1.10 (Tiny core)', settings: TINY, warrior: red('Gate', 'jmp 0, <-2'), against: ['imp']},
+  {trial: '3.a Strength in numbers', settings: STANDARD, warrior: red('Imp Train', 'spl 1\nspl 1\nmov.i 0, 1'), against: ['dwarf', 'imp']},
+  {trial: '2.8 Range day (the Dwarf)', settings: STANDARD, warrior: opponents.dwarf, against: ['imp', 'sittingDuck']},
+  {trial: '2.a Leave no cell unturned', settings: STANDARD, warrior: red('Sweeper', 'loop mov.i bomb, >ptr\n     jmp loop\nptr  dat 0, 2\nbomb dat 0, 0'), against: ['sittingDuck', 'imp', 'silk']},
+  {trial: '6.5 A sweeper with a gate', settings: STANDARD, warrior: red('Gated Sweeper', 'loop mov.i bomb, >ptr\n     djn.f loop, <ptr-5\nptr  dat 0, 2\nbomb dat 0, 0'), against: ['sittingDuck', 'imp', 'dwarf', 'silk']},
+  {trial: '3.8 Paper beats stone', settings: STANDARD, warrior: opponents.silk, against: ['stone', 'dwarf', 'imp']},
+  {trial: "5.5 Kettle's champion", settings: STANDARD,
    warrior: red('Spiral', 'step equ 2667\n     spl 1\n     spl 1\nvec  jmp @ptr, >ptr\nptr  dat 0, 1\nt0   jmp imp\nt1   jmp imp+step\nt2   jmp imp+2*step\nt3   jmp imp+3*step\nimp  mov.i 0, step'),
    against: ['dwarf', 'stone', 'imp']},
 ];
