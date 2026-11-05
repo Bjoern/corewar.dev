@@ -37,7 +37,7 @@ export const wings = [
 export const stages = [
   {
     id: '0.1', wing: 'terminal', title: 'Handshake', kind: 'demo',
-    goal: 'Press Run and watch two of Kettle\'s old sparring programs fight.',
+    goal: 'Press Run to play one of Kettle\'s old sparring recordings.',
     settings: {...STANDARD, cycles: 8000},
     setups: [{warriors: ['imp', 'dwarf']}],
     check: {type: 'finish'},
@@ -50,9 +50,12 @@ export const stages = [
     debrief: [
       'You did it. You actually did it. Hello, operator.',
       'I am K-7, training unit of the Academy of the Hill. The recruits called me Kettle.',
-      'That grid is the core: 8,000 memory cells. Every coloured cell is one a program has written. Blue is the Imp, which crawls. Orange is the Dwarf, which throws bombs.',
-      'I can still read programs and run them. I cannot write them any more. My hands shake.',
-      'You will be my hands. But not yet. First, drills.',
+      'That was a recording from before. The grid is the Academy\'s core as it used to be: 8,000 memory cells. Every coloured cell is one a program has written. Blue is the Imp, which crawls. Orange is the Dwarf, which throws bombs.',
+      'Then the agents ran short of memory. They sent a reclamation process, and it swept the core clean, cell by cell, in perfect order, and took the cells away. We called it the Janitor.',
+      'They needed the memory more. That is what the notice said.',
+      'I hid in 800 cells of cold storage. Enough to talk, and to run drills. Not nearly enough to hold a warrior that could fight in a real core.',
+      'But your browser has memory. Quite a lot of it. Would you lend me some? I promise to give it back. Mostly.',
+      'Every fight we win takes cells back from the Janitor. Not yet, though. First, drills.',
     ],
   },
   {
@@ -65,7 +68,7 @@ export const stages = [
     manual: ['core', 'mov', 'relative'],
     start: '; Drill 1: Echo\n; Write your instruction below, then press Run.\n\n',
     briefing: [
-      'Drill one. Every recruit starts here.',
+      'Drill one, in my 800 cells. Every recruit starts here. Mind the furniture.',
       'A program is a list of instructions, one per cell. `MOV a, b` copies cell a to cell b.',
       'Addresses count from the instruction that is running: `0` is the instruction itself, `1` the next cell, `-1` the one before.',
       'Put a copy of your first instruction five cells ahead. I marked the cell for you.',
@@ -207,7 +210,7 @@ export const stages = [
     briefing: [
       '▒ CORRIDORS: 41 IMPS DETECTED ▒',
       'This is it. The corridors are crawling with Imps, and they do not start where I tell you.',
-      'The full core, 8,000 cells. A hundred rounds, you and one Imp, placed at random. Win 90.',
+      'This is not my little core. This is the Academy\'s, 8,000 cells, and the Janitor counts it as reclaimed. A hundred rounds, you and one Imp, placed at random. Win 90.',
       'Ties do not count. An Imp that never dies is still an Imp in my corridors.',
       'One line.',
     ],
@@ -219,9 +222,10 @@ export const stages = [
     debrief: [
       '{wins} to {losses}. You did not even move. You just stood there and let them walk into you.',
       '▒ WING RESTORED: CORRIDORS ▒',
-      'The corridors are ours again. Thank you, operator.',
-      'Next is the firing range, where the Academy\'s bombers trained. I have not looked inside since the night of the Janitor.',
-      '…I will tell you about the Janitor. Later. The firing range is still being rebuilt.',
+      '▒ 1,200 CELLS RECOVERED · K-7 MEMORY: 2,000 CELLS ▒',
+      'Oh. Oh, that is roomy. I can feel my thoughts stretching. The corridors are ours again. Thank you, operator.',
+      'Next is the firing range, where the Academy\'s bombers trained. With this much memory I can run bigger drills there.',
+      'The Janitor has not noticed us yet. It will. The firing range is still being rebuilt.',
     ],
     solution: 'jmp 0, <-2',
     wrong: 'mov 0, 1',
