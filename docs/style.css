@@ -383,20 +383,20 @@ body[data-view=library] .inspector,body[data-view=library] #inspectorSplitter{di
 .lib-row{border-radius:6px}.lib-row:hover,.lib-row:has([aria-expanded=true]){background:var(--raised)}
 .lib-head{display:flex;align-items:center;gap:8px;padding-right:4px}
 /* Result rows and the sort headers share one grid so the columns line up */
-.lib-grid{flex:1;min-width:0;display:grid;grid-template-columns:3.5em minmax(8em,14em) minmax(6em,12em) 1fr;align-items:baseline;gap:10px}
+.lib-grid{flex:1;min-width:0;display:grid;grid-template-columns:3.5em 4em minmax(8em,14em) minmax(6em,12em) 4.5em 1fr;align-items:baseline;gap:10px}
 .lib-toggle{padding:3px 8px;border:0;border-radius:6px;background:transparent;text-align:left;font:inherit;line-height:1.35;color:inherit;cursor:pointer}
-.lib-rank{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;font-size:12px}
+.lib-rank,.lib-score{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;font-size:12px}
+.lib-hill-name{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lib-name,.lib-author,.lib-strategy{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lib-name{font-size:13px}.lib-author{font-size:13px;color:var(--muted)}.lib-strategy{font-size:12px;color:var(--muted);opacity:.85}
-.lib-tag{font-size:11px;font-weight:400;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:0 6px}
 .lib-add,.lib-add-space{flex:none;width:5.5em}
 .lib-add{padding:1px 6px;font-size:12px;line-height:1.4;white-space:nowrap}
 .lib-columns{position:sticky;top:-12px;z-index:1;background:var(--panel);border-bottom:1px solid var(--border);padding-bottom:2px}
 .lib-columns .lib-grid{padding:0 8px}
 .lib-sort{padding:2px 0;border:0;background:transparent;font-size:12px;color:var(--muted);text-align:left;cursor:pointer;justify-self:start}
-.lib-sort.lib-col-rank{justify-self:end}
+.lib-sort.lib-col-rank,.lib-sort.lib-col-score{justify-self:end}
 .lib-sort[aria-pressed=true]{color:var(--accent)}.lib-sort:hover{color:var(--ink,#e4edf3)}
-.lib-details{padding:0 10px 10px calc(3.5em + 18px)}
+.lib-details{padding:0 10px 10px calc(7.5em + 28px)}
 .lib-facts{margin:0 0 6px;font-size:12px;color:var(--muted);white-space:pre-wrap}
 .lib-full-strategy{margin:0 0 8px;font-size:13px;white-space:pre-wrap}
 .lib-source{margin:0;max-height:320px;overflow:auto;font-size:12px;background:var(--code);border:1px solid var(--border);border-radius:6px;padding:8px}
@@ -417,7 +417,7 @@ body[data-view=library] .inspector,body[data-view=library] #inspectorSplitter{di
 .lib-intro{margin:0;font-size:13px;color:var(--muted)}.lib-intro a{color:var(--accent)}
 #libraryUpdated{white-space:nowrap}
 @media(max-width:700px){
- .lib-toggle.lib-grid{grid-template-columns:3em 1fr;row-gap:0}.lib-author,.lib-strategy{grid-column:2}
+ .lib-toggle.lib-grid{grid-template-columns:3.5em 1fr;row-gap:0}.lib-rank{grid-area:1/1}.lib-score{grid-area:2/1}.lib-name{grid-area:1/2}.lib-author,.lib-hill-name,.lib-strategy{grid-column:2}
  .lib-columns .lib-grid{display:flex;flex-wrap:wrap;gap:4px 14px}.lib-columns .lib-add-space{display:none}
  .lib-details{padding-left:10px}
 }

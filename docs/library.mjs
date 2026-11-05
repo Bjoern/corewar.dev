@@ -12,7 +12,9 @@ const PAGE=100, STATE_KEY='corewar-library', MAX_LOADED=36, MAX_SUITE=500;
 // A first visit (and Reset) searches this hill: the most popular one, with a much smaller index than all hills together.
 const DEFAULT_HILL='94nop';
 const RANKINGS={rec:'Recursive',br:'Battle royal',top50:'Top 50'};
-const COLUMNS={rank:'Rank',name:'Name',author:'Author',strategy:'Strategy'};
+const COLUMNS={rank:'Rank',score:'Score',name:'Name',author:'Author',hill:'Hill',strategy:'Strategy'};
+// Columns whose first click sorts high to low.
+const HIGH_FIRST=new Set(['score']);
 const FIELDS=['name','author','strategy','file'];
 // Text is compared as lowercase words without accents or punctuation, so a term matches from the start of a word:
 // "imp" finds "Imp" and "imps" but not "simple", and "paper/stone" finds "paper stone".
@@ -106,8 +108,8 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
    const current=key===sortBy;
    b.textContent=label+(current?(descending?' ↓':' ↑'):'');
    b.setAttribute('aria-pressed',String(current));
-   b.title=current?'Reverse the order':'Sort by '+label.toLowerCase()+(key==='rank'?' ('+RANKINGS[$('libraryRanking').value]+')':'');
-   b.onclick=()=>{if(sortBy===key)descending=!descending;else{sortBy=key;descending=false;}shown=PAGE;save();columnHeaders();search();};
+   b.title=current?'Reverse the order':'Sort by '+label.toLowerCase()+(key==='rank'||key==='score'?' ('+RANKINGS[$('libraryRanking').value]+')':'');
+   b.onclick=()=>{if(sortBy===key)descending=!descending;else{sortBy=key;descending=HIGH_FIRST.has(key);}shown=PAGE;save();columnHeaders();search();};
    return b;
   }));
  }
@@ -140,6 +142,7 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
  function sortKey(){
   const ranking=$('libraryRanking').value;
   if(sortBy==='rank')return w=>w[ranking]?.[0]??null;
+  if(sortBy==='score')return w=>w[ranking]?.[1]??null;
   // Leading punctuation ("- Evolved imps", "^C") is ignored so text sorts by its first letter or digit.
   return w=>(sortBy==='strategy'?w.strategy.split('\n')[0]:w[sortBy]).replace(/^[^\p{L}\p{N}]+/u,'').toLowerCase()||null;
  }
@@ -171,7 +174,7 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
  function changed(){shown=PAGE;open=null;save();hillButtons();search();}
 
  const scoreText=pair=>'#'+pair[0]+' · '+pair[1].toFixed(2);
- function row(w,loaded,many){
+ function row(w,loaded){
   const item=document.createElement('li');item.className='lib-row';item.dataset.key=keyOf(w);
   const head=document.createElement('div');head.className='lib-head';
   const check=document.createElement('input');check.type='checkbox';check.className='lib-check';check.checked=selected.has(item.dataset.key);
@@ -180,11 +183,12 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
   const toggle=document.createElement('button');toggle.type='button';toggle.className='lib-toggle lib-grid';toggle.setAttribute('aria-expanded',String(open===item.dataset.key));
   const by=$('libraryRanking').value;
   const rank=document.createElement('span');rank.className='lib-rank';rank.textContent=w[by]?'#'+w[by][0]:'–';rank.title=RANKINGS[by]+' rank';
+  const score=document.createElement('span');score.className='lib-score';score.textContent=w[by]?w[by][1].toFixed(2):'–';score.title=RANKINGS[by]+' score';
   const name=document.createElement('strong');name.className='lib-name';name.textContent=w.name;
-  if(many){const tag=document.createElement('span');tag.className='lib-tag';tag.textContent=w.hill;name.append(' ',tag);}
+  const hill=document.createElement('span');hill.className='lib-hill-name';hill.textContent=hillOf(w.hill)?.label??w.hill;hill.title='Koenigstuhl '+hill.textContent+' hill';
   const author=document.createElement('span');author.className='lib-author';author.textContent=w.author||'unknown author';
   const strategy=document.createElement('span');strategy.className='lib-strategy';strategy.textContent=w.strategy.split('\n')[0];
-  toggle.append(rank,name,author,strategy);
+  toggle.append(rank,score,name,author,hill,strategy);
   toggle.onclick=()=>{open=open===item.dataset.key?null:item.dataset.key;render();};
   const add=document.createElement('button');add.type='button';add.className='lib-add';
   const isLoaded=loaded.has(w.file);
@@ -232,13 +236,13 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
   return out;
  }
  function render(){
-  const loaded=new Set(loadedFiles()),many=selectedOnly?new Set(results.map(w=>w.hill)).size>1:ids().length>1;
+  const loaded=new Set(loadedFiles());
   if(selectedOnly)$('libraryCount').textContent='Showing the '+plural(results.length,'selected warrior');
   else{
    const total=ids().reduce((n,id)=>n+(hills.get(id)?.length||0),0);
    $('libraryCount').textContent=(results.length===total?total.toLocaleString()+' warriors':results.length.toLocaleString()+' of '+total.toLocaleString()+' warriors')+($('libraryFullText').checked?' · searching full source':'');
   }
-  $('libraryResults').replaceChildren(...results.slice(0,shown).map(w=>row(w,loaded,many)));
+  $('libraryResults').replaceChildren(...results.slice(0,shown).map(w=>row(w,loaded)));
   $('libraryMore').hidden=results.length<=shown;
   $('libraryMore').textContent='Show '+Math.min(PAGE,results.length-shown).toLocaleString()+' more';
   selection();
