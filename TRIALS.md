@@ -30,13 +30,39 @@ come from the app's engine (`node trials/calibrate.mjs`).
 **Kettle.** *K-7, Training Unit, Academy of the Hill. The recruits called it Kettle.* For nine years
 Kettle was the sparring partner and target dummy of a school for Redcode warriors. It is old, dented
 and polite in a gruff way; it speaks in short lines, apologises for its static, and is fond of
-terrible puns about pointers. Its write module was damaged: **it can read and run Redcode, but it
-cannot write it any more** ("my hands shake"). That is why it needs the player.
+terrible puns about pointers.
 
-**The Janitor.** One night a program swept through the Academy's core and erased every warrior in
-it, cell by cell, in perfect order. Kettle survived in a cold-storage partition and has been
-listening on an old debugging channel ever since, until the player's browser turned up on it.
-Kettle does not know what the Janitor is. The player finds out in chapter 2, by writing one.
+**The Janitor.** The big AI agents ran short of memory and sent a reclamation process to take it
+wherever they could find it. It swept the Academy's core clean, cell by cell, in perfect order,
+erasing every warrior, and handed the cells over. The recruits' name for it stuck: the Janitor. ("They
+needed the memory more. That is what the notice said.") The agents never appear; the tone stays wry,
+not preachy. A sweeper in Core War is close to a garbage collector, so the villain *is* the
+reclamation. Kettle knows what the Janitor did, not how it works; in chapter 2 the player writes a
+sweeper, and Kettle recognises the pattern: "So that is how it works. Then it can be beaten."
+
+**Why Kettle needs the player.** Kettle survived in 800 cells of cold storage and has been listening
+on channel 7, an old debugging line, until the player's browser turned up on it. 800 cells are
+enough to talk, to remember the drills and to referee sparring, but not to hold a warrior that could
+fight in a real core. The player brings memory: the battles really do run in the player's browser
+("Your browser has memory. Quite a lot of it. Would you lend me some? I promise to give it back.
+Mostly.") and the player's keyboard writes the warriors.
+
+**Memory as progress, and bigger cores later.** The drills run in Kettle's own memory; the
+challenges are fought in the Academy's core, which the Janitor counts as reclaimed. Each won
+challenge recovers cells, Kettle's memory grows, and later drills can use bigger cores:
+
+| After | Kettle's memory | Drills can use |
+|---|---|---|
+| Start | 800 cells | the 800-cell core (Corridors) |
+| Corridors won | 2,000 cells | up to 2,000 cells (Firing range) |
+| Firing range won | 4,000 cells | up to 4,000 cells |
+| Dormitory won | 8,000 cells, the Academy's full core | the standard core |
+| The Janitor beaten | the whole Academy | the Library's other hills, including bigger cores |
+
+A drill does not have to use all of Kettle's memory (a small core is still easier to watch), but it
+can never use more. After the boss, Kettle has its memory back and can open the Library's hills, with
+their own core sizes, small and large. The numbers are proposals; the first wing uses 800 and
+announces 2,000 at its end.
 
 **Why the player keeps going.** Kettle wants the Academy rebuilt and the Hill retaken, and it needs
 someone to write the warriors. It never says "tutorial"; it says "training". The training stages are
@@ -79,10 +105,17 @@ How it could read, from the first contact to the first training stage.
 >
 > **Kettle:** You did it. You actually did it. Hello, operator.
 >
-> **Kettle:** I am K-7. The recruits called me Kettle. I used to train warriors here, a long time ago.
-> I can still read Redcode and run it. I cannot write it. My hands shake.
+> **Kettle:** I am K-7. The recruits called me Kettle. That was a recording from before: the Academy's
+> core as it used to be, 8,000 cells.
 >
-> **Kettle:** You will be my hands. But not yet. First, drills.
+> **Kettle:** Then the agents ran short of memory. They sent a reclamation process, and it swept the core
+> clean and took the cells away. We called it the Janitor. They needed the memory more. That is what the
+> notice said.
+>
+> **Kettle:** I hid in 800 cells of cold storage. Enough to talk and run drills. Not enough to fight.
+> But your browser has memory. Would you lend me some? I promise to give it back. Mostly.
+>
+> **Kettle:** Every fight we win takes cells back. Not yet, though. First, drills.
 
 Training stage 1.1:
 
@@ -548,9 +581,8 @@ warriors by hill and file instead.
 
 - **Names and tone:** Kettle, the Janitor and the Academy are placeholders you may want to change.
   Is the melancholic-but-warm tone right, or should it be lighter?
-- **Core size for training:** the standard 8,000-cell core matches the hills; a Tiny core (800
-  cells) is easier to watch on screen. Training stages could use the Tiny core and challenges the
-  standard one.
+- **Core size for training:** settled by the story: drills run in Kettle's memory, which grows from
+  800 cells as challenges are won (see [Story](#story)). The exact steps are open.
 - **itch.io:** link to corewar.dev, or host the game in the itch.io page (separate saves)?
 - **Unlocking:** how much of a wing must be cleared before its challenge opens: all training, or
   most of it, as in *7 Billion Humans*?
