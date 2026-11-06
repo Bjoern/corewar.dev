@@ -11,7 +11,7 @@ committed Wasm runtime, generated demo collection, and corresponding-source arch
 `docs/engine.mjs` and `docs/settings.mjs` are the app's adapter to that engine.
 
 Headless matches of 2 to 36 warriors in Tournaments and Tools run on exMARS
-(<https://github.com/Bjoern/exMARS>, branch `wasm-persistent-fighter`) when it gives the
+(<https://github.com/Bjoern/exMARS>) when it gives the
 same result as pMARS: ICWS '94, the default P-space size, a numeric or no placement seed, a
 score formula in W and S (scored from exMARS's survivor counts by `docs/score-formula.mjs`,
 a port of pMARS's evaluator), and a permutation only when it covers every position without

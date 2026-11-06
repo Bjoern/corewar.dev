@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/Bjoern/exMARS",
-  "branch": "wasm-persistent-fighter",
+  "branch": "master",
   "commit": "26bdd47118ac595e258b9838ac6272ef4c332028",
   "note": "Persistent exMARS fighter and shared assembler (wasm/release/ at that commit). Runs headless matches of 2 to 36 warriors in Tournaments and Tools when the result equals pMARS's (docs/exmars.mjs); pMARS (engine-lock.json) runs everything else.",
   "files": {
