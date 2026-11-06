@@ -165,9 +165,10 @@ match settings (`readConfig()`) and per-tool saved state in localStorage. Adding
 tool is one entry and one module; each tool starts with a “How to use” section.
 
 - **Constant optimizer** (`tool-optimizer.mjs`): cwopt's template language
-  (`optimizer-template.mjs`), simulated annealing and a steady-state GA
+  (`optimizer-template.mjs`), simulated annealing and a GA
   (`optimizer-search.mjs`, after John Metcalf's annealing5.rb and genetic2.rb,
-  used with permission), and scoring on the pMARS engine in a pool of Web Workers
+  used with permission; the GA's population is `population.mjs`, shared with the
+  warrior evolver, steady-state crowding by default), and scoring on the pMARS engine in a pool of Web Workers
   (`optimizer-fitness.mjs`, `optimizer-worker.mjs`). Small cores without P-space
   are scored exactly with one permutation match per opponent; others are sampled
   in seeded slices shared by all candidates, with racing, reseeding after every

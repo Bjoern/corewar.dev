@@ -10,28 +10,20 @@
 //
 // Simulated annealing: cwopt's search (tools-import/cwopt/search.py), whose move set and
 // acceptance rule are John Metcalf's annealing5.rb, used with his permission.
-// Genetic algorithm: cwopt's ga.py with deterministic crowding, BLX-α and single-point
-// crossover, immigrants and asymmetric tournaments from Metcalf's genetic2.rb.
+// Genetic algorithm: the population search of population.mjs (shared with the warrior evolver), by
+// default cwopt's ga.py: steady state, deterministic crowding, BLX-α and single-point crossover,
+// immigrants and asymmetric tournaments from Metcalf's genetic2.rb.
 
-// sfc32: small, fast, and its four words are the whole state.
-export class Rng{
- constructor(seed){
-  if(Array.isArray(seed)){this.s=[...seed];return;}
-  let h=(Number(seed)>>>0)^0x9e3779b9;this.s=[0,0,0,0].map(()=>(h=Math.imul(h^(h>>>16),0x45d9f3b)>>>0,h^=h>>>16,h>>>0));
-  for(let i=0;i<12;i++)this.next();
- }
- next(){let [a,b,c,d]=this.s;const t=(((a+b)>>>0)+d)>>>0;d=(d+1)>>>0;a=b^(b>>>9);b=(c+(c<<3))>>>0;c=((c<<21)|(c>>>11))>>>0;c=(c+t)>>>0;this.s=[a>>>0,b>>>0,c,d];return t;}
- random(){return this.next()/4294967296;}
- below(n){return Math.floor(this.random()*n);}
- int(lo,hi){return lo+this.below(hi-lo+1);}
- choice(list){return list[this.below(list.length)];}
- exp(mean){return -Math.log(1-this.random())*mean;}
-}
+import {Rng,Population,POPULATION_DEFAULTS} from './population.mjs';
+export {Rng};
 const same=(a,b)=>a.length===b.length&&a.every((v,i)=>v===b[i]);
 const clone=o=>JSON.parse(JSON.stringify(o));
 
 export const ANNEAL_DEFAULTS={sweepLimit:160,annealScale:150,multiProb:0.1,delta:20,restartPatience:400,keepBest:5,restartProb:0.3,maxSweepPasses:50,race:true};
-export const GA_DEFAULTS={population:50,tourX:3,tourY:1,immigrants:0.05,blxRate:0.5,blxAlpha:0.3,mutation:1.5,creepProb:0.7,creepMean:15,elite:6,race:true};
+// The GA's defaults: genetic2.rb's steady state with deterministic crowding; the population settings
+// are population.mjs's, the rest belong to the vector operators below.
+export const GA_DEFAULTS={...POPULATION_DEFAULTS,population:50,scheme:'steady',survival:'crowding',tournament:3,mateTournament:1,crossover:0.75,immigrants:0.05,
+ seedShare:0.5,reseedEvery:1,scoreMemory:'mean',rescore:6,race:true,mutation:1.5,blxRate:0.5,blxAlpha:0.3,creepProb:0.7,creepMean:15};
 
 export class Annealing{
  constructor(sizes,start,seed,options={}){
@@ -135,108 +127,76 @@ export class Annealing{
  summary(){const s=this.s;return {phase:s.phase,steps:s.steps,accepts:s.accepts,restarts:s.restarts,current:s.current?.score??null};}
 }
 
-// Steady-state GA. A member's score is the running mean over the seeds it was scored on;
-// after each population-sized batch of children the seeds change and the top members are
-// scored again, so a member counts as best only once it was seen on two seeds.
-export class Genetic{
- constructor(sizes,start,seed,options={},seeds=[]){
-  const opts={...GA_DEFAULTS,...options};
-  this.rng=new Rng(seed);
-  this.s={method:'ga',sizes:[...sizes],start:start.map(v=>v??null),seeds:seeds.map(x=>[...x]),opts,pop:[],pending:null,reeval:[],steps:0,children:0,born:0,immigrants:0,discarded:0,initTries:0,rng:null};
- }
- static fromState(state){const self=Object.create(Genetic.prototype);self.s=clone(state);self.rng=new Rng(state.rng);return self;}
- state(){this.s.rng=[...this.rng.s];return clone(this.s);}
- random(){return this.s.sizes.map(n=>this.rng.below(n));}
- trusted(){const p=this.s.pop,t=p.filter(m=>m.n>=2);return (t.length?t:p).slice().sort((a,b)=>b.score-a.score);}
- best(){const b=this.trusted()[0];return b?{x:[...b.x],score:b.score,se:b.se,n:b.n}:null;}
- invalidate(){
-  // New seeds: score the best members again so their means cover two seeds.
-  const ranked=this.s.pop.slice().sort((a,b)=>b.score-a.score).slice(0,this.s.opts.elite);
-  this.s.reeval=ranked.map(m=>[...m.x]);this.s.pending=null;
- }
- tournament(size){const p=this.s.pop;let best=null;for(let i=0;i<Math.max(1,size);i++){const m=this.rng.choice(p);if(!best||m.score>best.score)best=m;}return best;}
- mutate(x,force){
-  const s=this.s,n=s.sizes.length,rate=s.opts.mutation/Math.max(1,n);let changed=0;
+// Operators on index vectors (one index per template variable) for the population search.
+export function vectorOperators(sizes,options={}){
+ const o={...GA_DEFAULTS,...options},n=sizes.length;
+ const mutate=(x,r,{force=false}={})=>{
+  x=[...x];const rate=o.mutation/Math.max(1,n);let changed=0;
   do{
    for(let i=0;i<n;i++){
-    if(s.sizes[i]<2||this.rng.random()>=rate)continue;changed++;
+    if(sizes[i]<2||r.random()>=rate)continue;changed++;
     // Big numeric domains creep; small ones (and opcode or mode lists) get a fresh value.
-    if(s.sizes[i]>100&&this.rng.random()<s.opts.creepProb)x[i]=((x[i]+(this.rng.random()<0.5?-1:1)*Math.floor(this.rng.exp(s.opts.creepMean)+1))%s.sizes[i]+s.sizes[i])%s.sizes[i];
-    else x[i]=this.rng.below(s.sizes[i]);
+    if(sizes[i]>100&&r.random()<o.creepProb)x[i]=((x[i]+(r.random()<0.5?-1:1)*Math.floor(r.exp(o.creepMean)+1))%sizes[i]+sizes[i])%sizes[i];
+    else x[i]=r.below(sizes[i]);
    }
-  }while(force&&!changed&&s.sizes.some(v=>v>1));
+  }while(force&&!changed&&sizes.some(v=>v>1));
   return x;
- }
- crossover(a,b){
-  const s=this.s,n=a.length,kind=this.rng.below(4);
-  if(kind===0)return a.map((v,i)=>this.rng.random()<0.5?v:b[i]);
-  if(kind===1){const cut=this.rng.int(1,Math.max(1,n-1));return a.map((v,i)=>i<cut?v:b[i]);}
-  if(kind===2)return a.map((v,i)=>{
-   // BLX-α only where index order means distance (numeric ranges), not on token lists.
-   if(s.sizes[i]<=100||this.rng.random()>=s.opts.blxRate)return v;
-   const lo=Math.min(v,b[i]),hi=Math.max(v,b[i]),d=(hi-lo)*s.opts.blxAlpha;
-   return ((Math.floor(lo-d+this.rng.random()*(hi-lo+2*d+1)))%s.sizes[i]+s.sizes[i])%s.sizes[i];
+ };
+ // Uniform, single-point, or BLX-α where index order means distance (numeric ranges, not token lists).
+ const crossover=(a,b,r)=>{
+  const kind=r.below(3);
+  if(kind===0)return a.map((v,i)=>r.random()<0.5?v:b[i]);
+  if(kind===1){const cut=r.int(1,Math.max(1,n-1));return a.map((v,i)=>i<cut?v:b[i]);}
+  return a.map((v,i)=>{
+   if(sizes[i]<=100||r.random()>=o.blxRate)return v;
+   const lo=Math.min(v,b[i]),hi=Math.max(v,b[i]),d=(hi-lo)*o.blxAlpha;
+   return ((Math.floor(lo-d+r.random()*(hi-lo+2*d+1)))%sizes[i]+sizes[i])%sizes[i];
   });
-  return [...a];
+ };
+ return {random:r=>sizes.map(k=>r.below(k)),mutate,crossover,key:x=>x.join(','),distance:(a,b)=>n?a.reduce((d,v,i)=>d+(v!==b[i]),0)/n:0};
+}
+// The genetic algorithm: the shared population search (population.mjs) on index vectors, behind the
+// propose()/observe() interface of the other methods. A batch (one child, or a generation) is
+// proposed one candidate at a time, and told to the population when all of it is scored.
+export class Genetic{
+ constructor(sizes,start,seed,options={},seeds=[]){
+  const opts={...GA_DEFAULTS,...options},fill=new Rng(String(seed)+':start');
+  // Start values (random where a variable has none) first, then earlier bests.
+  const first=start.map((v,i)=>v??fill.below(sizes[i]));
+  this.engine=new Population(vectorOperators(sizes,opts),{params:opts,seeds:[first,...seeds.map(x=>[...x])],seed});
+  this.s={method:'ga',sizes:[...sizes],start:start.map(v=>v??null),opts,startKey:first.join(','),queue:[],results:[],pending:null,steps:0};
+ }
+ static fromState(state){
+  const self=Object.create(Genetic.prototype);
+  self.s=JSON.parse(JSON.stringify({...state,engine:undefined}));
+  self.engine=Population.fromState(vectorOperators(state.sizes,state.opts),state.engine);
+  return self;
+ }
+ state(){return JSON.parse(JSON.stringify({...this.s,engine:this.engine.state()}));}
+ best(){const b=this.engine.best();return b?{x:[...b.genome],score:b.score,se:b.se,n:b.n}:null;}
+ invalidate(){
+  // New seeds: score the best members again (their means then cover two seed sets). A batch in
+  // progress is finished on the new seeds.
+  this.engine.invalidate();this.s.pending=null;
  }
  propose(){
   const s=this.s;if(s.pending)return s.pending;
-  let p;
-  if(s.reeval.length)p={x:[...s.reeval[0]],kind:'reeval'};
-  else if(s.pop.length<Math.min(10,s.opts.population)||(s.born<s.opts.population&&s.pop.length<s.opts.population)){
-   // Start values first, then earlier bests, then mutants of those and random members.
-   const start=s.start.map((v,i)=>v??this.rng.below(s.sizes[i]));
-   const queue=[start,...s.seeds];
-   const x=s.born<queue.length?[...queue[s.born]]:this.rng.random()<0.5&&s.pop.length?this.mutate([...this.rng.choice(s.pop).x],true):this.random();
-   p={x,kind:'init'};
-  }else if(this.rng.random()<s.opts.immigrants)p={x:this.random(),kind:'immigrant'};
-  else{
-   const a=this.tournament(s.opts.tourX),b=this.tournament(s.opts.tourY);
-   let x=this.mutate(this.crossover(a.x,b.x),false);
-   if(s.pop.some(m=>same(m.x,x)))x=this.mutate(x,true);
-   p={x,kind:'child'};
-  }
-  // Race against the weakest member: a child scoring below it would be dropped anyway.
-  const worst=s.pop.length>=s.opts.population?Math.min(...s.pop.map(m=>m.score)):null;
-  p.race=s.opts.race&&p.kind!=='reeval'&&worst!==null?worst:null;
-  s.pending=p;return p;
+  if(s.results.length>=s.queue.length){s.queue=this.engine.ask();s.results=[];}
+  const c=s.queue[s.results.length];
+  s.pending={x:[...c.genome],kind:c.kind,race:c.race};return s.pending;
  }
  observe(proposal,result){
   const s=this.s;
-  if(!s.pending||!same(proposal.x,s.pending.x))throw new Error('observe() without propose()');
+  if(!s.pending||proposal.x.join(',')!==s.pending.x.join(','))throw new Error('observe() without propose()');
   s.pending=null;s.steps++;
-  const events=[],{kind,x}=proposal,before=this.best();
-  if(kind==='reeval'){
-   s.reeval.shift();
-   const m=s.pop.find(m=>same(m.x,x));
-   if(m&&result?.complete){m.sum+=result.score;m.n++;m.score=m.sum/m.n;m.se=result.se/Math.sqrt(m.n);}
-  }else{
-   if(kind==='init')s.born++;else{s.children++;if(kind==='immigrant')s.immigrants++;}
-   if(!result){
-    if(kind==='init'&&!s.pop.length&&s.start.every(v=>v!==null)&&s.born===1)throw new Error('The start values do not give a valid warrior.');
-    if(kind==='init'&&++s.initTries>=1000&&!s.pop.length)throw new Error('No valid warrior found among 1000 random values.');
-   }else if(!result.complete||s.pop.some(m=>same(m.x,x)))s.discarded++;
-   else{
-    const child={x:[...x],sum:result.score,n:1,score:result.score,se:result.se};
-    s.pop.push(child);
-    if(s.pop.length>s.opts.population){
-     // Deterministic crowding: the child replaces the most similar weaker member, if any.
-     const weaker=s.pop.filter(m=>m!==child&&m.score<child.score);
-     if(!weaker.length){s.pop.pop();s.discarded++;}
-     else{
-      const dist=m=>m.x.reduce((d,v,i)=>d+(v!==child.x[i]),0);
-      weaker.sort((a,b)=>dist(a)-dist(b)||a.score-b.score);
-      s.pop.splice(s.pop.indexOf(weaker[0]),1);
-     }
-    }
-    if(s.children&&s.children%s.opts.population===0)events.push({type:'generation'});
-   }
-  }
-  const after=this.best();
-  if(after&&(!before||!same(after.x,before.x)||after.score>before.score))events.push({type:'best',score:after.score,x:after.x});
-  return events;
+  if(!result&&proposal.kind==='init'&&proposal.x.join(',')===s.startKey&&s.start.every(v=>v!==null)&&!this.engine.members.length)
+   throw new Error('The start values do not give a valid warrior.');
+  s.results.push(result??null);
+  if(s.results.length<s.queue.length)return [];
+  const events=this.engine.tell(s.queue,s.results);s.queue=[];s.results=[];
+  return events.map(e=>e.type==='best'?{type:'best',score:e.score,x:[...e.genome]}:e);
  }
- summary(){const p=this.s.pop.map(m=>m.score).sort((a,b)=>a-b);return {steps:this.s.steps,population:p.length,median:p.length?p[p.length>>1]:null,children:this.s.children,discarded:this.s.discarded};}
+ summary(){const t=this.engine.summary();return {steps:this.s.steps,population:t.population,median:t.median,generation:t.generation,children:t.children,discarded:t.discarded};}
 }
 // Every combination of the "!!" variables (grid), in order with the last one changing fastest;
 // the other variables stay at their start values. propose() returns null when all are scored.

@@ -83,7 +83,7 @@ async function report(r,stats){
  post({type:'generation',stats,elapsed:elapsed(r),matches:r.evaluator.matches,engines:engineSummary(r.evaluator.engines),cached:r.evaluator.cached,invalid:r.evaluator.invalid,
   best:b?{source:e.bestSource(r.job.benchmarkName),score:b.score,se:b.se,generation:b.generation,length:b.genome.code.length,opponents:b.result?.opponents??[],
    heldOut:r.validation?{score:r.validation.score,se:r.validation.se,opponents:r.validation.opponents}:null}:null,
-  population:e.snapshot(),scores:e.view().map(m=>m.score),ranked:e.view().map(m=>m.genome),radius:e.params.niche>0?e.params.niche:0.3});
+  population:e.snapshot(),scores:e.view().map(m=>m.score),ranked:e.view().map(m=>m.genome),radius:e.params.survival==='clearing'&&e.params.niche>0?e.params.niche:0.3});
 }
 function finish(r,reason){
  if(r.state!=='stopped')r.elapsed=elapsed(r);

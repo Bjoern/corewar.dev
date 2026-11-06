@@ -106,6 +106,19 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
  // Seeding from genomes (the last population) starts from them.
  const again=new Evolution({evaluator,config:nano,params:{population:24},seeds:e.snapshot(),seed:'test2'});
  assert((await again.init()).best>=last.top-1e-9);
+ // "Mutations per child" reaches the operators (more mutations, children further from their parents).
+ const far=new Evolution({evaluator:null,config:nano,params:{mutation:8,structural:0}}),near=new Evolution({evaluator:null,config:nano,params:{mutation:1,structural:0}});
+ const r=rng('rate'),parent=randomGenome(r,e.rules,5),{distance}=await import('./evolver-genome.mjs');
+ const spread=x=>Array.from({length:200},()=>distance(parent,x.ops.mutate(parent,far.engine.rng))).reduce((a,b)=>a+b,0);
+ assert(spread(far)>spread(near)*2,'the mutation rate is used');
+ // The optimizer's methodology on sampled scores: steady state, crowding, mean scores over seed sets,
+ // racing; new placements every generation re-score the top members.
+ const sampled=new Evaluator({runJob:runMatch,config:nano,opponents:opponents.slice(0,6)});sampled.setMode(scoringMode(nano,[],{mode:'sampled',rounds:20}));
+ const s=new Evolution({evaluator:sampled,config:nano,params:{population:12,scheme:'steady',survival:'crowding',scoreMemory:'mean',rescore:4,race:true,reseedEvery:1},seed:'s'});
+ await s.init();for(let i=0;i<3;i++)await s.step();
+ assert.equal(s.generation,3);assert.equal(sampled.epoch,2,'new placements after generations 1 and 2');
+ assert(s.engine.summary().population===12&&s.engine.s.rescored>0&&s.population.some(m=>m.n>=2),'members scored on two seed sets');
+ assert(s.best&&s.history.length===4);
 }
 // Niching (clearing): near-copies of a better warrior give way to other kinds; elites stay; off at radius 0.
 {

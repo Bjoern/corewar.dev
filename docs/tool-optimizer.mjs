@@ -46,9 +46,10 @@ const TOPICS=[
  ['Check best on new placements','The best score of a search is the best of many noisy samples, so it reads a little high. The check fights the best on 2000 rounds per opponent that the search never saw: compare warriors by that number. With exact scoring the check equals the score.'],
  ['Simulated annealing','The default. It first tries every value of small variables (sweep), then changes one variable at a time, sometimes accepting a worse candidate, more readily the longer it is stuck. When it stalls it restarts from one of its best results.'],
  ['Genetic algorithm','Keeps a population and breeds children from good members, replacing the most similar weaker one. Good at combining values that only pay off together, and at polishing an annealing result: use that result as the template, then run the GA.'],
+ ['GA settings','The GA is the same population search as the warrior evolver, with these defaults: one child at a time (steady state), crowding (a child replaces the most similar weaker member), tournaments of 3 for the first parent and 1 for the second, three children in four with two parents. Whole generations breeds a population of children at once, then parents and children compete for the places. Niches (clearing) fills the population best first, but a member within the radius of a better one (0.3: differs in under 30% of the variables) only gets in while its niche has fewer than “per niche” members, so different solutions survive side by side. With sampled scores the best members are scored again on new positions after every generation, and a member’s score is the mean over all the positions it fought on.'],
  ['Engine','Fights run on exMARS, which gives the same results as pMARS round for round and is several times faster; it stays loaded in each worker, so opponents are assembled once. Settings exMARS does not support (ICWS ’88, a P-space size other than core size / 16, a text placement seed) run on pMARS, and the run says so.'],
  ['CPU cores','Each core runs one fight at a time. More cores give more candidates per second; leave one free to keep the browser responsive. The Tournaments tab shares the same processors.'],
- ['Credits','The annealing moves and acceptance rule and the GA’s crowding, BLX-α crossover and immigrants come from John Metcalf’s annealing5.rb and genetic2.rb, used with his permission. Template language, scoring and search are ported from cwopt.']
+ ['Credits','The annealing moves and acceptance rule and the GA’s crowding, BLX-α crossover and immigrants come from John Metcalf’s annealing5.rb and genetic2.rb, used with his permission. Template language, scoring and search are ported from cwopt. Niches (clearing) come from the warrior evolver.']
 ];
 const fmt=(n,d=1)=>n===null||n===undefined||!isFinite(n)?'—':Number(n).toFixed(d);
 const big=n=>n<1e6?Math.round(n).toLocaleString('en-US'):n.toExponential(2).replace('e+',' × 10^');
@@ -112,13 +113,21 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
  const population=num(saved.population??GA_DEFAULTS.population,{min:10,max:500});
  const immigrants=num(saved.immigrants??GA_DEFAULTS.immigrants,{min:0,max:1,step:0.01});
  const mutation=num(saved.mutation??GA_DEFAULTS.mutation,{min:0.1,max:10,step:0.1});
+ const schemeSelect=el('select',{},new Option('One child at a time (steady state)','steady'),new Option('Whole generations (μ + λ)','generational'));schemeSelect.value=saved.scheme==='generational'?'generational':'steady';
+ const survivalSelect=el('select',{},new Option('Crowding: replace the most similar weaker member','crowding'),new Option('Niches (clearing)','clearing'));survivalSelect.value=saved.survival==='clearing'?'clearing':'crowding';
+ const niche=num(saved.niche??GA_DEFAULTS.niche,{min:0,max:1,step:0.05}),nicheSize=num(saved.nicheSize??GA_DEFAULTS.nicheSize,{min:1,max:50,step:1});
+ const crossoverRate=num(saved.crossover??GA_DEFAULTS.crossover,{min:0,max:1,step:0.05}),tournament=num(saved.tournament??GA_DEFAULTS.tournament,{min:1,max:20,step:1});
  const annealOptions=el('div',{className:'opt-method-options'},
   field(el('label',{},sweep,' Sweep every value of domains up to '),sweepLimit,el('span',{className:'hint',textContent:'values first'})),
   field(el('label',{},restarts,' Restart from a top result after '),patience,el('span',{className:'hint',textContent:'steps without a new best'})),
   el('p',{className:'hint',textContent:'With both off this is John Metcalf’s annealing5.rb on corewar.dev’s scoring.'}));
+ const nicheFields=field(...labelled('optNiche','Niche radius',niche),...labelled('optNicheSize','Per niche',nicheSize),el('span',{className:'hint',textContent:'radius 0 = keep the best'}));
  const gaOptions=el('div',{className:'opt-method-options'},
   field(...labelled('optPopulation','Population',population),...labelled('optImmigrants','Immigrant rate',immigrants),...labelled('optMutation','Mutated genes per child',mutation)),
-  el('p',{className:'hint',textContent:'Tournaments of 3 and 1, uniform, single-point or BLX-α crossover, creep mutation on big domains, deterministic crowding. The template’s start values and the current best (when you continue) seed the population.'}));
+  field(...labelled('optScheme','Breeding',schemeSelect),...labelled('optSurvival','Survival',survivalSelect)),nicheFields,
+  field(...labelled('optCrossover','Crossover rate',crossoverRate),...labelled('optTournament','Tournament size',tournament),el('span',{className:'hint',textContent:'second parent: 1'})),
+  el('p',{className:'hint',textContent:'Uniform, single-point or BLX-α crossover and creep mutation on big domains. The template’s start values and the current best (when you continue) seed the population. The defaults are John Metcalf’s genetic2.rb.'}));
+ const showNiche=()=>{nicheFields.hidden=survivalSelect.value!=='clearing';};survivalSelect.addEventListener('change',showNiche);showNiche();
  const settings=el('div',{className:'tool-form'},
   field(...labelled('optSuite','Opponents',suiteSelect)),suiteInfo,
   field(...labelled('optMethod','Method',methodSelect),...labelled('optScoring','Scoring',scoringSelect),...labelled('optRounds','Sampled rounds per opponent',rounds)),
@@ -166,7 +175,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
  const suites=new Map();
  function persist(){
   saveState({template:editor.value,suite:suiteSelect.value,method:searchMethod,scoring:scoringSelect.value,rounds:rounds.value,minutes:minutes.value,workers:workers.value,seed:seed.value,race:race.checked,
-   sweep:sweep.checked,sweepLimit:sweepLimit.value,restarts:restarts.checked,patience:patience.value,population:population.value,immigrants:immigrants.value,mutation:mutation.value,
+   sweep:sweep.checked,sweepLimit:sweepLimit.value,restarts:restarts.checked,patience:patience.value,population:population.value,immigrants:immigrants.value,mutation:mutation.value,scheme:schemeSelect.value,survival:survivalSelect.value,niche:niche.value,nicheSize:nicheSize.value,crossover:crossoverRate.value,tournament:tournament.value,
    helpClosed:!help.open,advancedOpen:settings.querySelector('.opt-advanced').open,syntaxOpen:markerTable.open});
  }
  let persistTimer=null;const schedulePersist=()=>{clearTimeout(persistTimer);persistTimer=setTimeout(persist,300);};
@@ -301,7 +310,9 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
    try{method=new Exhaustive(template.sizes,startX,template.exhaustive,{race:race.checked});}
    catch(error){pool.terminate();runStatus.textContent=error.message==='missing start values'?'Give every ! marker a start value with :v (or make it !!): a !! run keeps them fixed.':error.message;return;}
   }else method=methodSelect.value==='ga'
-   ?new Genetic(template.sizes,startX,numericSeed,{population:Number(population.value)||50,immigrants:Number(immigrants.value),mutation:Number(mutation.value)||1.5,race:race.checked},seeds)
+   ?new Genetic(template.sizes,startX,numericSeed,{population:Number(population.value)||50,immigrants:Number(immigrants.value),mutation:Number(mutation.value)||1.5,race:race.checked,
+     scheme:schemeSelect.value,survival:survivalSelect.value,niche:Math.min(1,Math.max(0,Number(niche.value)||0)),nicheSize:Math.max(1,Number(nicheSize.value)|0||1),
+     crossover:Math.min(1,Math.max(0,Number(crossoverRate.value))),tournament:Math.max(1,Number(tournament.value)|0||1)},seeds)
    :new Annealing(template.sizes,startX,numericSeed,{sweepLimit:sweep.checked?Number(sweepLimit.value)||160:0,restartPatience:restarts.checked?Number(patience.value)||400:1e15,race:race.checked});
   run?.pool?.terminate();
   run={state:'running',template,templateText:editor.value,pool,evaluator,method,mode,suiteName:suite.name,config,started:Date.now(),elapsed:0,resumedAt:Date.now(),
@@ -333,7 +344,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
      // New seeds now and then, so the search does not tune itself to one set of placements.
      if(!r.mode.exact&&r.method instanceof Annealing&&r.improvements%SCORING_DEFAULTS.reseedEvery===0){r.evaluator.epoch++;r.method.invalidate();}
     }
-    if(e.type==='generation'&&!r.mode.exact){r.evaluator.epoch++;r.method.invalidate();}
+    if(e.type==='generation'&&e.reseed&&!r.mode.exact){r.evaluator.epoch++;r.method.invalidate();}
    }
    const best=r.method.best();if(best){r.best=best;}
    const cur=r.method instanceof Annealing?r.method.current?.score:result?.score;

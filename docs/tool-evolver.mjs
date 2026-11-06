@@ -25,6 +25,7 @@ const TOPICS=[
  ['Scores','Each warrior fights each opponent one on one: 3 points per win, 1 per tie, shown as (3W + T) per round × 100 and averaged over the opponents. 100 means all ties, 300 all wins. Small cores (nano, tiny with few positions) are scored exactly, over every legal start position with both starting orders; bigger cores are sampled on seeded positions that change every few generations, so a warrior cannot just fit one set of positions.'],
  ['Mutation settings','Mutations per child is the mean number of point changes (at least one). Structural share is how many of those insert, delete, duplicate or swap instructions or move the start. Crossover is the share of children with two parents. Immigrants are random new warriors per generation.'],
  ['Niching','Without niching, near-copies of the leader soon fill the population and the search narrows to one idea. With niching (clearing), the next generation is filled best first, but a warrior within the niche radius of a better one (0.3: differs in under 30% of opcodes, modifiers, modes and fields, instruction by instruction) only gets in while that niche has fewer than “Warriors per niche”; the others wait at the back and only fill places left over. So the best of each kind of warrior survives even when it scores below the leader’s copies. The elite are always kept. Niches is how many kinds the population holds. A radius of 0 turns it off; a bigger radius or fewer warriors per niche spreads the population wider.'],
+ ['Breeding and survival','The evolver and the constant optimizer’s genetic algorithm share one population search, each with its own defaults. The evolver breeds whole generations (μ + λ): a child per place, then parents and children compete for the places, by score with niching (clearing). One child at a time (steady state) breeds from the latest population after every warrior instead; it adapts sooner but scores one warrior at a time, so with fewer opponents than CPU cores it leaves cores idle. Crowding (the optimizer’s default) lets a child replace the most similar weaker warrior, so each kind of warrior competes only with its own kind; the niche radius is then not used. With sampled scores, every few generations the warriors fight on new positions: “latest placements” takes the new score, “average over placements” the mean of all positions a warrior fought on, which is steadier and counts a warrior as the best only once it was scored on two sets. Racing stops scoring a child once it is clearly below the weakest warrior (sampled scores only); it saves time but also cuts short children that might have started a new niche.'],
  ['Seeding','A seed warrior is assembled for the chosen settings (labels, EQU and FOR loops are fine) and joins the first population with mutants of it; the rest is random code. “The last run” continues from the population the last run ended with, for the same settings.'],
  ['Markov chain','“A Markov chain of the opponents” assembles the benchmark’s warriors (and yours) and counts how often each instruction shape (opcode, modifier and both addressing modes) follows the one and two before it, and which shapes start and end a warrior. New warriors are drawn from those odds, each instruction with an A and B field seen on that shape. The chain mostly follows the longest context it knows and now and then forgets one, so it recombines warriors rather than copying them. It writes the first population and the immigrants of every generation.'],
  ['Benchmarks','The benchmark list has the preset’s own picks first, then every other suite of the Tournaments tab’s Benchmark mode with the same core size and a length that fits: built-in suites, and your own: imported, or made from your warriors or the library (saved with your workspace).'],
@@ -85,19 +86,28 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const elite=num(saved.elite??EVOLVER_DEFAULTS.elite,{min:0,max:50,step:1});
  const niche=num(saved.niche??EVOLVER_DEFAULTS.niche,{min:0,max:1,step:0.05});
  const nicheSize=num(saved.nicheSize??EVOLVER_DEFAULTS.nicheSize,{min:1,max:50,step:1});
+ const choose=(options,value,fallback)=>{const s=el('select',{},...options.map(([v,label])=>new Option(label,v)));s.value=options.some(([v])=>v===value)?value:fallback;return s;};
+ const schemeSelect=choose([['generational','Whole generations (μ + λ)'],['steady','One child at a time (steady state)']],saved.scheme,EVOLVER_DEFAULTS.scheme);
+ const survivalSelect=choose([['clearing','Niches (clearing)'],['crowding','Crowding: replace the most similar weaker warrior']],saved.survival,EVOLVER_DEFAULTS.survival);
+ const memorySelect=choose([['latest','Latest placements'],['mean','Average over placements']],saved.scoreMemory,EVOLVER_DEFAULTS.scoreMemory);
+ const race=el('input',{type:'checkbox',checked:saved.race??EVOLVER_DEFAULTS.race});
  const scoringSelect=el('select',{},new Option('Exact when possible','auto'),new Option('Always sampled','sampled'));scoringSelect.value=saved.scoring||'auto';
  const rounds=num(saved.rounds??100,{min:10,max:5000,step:10});
  const processors=Math.max(1,navigator.hardwareConcurrency||2);
  const workers=num(saved.workers??Math.max(1,processors-1),{min:1,max:processors,step:1});
  const seed=el('input',{value:saved.seed??'1',maxLength:40,size:6});
+ const nicheFields=field(...labelled('evoNiche','Niche radius',niche),...labelled('evoNicheSize','Warriors per niche',nicheSize),el('span',{className:'hint',textContent:'radius 0 = no niching'}));
+ const showNiche=()=>{nicheFields.hidden=survivalSelect.value!=='clearing';};survivalSelect.addEventListener('change',showNiche);showNiche();
  const params=el('div',{className:'tool-form'},
   field(...labelled('evoPopulation','Population',population),...labelled('evoGenerations','Generations',generations),el('span',{className:'hint',textContent:'0 = until stopped'})),
   field(...labelled('evoMutation','Mutations per child',mutation),...labelled('evoCrossover','Crossover rate',crossoverRate)),
   el('details',{className:'opt-advanced',open:!!saved.advancedOpen},el('summary',{textContent:'More settings'}),
    el('div',{className:'tool-form'},
     field(...labelled('evoStructural','Structural share',structural),...labelled('evoImmigrants','Immigrants',immigrants),...labelled('evoElite','Elite',elite)),
-    field(...labelled('evoNiche','Niche radius',niche),...labelled('evoNicheSize','Warriors per niche',nicheSize),el('span',{className:'hint',textContent:'radius 0 = no niching'})),
+    field(...labelled('evoScheme','Breeding',schemeSelect),...labelled('evoSurvival','Survival',survivalSelect)),
+    nicheFields,
     field(...labelled('evoScoring','Scoring',scoringSelect),...labelled('evoRounds','Sampled rounds per opponent',rounds)),
+    field(...labelled('evoMemory','Scores on new placements',memorySelect),el('label',{},race,' Racing: drop children clearly below the weakest')),
     field(...labelled('evoSeed','Random seed',seed),el('span',{className:'hint',textContent:'same seed, same run'})))),
   field(...labelled('evoWorkers','CPU cores',workers),el('span',{className:'hint',textContent:`of ${processors}; each runs one battle at a time`})));
  // Back to the defaults: this card's settings, with population, generations and rounds from the preset.
@@ -168,7 +178,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  function persist(){
   saveState({preset:presetSelect.value,custom:Object.fromEntries(CUSTOM_FIELDS.map(([k])=>[k,Number(customInputs[k].value)])),suites:{...(saved.suites||{}),[presetSelect.value]:suiteSelect.value},
    own,useRoster:useRoster.checked,holdOut:holdOut.checked,holdOutShare:holdOutShare.value,seedMode:seedSelect.value,seedText:seedText.value,seedShare:seedShare.value,population:population.value,generations:generations.value,mutation:mutation.value,
-   structural:structural.value,crossover:crossoverRate.value,immigrants:immigrants.value,elite:elite.value,niche:niche.value,nicheSize:nicheSize.value,scoring:scoringSelect.value,rounds:rounds.value,workers:workers.value,seed:seed.value,
+   structural:structural.value,crossover:crossoverRate.value,immigrants:immigrants.value,elite:elite.value,niche:niche.value,nicheSize:nicheSize.value,scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,scoring:scoringSelect.value,rounds:rounds.value,workers:workers.value,seed:seed.value,
    helpClosed:!help.open,populationOpen:popBox.open,advancedOpen:params.querySelector('.opt-advanced').open,lastBest,lastPopulation});
   saved.suites={...(saved.suites||{}),[presetSelect.value]:suiteSelect.value};
  }
@@ -268,14 +278,14 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const p=preset(),d=EVOLVER_DEFAULTS;
   population.value=p.defaults.population;generations.value=p.defaults.generations;rounds.value=p.defaults.rounds??100;
   mutation.value=d.mutation;structural.value=d.structural;crossoverRate.value=d.crossover;immigrants.value=d.immigrants;elite.value=d.elite;
-  niche.value=d.niche;nicheSize.value=d.nicheSize;scoringSelect.value='auto';seed.value='1';workers.value=Math.max(1,processors-1);
+  niche.value=d.niche;nicheSize.value=d.nicheSize;schemeSelect.value=d.scheme;survivalSelect.value=d.survival;memorySelect.value=d.scoreMemory;race.checked=d.race;showNiche();scoringSelect.value='auto';seed.value='1';workers.value=Math.max(1,processors-1);
   persist();showOpponentCount();runStatus.textContent=`Evolution settings reset to the defaults for the ${p.title}.`;
  };
  function setRunning(state){
   const active=state==='running'||state==='paused'||state==='pausing';
   start.disabled=state==='running'||state==='pausing';pause.disabled=state!=='running';stop.disabled=!active;
   start.textContent=state==='paused'?'▶ Continue':'▶ Start';
-  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,scoringSelect,rounds,workers,seed,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
+  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,schemeSelect,survivalSelect,memorySelect,race,scoringSelect,rounds,workers,seed,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
   if(!active)holdOutShare.disabled=!holdOut.checked;
  }
  function begin(){
@@ -295,7 +305,8 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
    markov:seedSelect.value==='markov',holdOut:holdOut.checked?Math.min(0.5,Math.max(0.05,Number(holdOutShare.value)||0.2)):0,
    params:{population:Math.max(4,Number(population.value)||40),generations:Math.max(0,Number(generations.value)||0),mutation:Math.max(1,Number(mutation.value)||1.5),
     structural:Math.min(1,Math.max(0,Number(structural.value))),crossover:Math.min(1,Math.max(0,Number(crossoverRate.value))),immigrants:Math.min(0.5,Math.max(0,Number(immigrants.value))),
-    elite:Math.max(0,Number(elite.value)|0),niche:Math.min(1,Math.max(0,Number(niche.value)||0)),nicheSize:Math.max(1,Number(nicheSize.value)|0||1),seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0}};
+    elite:Math.max(0,Number(elite.value)|0),niche:Math.min(1,Math.max(0,Number(niche.value)||0)),nicheSize:Math.max(1,Number(nicheSize.value)|0||1),
+    scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0}};
   run?.worker.terminate();
   const worker=new Worker(new URL('./evolver-worker.mjs',import.meta.url),{type:'module'});
   const r={worker,state:'running',job,opponents:list,history:[],snapshots:[],best:null,started:Date.now(),config:c,key:configKey(c)};run=r;

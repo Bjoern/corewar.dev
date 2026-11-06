@@ -39,8 +39,11 @@ The editor bundle is committed. To rebuild it after editor changes, run
 Tools → Warrior evolver (`#tools/evolver`) breeds whole warriors, not just constants.
 `docs/evolver-genome.mjs` holds the genome (exMARS's instruction tuples) and the operators: opcode, modifier,
 mode and field mutations, insert/delete/duplicate/swap, and crossover, all keeping warriors valid for the settings.
-`docs/evolver-run.mjs` is the (μ + λ) search, scored by the constant optimizer's `Evaluator` (3 per win, 1 per tie;
-exact on nano). `docs/evolver-worker.mjs` runs it in a Web Worker that hands matches to a pool of
+`docs/evolver-run.mjs` runs the search, scored by the constant optimizer's `Evaluator` (3 per win, 1 per tie;
+exact on nano). The population itself is `docs/population.mjs`, shared with the constant optimizer's genetic algorithm:
+it sees genomes only through operators (random, mutate, crossover, key, distance) and its methodology is configurable
+(steady state or generational breeding, crowding or clearing, mean or latest scores over seed sets, racing), with the
+evolver defaulting to generational clearing and the optimizer to genetic2.rb's steady-state crowding. `docs/evolver-worker.mjs` runs it in a Web Worker that hands matches to a pool of
 `optimizer-worker.mjs` workers. Presets (nano, tiny, standard '94, custom) and their benchmarks from
 `warriors_public/` are in `docs/evolver-presets.mjs`; the benchmark list also offers every fitting suite of the Tournaments
 tab's Benchmark mode (imported or session-made ones too). `markovModel`/`markovGenome` in `docs/evolver-genome.mjs` learn
@@ -49,7 +52,8 @@ Survivors are chosen with clearing (`niche` radius on the genome distance, `nich
 near-copies of the leader give way to the best of other kinds.
 An optional held-out share of the opponents (`splitHoldOut` in `docs/evolver-run.mjs`, picked by the run's seed) never
 counts for selection; the best warrior is scored on it as well, to show overfitting to the benchmark.
-`node docs/test-evolver.mjs` checks validity, niching, the chain, and that a nano run improves.
+`node docs/test-evolver.mjs` checks validity, niching, the chain, and that a nano run improves;
+`node docs/test-population.mjs` checks the shared population search on its own.
 
 ## Trials
 
