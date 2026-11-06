@@ -27,6 +27,7 @@ const TOPICS=[
  ['Mutation settings','Mutations per child is the mean number of point changes (at least one). Structural share is how many of those insert, delete, duplicate or swap instructions or move the start. Crossover is the share of children with two parents. Immigrants are random new warriors per generation.'],
  ['Niching','Without niching, near-copies of the leader soon fill the population and the search narrows to one idea. With niching (clearing), the next generation is filled best first, but a warrior within the niche radius of a better one (0.3: differs in under 30% of opcodes, modifiers, modes and fields, instruction by instruction) only gets in while that niche has fewer than “Warriors per niche”; the others wait at the back and only fill places left over. So the best of each kind of warrior survives even when it scores below the leader’s copies. The elite are always kept. Niches is how many kinds the population holds. A radius of 0 turns it off; a bigger radius or fewer warriors per niche spreads the population wider.'],
  ['Shared fitness and niches by results','Two optional settings for when one kind of warrior takes over. “Selection by: shared score” (results-based fitness sharing) weighs each opponent by how hard the population finds it: points against an opponent most warriors already beat count for little, points against one that hardly anyone scores against count for a lot, and the more copies of one kind there are, the less what they beat is worth. Parents and survivors are picked by that shared value, so a specialist that beats what the rest lose to survives even with a lower plain score. The shared value only means something within one population, so the best score, the chart, the elite and everything you see stay the plain score. Racing is off with it, as a child below the weakest score may still be worth keeping. “Compare warriors by: results” makes niching (and crowding) compare what two warriors score against each opponent instead of their code: two warriors are in one niche when their results are alike, however different the code, and two near-identical programs that beat different opponents are not. The radius is then the mean difference in points per opponent over the most there can be (300): 0.15 means about 45 points per opponent. Sampled scores make even two copies of one warrior differ a little (about 0.08 at 40 rounds per opponent), so more rounds make these niches sharper. The population view then rings and groups niches by results too, while the map still places warriors by code.'],
+ ['Compare with known warriors','“Compare with known warriors” checks whether the best warrior is something new or a rebuilt known one: a Markov chain of the opponents, or a seed, can lead a run straight back to a warrior it is scored against, and its score then says little. The best warrior is compared with the benchmark, your opponents and warriors, and the library’s hills with the same settings, as assembled code, so labels, EQUs and layout make no difference, and a run of one instruction repeated (DAT 0, 0 filler up to the length limit, say) counts once. Identical is the share of its instructions found in the other warrior in the same order, fields and all (gaps allowed, so a copy with a few changes still shows); Same shape compares opcodes, modifiers and modes only, so the same design with other constants; Longest run is the longest block of identical instructions in a row, such as a copied loop. A near copy has 80% or more of the longer warrior identical; “holds most of yours” means 60% or more of the evolved warrior is the other’s code. It compares code, not behaviour: a warrior that works like a known one with different code is not found.'],
  ['Self fight','Some hills, Koenigstuhl among them, score a warrior against a copy of itself too. With “Self fight” on, each warrior fights itself as one more opponent, so with 50 benchmark warriors the self fight is 1 of 51 in the average (in the held-out score as well). A self fight has as many wins as losses (exactly so with exact scoring), so its score depends only on the ties: 150 when no round is tied, 100 when every round is, 150 − 50 × the tied share in between. So a warrior whose self fights end decisively gains up to 50 points there over one that ties itself, and selection takes that into account. It is the row “itself (self fight)” in the score per opponent.'],
  ['Breeding and survival','The evolver and the constant optimizer’s genetic algorithm share one population search, each with its own defaults. The evolver breeds whole generations (μ + λ): a child per place, then parents and children compete for the places, by score with niching (clearing). One child at a time (steady state) breeds from the latest population after every warrior instead; it adapts sooner but scores one warrior at a time, so with fewer opponents than CPU cores it leaves cores idle. Crowding (the optimizer’s default) lets a child replace the most similar weaker warrior, so each kind of warrior competes only with its own kind; the niche radius is then not used. With sampled scores, every few generations the warriors fight on new positions: “latest placements” takes the new score, “average over placements” the mean of all positions a warrior fought on, which is steadier and counts a warrior as the best only once it was scored on two sets. Racing stops scoring a child once it is clearly below the weakest warrior (sampled scores only); it saves time but also cuts short children that might have started a new niche.'],
  ['Seeding','A seed warrior is assembled for the chosen settings (labels, EQU and FOR loops are fine) and joins the first population with mutants of it; the rest is random code. “The last run” continues from the population the last run ended with, for the same settings.'],
@@ -157,6 +158,10 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const actionStatus=el('p',{className:'hint',role:'status'});
  const opponentsTable=el('table',{className:'tool-table'});
  const opponentsBox=el('details',{className:'opt-opponents-box',hidden:true},el('summary',{textContent:'Score per opponent'}),el('div',{className:'tool-table-wrap'},opponentsTable));
+ const checkBest=el('button',{type:'button',textContent:'Compare with known warriors'});
+ const similarStatus=el('p',{className:'hint',role:'status'});
+ const similarTable=el('table',{className:'tool-table'});
+ const similarBox=el('details',{className:'opt-opponents-box',hidden:true,open:true},el('summary',{textContent:'Closest known warriors'}),el('div',{className:'tool-table-wrap'},similarTable));
  // ---- population view
  const popSlider=el('input',{type:'range',min:'0',max:'0',value:'0',step:'1',ariaLabel:'Generation shown'});
  const popLatest=el('button',{type:'button',className:'small',textContent:'Latest'});
@@ -189,7 +194,8 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
    el('section',{className:'t-card opt-run'},el('h3',{textContent:'Run'}),el('div',{className:'tool-actions'},start,pause,stop),runStatus,bestScore,stats,chart,popBox),
    el('section',{className:'t-card'},el('h3',{textContent:'Best warrior'}),bestHead,bestCode,
     el('div',{className:'tool-actions'},copyBest,editBest,addBest,downloadBest),
-    el('div',{className:'tool-actions'},debugBest,el('label',{className:'hint',textContent:'against'}),debugOpponent),actionStatus,opponentsBox))));
+    el('div',{className:'tool-actions'},debugBest,el('label',{className:'hint',textContent:'against'}),debugOpponent),actionStatus,opponentsBox,
+    el('div',{className:'tool-actions'},checkBest),similarStatus,similarBox))));
 
  // ---- state
  let otherHills=new Map(),shownSuite='',shownPreset=presetSelect.value,kept=[];
@@ -407,6 +413,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  }
  function showBest(r){
   const b=r.best;
+  similarBox.hidden=true;similarStatus.textContent='';
   bestHead.textContent=`Score ${fmt(b.score,2)}${b.se?` ± ${fmt(b.se,2)}`:''} against ${r.job.benchmarkName}${b.heldOut?` · held out ${fmt(b.heldOut.score,2)}`:''} · ${b.length} instruction${b.length===1?'':'s'} · found in generation ${b.generation}.`;
   bestCode.textContent=b.source;
   showOpponents(heldRows(b),r.opponents);
@@ -441,6 +448,56 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   if(!need())return;
   const list=debugOpponent.list||opponents(),o=list[Number(debugOpponent.value)];
   try{await openInDebugger(bestSource(),warriorFilename(bestName()),o?{source:o.source,file:o.file||warriorFilename(o.name)}:null,bestConfig());}catch(error){actionStatus.textContent=error.message;}
+ };
+
+ // ---- closeness to known warriors (evolver-similar.mjs): the benchmark, your opponents and warriors,
+ // and the library's hills with the same settings, assembled once per hill settings and source.
+ const assembled=new Map();
+ async function knownWarriors(c){
+  const list=[...(suite?.warriors??[]).map(w=>({name:w.name,source:w.source,from:suite.name})),...own.map(w=>({name:w.name,source:w.source,from:'your opponents'})),
+   ...roster().map(w=>({name:w.name,source:w.source,from:'your warriors'}))];
+  let libraryNote='';
+  try{
+   const {libraryCatalog}=await import('./library-catalog.mjs');
+   for(const h of libraryCatalog){
+    const fits=suiteHill(h.parameters);if(!fits||!sameHill(fits,c))continue;
+    const [index,texts]=await Promise.all([fetch(h.index).then(r=>r.json()),fetch(h.text).then(r=>r.json())]);
+    for(const w of index)if(texts[w.file])list.push({name:`${w.name}${w.author?' by '+w.author:''}`,source:texts[w.file],from:'library '+h.label});
+   }
+  }catch{libraryNote=' (the library could not be loaded)';}
+  const {assemble}=await import('./dist/exmars/fighter-client.mjs'),{hillOf}=await import('./exmars.mjs');
+  const hill=hillOf({...c,distance:c.distance||c.maxLength}),key=configKey(c),out=[],seen=new Set();let failed=0;
+  for(const [i,w] of list.entries()){
+   if(seen.has(w.source))continue;seen.add(w.source);
+   const k=key+'\n'+w.source;
+   if(!assembled.has(k)){let g=null;try{const a=await assemble(w.source,hill);if(a.ok)g={code:a.instructions,start:a.start};}catch{}assembled.set(k,g);}
+   const g=assembled.get(k);if(g)out.push({...w,genome:g});else failed++;
+   if(i%25===24){similarStatus.textContent=`Assembling known warriors… ${i+1} of ${list.length}`;await new Promise(r=>setTimeout(r));}
+  }
+  return {known:out,failed,libraryNote};
+ }
+ const pct=x=>Math.round(100*x)+'%';
+ checkBest.onclick=async()=>{
+  if(!need())return;
+  const source=bestSource(),c=bestConfig();checkBest.disabled=true;similarStatus.textContent='Loading known warriors…';
+  try{
+   const {assemble}=await import('./dist/exmars/fighter-client.mjs'),{hillOf}=await import('./exmars.mjs');
+   const mine=await assemble(source,hillOf({...c,distance:c.distance||c.maxLength}));
+   if(!mine.ok)throw new Error('The best warrior did not assemble: '+mine.errors);
+   const {closest}=await import('./evolver-similar.mjs'),{known,failed,libraryNote}=await knownWarriors(c);
+   // The best warrior itself, once added to your warriors, is not a match.
+   const rows=closest({code:mine.instructions,start:mine.start},known.filter(k=>k.source!==source),c.coreSize,15);
+   similarBox.hidden=!rows.length;
+   similarTable.replaceChildren(el('thead',{},el('tr',{},...[['Warrior'],['From'],['Length','instructions, a run of one instruction counted once'],['Identical','share of yours found in it, in order'],['Same shape','the same, comparing opcodes, modifiers and modes only'],['Longest run','identical instructions in a row']].map(([h,title])=>el('th',{scope:'col',textContent:h,title:title||''})))),
+    el('tbody',{},...rows.map(r=>el('tr',{className:r.verdict?'evo-held':''},el('td',{textContent:r.name+(r.verdict==='copy'?' · near copy':r.verdict==='contains'?' · holds most of yours':'')}),el('td',{textContent:r.from}),
+     ...[String(r.length),pct(r.ofYours),pct(r.shapeOfYours),String(r.run)].map(v=>el('td',{className:'num',textContent:v}))))));
+   const top=rows[0],n=mine.instructions.length,checked=`${known.length} known warrior${known.length===1?'':'s'}${failed?` (${failed} did not assemble for these settings)`:''}${libraryNote}`;
+   similarStatus.textContent=!top?`Nothing to compare with${libraryNote}.`
+    :top.verdict==='copy'?`Looks like a copy of ${top.name} (${top.from}): ${pct(top.overall)} of the longer one’s instructions are identical, in order. Compared with ${checked}.`
+    :top.verdict==='contains'?`Most of it is code from ${top.name} (${top.from}): ${pct(top.ofYours)} of its ${n} instructions are identical and in the same order, the longest run ${top.run} in a row. Compared with ${checked}.`
+    :`No close match among ${checked}: the closest, ${top.name}, holds ${pct(top.ofYours)} of its ${n} instructions identically (${pct(top.shapeOfYours)} of the same shape).`;
+  }catch(error){similarStatus.textContent=error.message;similarBox.hidden=true;}
+  finally{checkBest.disabled=false;}
  };
 
  // ---- population view: snapshots of every generation, thinned to a budget of instructions.

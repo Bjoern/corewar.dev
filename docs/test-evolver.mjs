@@ -224,4 +224,33 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
  const src=e.bestSource('lp');assert.match(src,/^;redcode-lp/);
  const w=await assemble(src,hillOf(lp));assert(w.ok,w.errors);
 }
+// Closeness to known warriors: a copy, a mutated copy and a warrior holding another's code are found;
+// random code is not; labels and layout make no difference.
+{
+ const {closest,lcs,longestRun}=await import('./evolver-similar.mjs');
+ assert.equal(lcs([1,2,3,4],[1,3,4,9]),3);assert.equal(longestRun([1,2,3,4],[9,2,3,4,1]),3);assert.equal(lcs([],[1]),0);
+ const lp=EVOLVER_PRESETS.find(p=>p.id==='lp').config,rules=genomeRules(lp),hill=hillOf(lp);
+ const d=JSON.parse(readFileSync(new URL('../warriors_public/lp_koenigstuhl/top50.benchmark.json',import.meta.url),'utf8')),dir=new URL('../warriors_public/lp_koenigstuhl/',import.meta.url);
+ const known=[];
+ for(const f of d.warriors.slice(0,15)){const w=await assemble(readFileSync(new URL(f,dir),'latin1'),hill);if(w.ok)known.push({name:f,from:'benchmark',genome:{code:w.instructions,start:w.start}});}
+ assert(known.length>=10);
+ const target=known.find(k=>k.genome.code.length>=8);
+ const top=closest(target.genome,known,lp.coreSize,3);
+ assert.equal(top[0].name,target.name);assert.equal(top[0].overall,1);assert.equal(top[0].verdict,'copy');
+ // Rendered again by the evolver (other labels and layout), then assembled: still the same code.
+ const again=await assemble(renderGenome(normalize(target.genome,rules),rules,{header:';redcode-lp'}),hill);assert(again.ok,again.errors);
+ assert.equal(closest({code:again.instructions},known,lp.coreSize,1)[0].overall,1);
+ // Two point mutations: still recognised.
+ const r=rng('similar');let m=normalize(target.genome,rules);for(let i=0;i<2;i++)m=mutateOnce(m,r,rules,{structural:0});
+ const near=closest(m,known,lp.coreSize,1)[0];assert.equal(near.name,target.name);assert(near.overall>=0.6,'mutated copy '+near.overall);
+ // A copy of its first instructions inside new code: most of yours is theirs.
+ const part={code:[...target.genome.code.slice(0,6),...randomGenome(r,rules,2).code]};
+ const p=closest(part,known,lp.coreSize,1)[0];assert.equal(p.name,target.name);assert.equal(p.run,6);assert.equal(p.verdict,'contains');
+ // Filler does not make two warriors alike: different code, both padded with DAT 0, 0, is no copy.
+ const pad=Array.from({length:150},()=>[0,6,0,0,0,0]);
+ const g1={code:[...randomGenome(rng('p1'),rules,6).code,...pad]},g2={code:[...randomGenome(rng('p2'),rules,6).code,...pad]};
+ assert.equal(closest(g1,[{name:'other',genome:g2}],lp.coreSize,1)[0].verdict,null,'padding alone');
+ // Random code is close to nothing.
+ for(let i=0;i<20;i++){const g=randomGenome(r,{...rules,maxLength:10});assert.equal(closest(g,known,lp.coreSize,1)[0].verdict,null);}
+}
 console.log('Evolver checks passed.');
