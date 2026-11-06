@@ -83,7 +83,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
   const all=suiteList(),own=all.filter(s=>!s.builtIn),before=suiteSelect.value;
   suiteSelect.replaceChildren(...all.filter(s=>s.builtIn).map(s=>new Option(s.name,s.id)),
    ...(own.length?[el('optgroup',{label:'Your suites (Tournaments, Benchmark mode)'},...own.map(s=>new Option(s.name,s.id)))]:[]),
-   new Option('Your warriors (roster, Battle settings)','roster'));
+   new Option('Your warriors (checked in the Battle tab, Battle settings)','roster'));
   const want=before||saved.suite;
   suiteSelect.value=want&&[...suiteSelect.options].some(o=>o.value===want)?want:examples[0].suite;
   return suiteSelect.value!==before;
@@ -196,8 +196,8 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
  async function loadSuite(){
   const id=suiteSelect.value;suite=null;
   if(id==='roster'){
-   const list=roster();suite={id,name:'Your warriors',config:readConfig(),warriors:list.map((w,i)=>({name:w.name,source:w.source,id:'roster-'+i}))};
-   suiteInfo.textContent=`${list.length} warrior${list.length===1?'':'s'} from the roster · ${describeSettings(suite.config)}`;recheck();return suite;
+   const list=roster().map((w,i)=>({name:w.name,source:w.source,id:'roster-'+i,checked:w.checked})).filter(w=>w.checked);suite={id,name:'Your warriors',config:readConfig(),warriors:list.map(({checked,...w})=>w)};
+   suiteInfo.textContent=`${list.length} warrior${list.length===1?'':'s'} checked in the Battle tab · ${describeSettings(suite.config)}`;recheck();return suite;
   }
   suiteInfo.textContent='Loading opponents…';
   try{

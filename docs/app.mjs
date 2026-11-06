@@ -1219,9 +1219,10 @@ async function debugToolWarrior(source,file,opponent,config){
  $('emulatorTab').click();showCore(true);
  if(await load() && getComputedStyle($('phoneBar')).display!=='none')setPane('debug');
 }
-// Tools get the roster and can add a warrior to it, as the library does.
+// Tools get the roster and can add a warrior to it, as the library does. checked: the warrior's
+// box in the Battle tab is ticked, so it takes part in runs against "your warriors".
 tools=setupTools({
- roster:()=>sources.map((source,i)=>({name:draftName(source,i),source})),
+ roster:()=>sources.map((source,i)=>({name:draftName(source,i),source,checked:!excludedWarriors[i]})),
  addWarrior:addRosterWarrior,
  openInEditor:openToolWarrior,
  openInDebugger:debugToolWarrior,

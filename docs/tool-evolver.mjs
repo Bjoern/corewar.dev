@@ -67,7 +67,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const ownBox=el('details',{className:'opt-advanced',open:!!own.length},el('summary',{textContent:'Your benchmark warriors'}),
   el('p',{className:'hint',textContent:'They fight alongside the benchmark, or alone when the benchmark is “Only your warriors”.'}),
   pasteBox,el('div',{className:'tool-actions'},addPasted,addFiles,fileInput),ownList,
-  field(el('label',{},useRoster,' Also fight the warriors loaded in the Battle tab')));
+  field(el('label',{},useRoster,' Also fight the warriors checked in the Battle tab')));
  // ---- seed
  const seedSelect=el('select',{},new Option('Random code','random'),new Option('A warrior from the Battle tab','roster'),new Option('A pasted warrior','paste'),new Option('A Markov chain of the opponents','markov'),new Option('The last run’s population','last'));
  seedSelect.value=saved.seedMode||'random';
@@ -201,7 +201,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  }
  async function loadSuite(){
   const id=suiteSelect.value;suite=null;
-  if(id==='none'){suiteInfo.textContent='Only your benchmark warriors'+(useRoster.checked?' and the Battle tab’s warriors':'')+'.';showOpponentCount();return;}
+  if(id==='none'){suiteInfo.textContent='Only your benchmark warriors'+(useRoster.checked?' and the warriors checked in the Battle tab':'')+'.';showOpponentCount();return;}
   suiteInfo.textContent='Loading the benchmark…';
   try{
    if(loadBenchmark){const loaded=await loadBenchmark(id);if(suiteSelect.value!==id)return;suite=loaded;showOpponentCount();return;}
@@ -216,7 +216,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  }
  function opponents(){
   const list=[...(suite?.warriors??[]).map(w=>({name:w.name,source:w.source,file:w.file})),...own.map(w=>({name:w.name,source:w.source,file:warriorFilename(w.name)}))];
-  if(useRoster.checked)list.push(...roster().map(w=>({name:w.name,source:w.source,file:warriorFilename(w.name)})));
+  if(useRoster.checked)list.push(...roster().filter(w=>w.checked).map(w=>({name:w.name,source:w.source,file:warriorFilename(w.name)})));
   return list;
  }
  function showOpponentCount(){
