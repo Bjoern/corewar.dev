@@ -233,11 +233,15 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
   if(!pm)return ' · run on exMARS';
   return (ex?` · exMARS ${ex}, pMARS ${pm}`:' · run on pMARS')+(reasons?` (pMARS for ${reasons})`:'');
  }
+ // Time spent running matchups: the clock stops while paused and when the run ends.
+ const elapsed=()=>run.elapsed+(run.since==null?0:performance.now()-run.since);
+ function stopClock(){if(run.since!=null){run.elapsed=elapsed();run.since=null;}}
+ const duration=ms=>{const s=ms/1000;if(s<60)return `${s.toFixed(1)} s`;const t=Math.round(s);return t<3600?`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')} min`:`${Math.floor(t/3600)}:${String(Math.floor(t%3600/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')} h`;};
  function render(){
   pendingRender=null;if(!run)return;
   const completed=run.results.length,active=workers.filter(w=>w.job!==null).length;
   $('tournamentProgress').max=run.plan.jobs.length;$('tournamentProgress').value=completed+run.skipped.length;
-  $('tournamentStatus').textContent=run.error||`${run.state[0].toUpperCase()+run.state.slice(1)} · ${completed} / ${run.plan.jobs.length} matchups · ${active} active${run.skipped.length?` · ${run.skipped.length} matchups skipped`:""}${engineNote(run.results)}`;
+  $('tournamentStatus').textContent=run.error||`${run.state[0].toUpperCase()+run.state.slice(1)} · ${completed} / ${run.plan.jobs.length} matchups · ${active} active${run.skipped.length?` · ${run.skipped.length} matchups skipped`:""} · ${duration(elapsed())}${engineNote(run.results)}`;
   const exclusions=$('tournamentExclusions');exclusions.hidden=!run.excluded.length;
   exclusions.replaceChildren();
   if(run.excluded.length){const title=document.createElement('strong');title.textContent=`${run.excluded.length} warrior(s) excluded from this benchmark`;exclusions.append(title);
@@ -316,7 +320,7 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
   run.hillData=data;saveCached(run.hillKey,data);if(hill.key===run.hillKey){hill={...hill,data};refresh();}
  }
  function scheduleRender(){if(pendingRender===null)pendingRender=setTimeout(render,100);}
- function fail(message){run.state='failed';run.error=message;dispose();render();}
+ function fail(message){run.state='failed';run.error=message;stopClock();dispose();render();}
  function dispatch(slot){
   if(!run||run.state!=='running')return;
   while(run.next<run.plan.jobs.length&&run.skipped.includes(run.plan.jobs[run.next].id))run.next++;
@@ -326,8 +330,8 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
   slot.worker.postMessage(job);
  }
  function settle(){
-  if(run.results.length+run.skipped.length===run.plan.jobs.length){run.state='complete';dispose();cacheRunHill();}
-  else if(run.state==='pausing'&&workers.every(w=>w.job===null))run.state='paused';
+  if(run.results.length+run.skipped.length===run.plan.jobs.length){run.state='complete';stopClock();dispose();cacheRunHill();}
+  else if(run.state==='pausing'&&workers.every(w=>w.job===null)){run.state='paused';stopClock();}
   scheduleRender();controls();
  }
  $('tournamentStart').onclick=async()=>{
@@ -337,7 +341,7 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
    const next=plan(),count=Number($('tournamentWorkers').value);
    if(!Number.isInteger(count)||count<1||count>processors)throw new Error(`Choose 1–${processors} workers.`);
    dispose();clearTimeout(pendingRender);pendingRender=null;chart.clear();
-   run={plan:next,config:configForRun(),results:[],excluded:[],skipped:[],next:0,state:'running',workers:Math.min(count,next.jobs.length)};
+   run={plan:next,config:configForRun(),results:[],excluded:[],skipped:[],next:0,state:'running',elapsed:0,since:performance.now(),workers:Math.min(count,next.jobs.length)};
    picked=null;checked.clear();$('subsetStatus').hidden=true;
    if(next.mode==='benchmark')run.suite={name:currentSuite().name,warriors:currentSuite().warriors};
    if(next.pushoff)Object.assign(run,{variant:$('tournamentRanking').value,hillKey:hill.key,hillData:next.jobs.some(j=>j.kind==='hill')?null:hill.data});
@@ -367,10 +371,10 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
   }catch(error){if(run?.state==='running')fail(error.message);else $('tournamentStatus').textContent=error.message;}
  };
  $('tournamentPause').onclick=()=>{
-  if(run.state==='paused'){run.state='running';for(const slot of workers)dispatch(slot);}
+  if(run.state==='paused'){run.state='running';run.since=performance.now();for(const slot of workers)dispatch(slot);}
   else {run.state='pausing';settle();}render();
  };
- $('tournamentCancel').onclick=()=>{run.state='cancelled';dispose();render();};
+ $('tournamentCancel').onclick=()=>{run.state='cancelled';stopClock();dispose();render();};
  $('saveBenchmark').onclick=()=>{
   const feedback=$('saveBenchmarkStatus');feedback.hidden=false;
   try {
