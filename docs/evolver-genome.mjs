@@ -27,12 +27,13 @@ export function rng(seed){
  return next;
 }
 
-// What the evolver may write for these settings.
+// What the evolver may write for these settings. warriorLength (optional) caps the evolved warriors
+// below the hill's maxLength, which still holds for the opponents: a 20-instruction warrior for the LP hill.
 export function genomeRules(config){
- const coreSize=config.coreSize,maxLength=Math.max(1,Math.min(config.maxLength,coreSize));
+ const coreSize=config.coreSize,maxLength=Math.max(1,Math.min(config.warriorLength>0?config.warriorLength:config.maxLength,config.maxLength,coreSize));
  // LDP and STP stay out: P-space keeps state between rounds, so a score would depend on the round order.
  const opcodes=OPCODES.map((_,i)=>i).filter(i=>i<OP.ldp);
- return {coreSize,maxLength,opcodes,opWeights:opcodes.map(i=>OP_WEIGHTS[OPCODES[i]]),distance:config.distance||maxLength};
+ return {coreSize,maxLength,opcodes,opWeights:opcodes.map(i=>OP_WEIGHTS[OPCODES[i]]),distance:config.distance||config.maxLength};
 }
 const mod=(v,n)=>((v%n)+n)%n;
 export const signed=(v,n)=>{v=mod(v,n);return v>n/2?v-n:v===n/2&&n%2===0?-v:v;};
@@ -200,6 +201,7 @@ export function renderGenome(g,rules,{name='Evolved',author='corewar.dev evolver
 export function redcodeHeader(config){
  if(config.coreSize===80&&config.maxLength===5)return ';redcode-nano';
  if(config.coreSize===800&&config.maxLength===20)return ';redcode-tiny';
+ if(config.coreSize===8000&&config.maxLength===200&&config.tasks===8)return ';redcode-lp';
  if(config.coreSize===8000&&config.maxLength===100)return config.noPspace?';redcode-94nop':';redcode-94';
  return ';redcode-94';
 }

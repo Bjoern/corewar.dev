@@ -70,7 +70,7 @@ for(const config of [nano,tiny]){
  assert.equal(splitHoldOut(list.slice(0,2),0.5,'s').training.length,1);assert.equal(splitHoldOut(list,0.01,'s').heldOut.length,1);
 }
 // Presets, custom checks and pasted benchmark warriors.
-assert.deepEqual(['nano','tiny','94','custom'],EVOLVER_PRESETS.map(p=>p.id));
+assert.deepEqual(['nano','tiny','94','lp','custom'],EVOLVER_PRESETS.map(p=>p.id));
 assert.deepEqual([nano.coreSize,nano.tasks,nano.cycles,nano.maxLength,nano.distance],[80,80,800,5,5]);
 assert.equal(checkCustom({coreSize:800,cycles:8000,tasks:800,maxLength:20,distance:20}),null);
 assert.match(checkCustom({coreSize:800,cycles:8000,tasks:800,maxLength:30,distance:20}),/distance/);
@@ -165,5 +165,25 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
  assert(first.mean>random.mean,'chain-drawn warriors start stronger than random code');
  assert.equal(chain.population.length,40);
  await chain.step();valid(chain.population[0].genome,rules);
+}
+// Warrior length below the hill's, other hills' settings, and a short LP run of 20-instruction warriors.
+{
+ const {suiteHill,sameHill}=await import('./evolver-presets.mjs'),{redcodeHeader}=await import('./evolver-genome.mjs');
+ const lp=EVOLVER_PRESETS.find(p=>p.id==='lp').config;
+ assert.equal(genomeRules(lp).maxLength,200);assert.equal(genomeRules({...lp,warriorLength:20}).maxLength,20);
+ assert.equal(genomeRules({...nano,warriorLength:50}).maxLength,5,'never above the hill');assert.equal(genomeRules({...lp,warriorLength:20}).distance,200);
+ assert.equal(redcodeHeader(lp),';redcode-lp');
+ const d=JSON.parse(readFileSync(new URL('../warriors_public/lp_koenigstuhl/top50.benchmark.json',import.meta.url),'utf8'));
+ assert(sameHill(suiteHill(d.parameters),lp),'the LP suite maps to the LP preset');
+ assert.equal(suiteHill({...d.parameters,rules88:true}),null);assert.equal(suiteHill({coreSize:80}),null);
+ assert(!suiteFits(d.parameters,EVOLVER_PRESETS.find(p=>p.id==='94').config),'an LP suite does not fit the ’94 preset');
+ const dir=new URL('../warriors_public/lp_koenigstuhl/',import.meta.url);
+ const opponents=d.warriors.slice(0,3).map(f=>({name:f,source:readFileSync(new URL(f,dir),'latin1')}));
+ const ev=new Evaluator({runJob:runMatch,config:lp,opponents});ev.setMode(scoringMode(lp,opponents.map(o=>o.source),{rounds:10}));
+ const e=new Evolution({evaluator:ev,config:{...lp,warriorLength:20},params:{population:6},seed:'lp'});
+ await e.init();await e.step();
+ assert(e.population.every(m=>m.genome.code.length<=20),'every warrior has at most 20 instructions');
+ const src=e.bestSource('lp');assert.match(src,/^;redcode-lp/);
+ const w=await assemble(src,hillOf(lp));assert(w.ok,w.errors);
 }
 console.log('Evolver checks passed.');

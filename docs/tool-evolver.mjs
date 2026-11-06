@@ -3,7 +3,7 @@
 // evolver-run.mjs, run by evolver-worker.mjs off the page's thread; presets and their benchmarks:
 // evolver-presets.mjs. Scoring is the constant optimizer's (optimizer-fitness.mjs).
 import {el} from './tools.mjs';
-import {EVOLVER_PRESETS,CUSTOM_FIELDS,checkCustom,suiteFits,splitWarriors} from './evolver-presets.mjs';
+import {EVOLVER_PRESETS,CUSTOM_FIELDS,checkCustom,suiteFits,suiteHill,sameHill,splitWarriors} from './evolver-presets.mjs';
 import {EVOLVER_DEFAULTS} from './evolver-run.mjs';
 import {matchConfig,scoringMode,plannedEngine} from './optimizer-fitness.mjs';
 import {benchmarkCatalog} from './benchmark-catalog.mjs';
@@ -28,7 +28,8 @@ const TOPICS=[
  ['Breeding and survival','The evolver and the constant optimizer’s genetic algorithm share one population search, each with its own defaults. The evolver breeds whole generations (μ + λ): a child per place, then parents and children compete for the places, by score with niching (clearing). One child at a time (steady state) breeds from the latest population after every warrior instead; it adapts sooner but scores one warrior at a time, so with fewer opponents than CPU cores it leaves cores idle. Crowding (the optimizer’s default) lets a child replace the most similar weaker warrior, so each kind of warrior competes only with its own kind; the niche radius is then not used. With sampled scores, every few generations the warriors fight on new positions: “latest placements” takes the new score, “average over placements” the mean of all positions a warrior fought on, which is steadier and counts a warrior as the best only once it was scored on two sets. Racing stops scoring a child once it is clearly below the weakest warrior (sampled scores only); it saves time but also cuts short children that might have started a new niche.'],
  ['Seeding','A seed warrior is assembled for the chosen settings (labels, EQU and FOR loops are fine) and joins the first population with mutants of it; the rest is random code. “The last run” continues from the population the last run ended with, for the same settings.'],
  ['Markov chain','“A Markov chain of the opponents” assembles the benchmark’s warriors (and yours) and counts how often each instruction shape (opcode, modifier and both addressing modes) follows the one and two before it, and which shapes start and end a warrior. New warriors are drawn from those odds, each instruction with an A and B field seen on that shape. The chain mostly follows the longest context it knows and now and then forgets one, so it recombines warriors rather than copying them. It writes the first population and the immigrants of every generation.'],
- ['Benchmarks','The benchmark list has the preset’s own picks first, then every other suite of the Tournaments tab’s Benchmark mode with the same core size and a length that fits: built-in suites, and your own: imported, or made from your warriors or the library (saved with your workspace).'],
+ ['Benchmarks','The benchmark list has the preset’s own picks first, then every other suite of the Tournaments tab’s Benchmark mode with the same core size and a length that fits: built-in suites, and your own: imported, or made from your warriors or the library (saved with your workspace). Under “Other hills” come the suites made for other settings (ICWS ’94 only, as the evolver writes no ’88 code): picking one switches to its settings, to the preset with the same core, processes, cycles, length and distance, or to Custom with its values. When that would replace custom settings of your own, the evolver asks first. Population, generations and rounds then take the preset’s defaults, as when you pick a preset.'],
+ ['Warrior length','The longest warrior the evolver writes, at most the hill’s maximum length (empty: the hill’s). The hill’s length and distance still hold for the matches, so a benchmark of full-length warriors can be fought by short evolved ones: the best 20-instruction warrior against the LP hill, to build on later (add a q-scan by hand, say), or entries for a tournament that caps length below the hill’s. Shorter warriors also mean a much smaller search space. With a Markov chain, the chain learns from the opponents’ first instructions only, up to the warrior length.'],
  ['Diversity','Parents are picked by small tournaments (3 at a time), so weaker warriors still breed; children that copy a warrior already in the population are dropped; niching keeps near-copies of one warrior from crowding out the rest (see Niching); immigrants bring new code every generation; and with sampled scores the positions change every few generations. The Diversity figure is how unlike the population is from its best warrior (0 = clones, 1 = nothing in common): when it falls near 0 the run has converged, and more immigrants, more mutations or a new seed help.'],
  ['Held-out opponents','“Hold out opponents to check for overfitting” sets a share of the opponents aside, picked by the random seed (same seed, same split). They never count for selection or for the Markov chain. Whenever the best warrior changes, it is also scored against them: the Held-out score in the stats, “held out” in the chart and the marked rows of the score per opponent. If the best score keeps rising while the held-out score stays flat or falls, the run is fitting the benchmark’s particular warriors rather than getting stronger in general: broaden the benchmark or start over from the population. Held-out warriors are usually more different from the training set than the hill’s next arrivals, so expect the held-out score to sit below the best.'],
  ['Population view','“Population and niches” shows one generation at a time: the slider steps back through the run (the page keeps a snapshot of every generation, thinning older ones on long runs). On the map, each dot is a warrior and similar code sits close together; the colour is its score, darker is lower, and ringed dots lead a niche. Below, one row per niche: how many warriors it holds, its best and mean score and its leader’s code. Click a row or a dot to see the code. The small chart shows niches and diversity over the whole run. The view only works while it is open, once per generation, and the battles run in other threads, so it does not slow the run.'],
@@ -38,6 +39,9 @@ const fmt=(n,d=1)=>n===null||n===undefined||!isFinite(n)?'—':Number(n).toFixed
 const clock=ms=>{const s=Math.floor(ms/1000);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;};
 function download(text,name){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type:'text/plain'}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 const configKey=c=>[c.coreSize,c.cycles,c.tasks,c.maxLength,c.distance].join('/');
+// The last population belongs to a hill and a warrior length (the hill's own length keeps the old key).
+const populationKey=(c,length)=>configKey(c)+(length<c.maxLength?'/L'+length:'');
+const hillText=c=>`core ${c.coreSize} · ${c.tasks} process${c.tasks===1?'':'es'} · ${c.cycles} cycles · length ${c.maxLength} · distance ${c.distance}`;
 
 export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadState,saveState,benchmarks,loadBenchmark}){
  const saved=loadState()||{};
@@ -52,6 +56,9 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const customInputs=Object.fromEntries(CUSTOM_FIELDS.map(([key,,min,max])=>[key,num(custom[key],{min,max,step:1})]));
  const customBox=el('div',{className:'tool-field evo-custom'},...CUSTOM_FIELDS.flatMap(([key,label])=>labelled('evo-'+key,label,customInputs[key])));
  const customCheck=el('p',{className:'opt-error',role:'status',hidden:true});
+ // The evolved warriors' length: at most the hill's, which still limits the opponents.
+ const warriorLength=el('input',{type:'number',min:1,max:1000,step:1,value:saved.warriorLength??'',placeholder:'hill max'});
+ const lengthHint=el('span',{className:'hint'});
  const suiteSelect=el('select',{});
  const suiteInfo=el('p',{className:'hint'});
  const useRoster=el('input',{type:'checkbox',checked:!!saved.useRoster});
@@ -153,6 +160,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   el('div',{className:'opt-main'},
    el('section',{className:'t-card'},el('h3',{textContent:'Settings and benchmark'}),
     el('div',{className:'tool-form'},field(...labelled('evoPreset','Preset',presetSelect)),presetNote,customBox,customCheck,
+     field(...labelled('evoLength','Warrior length',warriorLength),lengthHint),
      field(...labelled('evoSuite','Benchmark',suiteSelect)),suiteInfo,
      field(el('label',{},holdOut,' Hold out opponents to check for overfitting'),...labelled('evoHoldOut','Share',holdOutShare))),ownBox),
    el('section',{className:'t-card'},el('h3',{textContent:'Start from'}),
@@ -166,6 +174,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
     el('div',{className:'tool-actions'},debugBest,el('label',{className:'hint',textContent:'against'}),debugOpponent),actionStatus,opponentsBox))));
 
  // ---- state
+ let otherHills=new Map(),shownSuite='';
  let run=null,suite=null,lastBest=saved.lastBest||null,lastPopulation=saved.lastPopulation||null;
  const suites=new Map();
  const preset=()=>EVOLVER_PRESETS.find(p=>p.id===presetSelect.value);
@@ -175,8 +184,15 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   c.pspace=0; // pMARS's default size; the evolver writes no P-space instructions.
   return c;
  }
+ // The length the evolver writes: the field's value, at most the hill's maximum; empty means the hill's.
+ const lengthFor=c=>{const v=Math.trunc(Number(warriorLength.value));return v>=1?Math.min(v,c.maxLength):c.maxLength;};
+ function showLength(){
+  const c=config(),v=Math.trunc(Number(warriorLength.value)),n=lengthFor(c);
+  lengthHint.textContent=!(v>=1)?`up to ${c.maxLength} instructions, the hill’s maximum`:v>c.maxLength?`this hill allows at most ${c.maxLength}, so ${n} is used`:`up to ${n} instructions; opponents may have up to ${c.maxLength}`;
+ }
+ warriorLength.addEventListener('input',()=>{showLength();showSeed();});
  function persist(){
-  saveState({preset:presetSelect.value,custom:Object.fromEntries(CUSTOM_FIELDS.map(([k])=>[k,Number(customInputs[k].value)])),suites:{...(saved.suites||{}),[presetSelect.value]:suiteSelect.value},
+  saveState({preset:presetSelect.value,warriorLength:warriorLength.value,custom:Object.fromEntries(CUSTOM_FIELDS.map(([k])=>[k,Number(customInputs[k].value)])),suites:{...(saved.suites||{}),[presetSelect.value]:suiteSelect.value},
    own,useRoster:useRoster.checked,holdOut:holdOut.checked,holdOutShare:holdOutShare.value,seedMode:seedSelect.value,seedText:seedText.value,seedShare:seedShare.value,population:population.value,generations:generations.value,mutation:mutation.value,
    structural:structural.value,crossover:crossoverRate.value,immigrants:immigrants.value,elite:elite.value,niche:niche.value,nicheSize:nicheSize.value,scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,scoring:scoringSelect.value,rounds:rounds.value,workers:workers.value,seed:seed.value,
    helpClosed:!help.open,populationOpen:popBox.open,advancedOpen:params.querySelector('.opt-advanced').open,lastBest,lastPopulation});
@@ -191,23 +207,45 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const p=preset(),c=config();
   presetNote.textContent=p.note;customBox.hidden=p.id!=='custom';
   customCheck.textContent=p.id==='custom'?checkCustom(c)??'':'';customCheck.hidden=!customCheck.textContent;
-  const {suggested,others}=suiteChoices(p,c),option=s=>new Option(s.name,s.id);
+  const {suggested,others,elsewhere}=suiteChoices(p,c),option=s=>new Option(s.name,s.id);
   const previous=suiteSelect.value;
+  otherHills=new Map(elsewhere.map(s=>[s.id,s]));
   suiteSelect.replaceChildren(...suggested.map(option),
    ...(others.length?[el('optgroup',{label:(suggested.length?'More benchmarks that fit':'Benchmarks that fit')+' (Tournaments, Benchmark mode)'},...others.map(option))]:[]),
-   new Option('Only your warriors','none'));
+   new Option('Only your warriors','none'),
+   ...(elsewhere.length?[el('optgroup',{label:'Other hills (switches the settings)'},...elsewhere.map(s=>new Option(`${s.name} · ${hillText(s.hill)}`,s.id)))]:[]));
   const want=saved.suites?.[p.id];
   suiteSelect.value=[...suiteSelect.options].some(o=>o.value===want)?want:[...suiteSelect.options].some(o=>o.value===previous)&&!applyDefaults?previous:suiteSelect.options[0].value;
   if(applyDefaults){population.value=p.defaults.population;generations.value=p.defaults.generations;if(p.defaults.rounds)rounds.value=p.defaults.rounds;}
+  shownSuite=suiteSelect.value;showLength();
   loadSuite();
  }
+ // A benchmark made for another hill: take its settings, as a preset when one matches, else as Custom
+ // (asking first when that replaces custom settings of your own).
+ function switchHill(s){
+  const target=s.hill,match=EVOLVER_PRESETS.find(p=>p.id!=='custom'&&sameHill(p.config,target));
+  if(!match){
+   const current=Object.fromEntries(CUSTOM_FIELDS.map(([k])=>[k,Number(customInputs[k].value)])),fresh=EVOLVER_PRESETS.find(p=>p.id==='custom').config;
+   const own=!sameHill(current,fresh)&&!sameHill(current,target);
+   if(own&&!confirm(`“${s.name}” is for ${hillText(target)}.\n\nReplace your custom settings (${hillText(current)}) with these?`)){suiteSelect.value=shownSuite;return;}
+   for(const [k] of CUSTOM_FIELDS)customInputs[k].value=target[k];
+  }
+  const p=match??EVOLVER_PRESETS.find(p=>p.id==='custom');
+  saved.suites={...(saved.suites||{}),[p.id]:s.id};presetSelect.value=p.id;
+  showPreset(true);showSeed();persist();
+  runStatus.textContent=`Switched to the ${p.id==='custom'?'custom settings':p.title} (${hillText(target)}) for “${s.name}”; population, generations and rounds are the preset’s defaults.`;
+ }
  // Every suite of the Tournaments tab's Benchmark mode (built in, or the user's own: imported or made) whose
- // core and length fit; the preset's own picks first. Without that tab, the built-in catalog.
+ // core and length fit; the preset's own picks first; then those of other hills the evolver can switch to
+ // ('94 rules). Without that tab, the built-in catalog.
  function suiteChoices(p,c){
   let all=null;try{all=benchmarks?.()??null;}catch{}
   all??=benchmarkCatalog.map(s=>({id:s.id,name:s.descriptor.name,config:s.descriptor.parameters}));
   const suggested=p.benchmarks.map(id=>all.find(s=>s.id===id)).filter(Boolean);
-  return {suggested,others:all.filter(s=>!suggested.includes(s)&&s.config&&suiteFits(s.config,c))};
+  const others=all.filter(s=>!suggested.includes(s)&&s.config&&suiteFits(s.config,c));
+  const elsewhere=all.filter(s=>!suggested.includes(s)&&!others.includes(s)).map(s=>({...s,hill:suiteHill(s.config)})).filter(s=>s.hill)
+   .sort((a,b)=>a.hill.coreSize-b.hill.coreSize||a.hill.maxLength-b.hill.maxLength||a.name.localeCompare(b.name));
+  return {suggested,others,elsewhere};
  }
  async function loadSuite(){
   const id=suiteSelect.value;suite=null;
@@ -240,7 +278,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  }
  presetSelect.addEventListener('change',()=>{showPreset(true);showSeed();});
  for(const input of Object.values(customInputs))input.addEventListener('change',()=>{showPreset(false);showSeed();});
- suiteSelect.addEventListener('change',()=>{loadSuite();});
+ suiteSelect.addEventListener('change',()=>{const s=otherHills.get(suiteSelect.value);if(s){switchHill(s);return;}shownSuite=suiteSelect.value;loadSuite();});
  for(const c of [useRoster,scoringSelect,rounds,holdOut,holdOutShare])c.addEventListener('change',showOpponentCount);
  holdOutShare.disabled=!holdOut.checked;holdOut.addEventListener('change',()=>{holdOutShare.disabled=!holdOut.checked;});
  function showOwn(){
@@ -265,11 +303,11 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  function showSeed(){
   const m=seedSelect.value;rosterSeed.hidden=m!=='roster';seedText.hidden=m!=='paste';
   seedShare.parentNode.hidden=m==='random'||m==='last'||m==='markov';
-  const c=config();
-  seedHint.textContent=m==='random'?`Every warrior of the first population is random code of 1 to ${c.maxLength} instructions.`
-   :m==='markov'?`New warriors, and the immigrants of every generation, are drawn from a Markov chain of the ${opponents().length} opponents’ instructions (1 to ${c.maxLength} instructions).`
-   :m==='last'?(lastPopulation?.key===configKey(c)?`Continues from the ${lastPopulation.genomes.length} warriors the last run ended with.`:'No earlier run with these settings; a run with these settings saves its population here.')
-   :`The seed must assemble with at most ${c.maxLength} instructions. Mutants of it fill the share above; random code fills the rest.`;
+  const c=config(),n=lengthFor(c);
+  seedHint.textContent=m==='random'?`Every warrior of the first population is random code of 1 to ${n} instructions.`
+   :m==='markov'?`New warriors, and the immigrants of every generation, are drawn from a Markov chain of the ${opponents().length} opponents’ instructions (1 to ${n} instructions${n<c.maxLength?'; it learns from their first '+n:''}).`
+   :m==='last'?(lastPopulation?.key===populationKey(c,n)?`Continues from the ${lastPopulation.genomes.length} warriors the last run ended with.`:'No earlier run with these settings; a run with these settings saves its population here.')
+   :`The seed must assemble with at most ${n} instructions. Mutants of it fill the share above; random code fills the rest.`;
  }
  seedSelect.addEventListener('change',showSeed);
 
@@ -285,7 +323,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const active=state==='running'||state==='paused'||state==='pausing';
   start.disabled=state==='running'||state==='pausing';pause.disabled=state!=='running';stop.disabled=!active;
   start.textContent=state==='paused'?'▶ Continue':'▶ Start';
-  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,schemeSelect,survivalSelect,memorySelect,race,scoringSelect,rounds,workers,seed,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
+  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,warriorLength,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,schemeSelect,survivalSelect,memorySelect,race,scoringSelect,rounds,workers,seed,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
   if(!active)holdOutShare.disabled=!holdOut.checked;
  }
  function begin(){
@@ -298,9 +336,10 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const seedSources=[],seedGenomes=[];
   if(seedSelect.value==='roster'){const w=roster()[Number(rosterSeed.value)];if(!w){runStatus.textContent='Load a warrior in the Battle tab to seed from it.';return;}seedSources.push({name:w.name,source:w.source});}
   if(seedSelect.value==='paste'){if(!seedText.value.trim()){runStatus.textContent='Paste the seed warrior first.';return;}seedSources.push({name:'the pasted warrior',source:seedText.value});}
-  if(seedSelect.value==='last'){if(lastPopulation?.key!==configKey(c)){runStatus.textContent='There is no earlier population for these settings.';return;}seedGenomes.push(...lastPopulation.genomes);}
+  const length=lengthFor(c);
+  if(seedSelect.value==='last'){if(lastPopulation?.key!==populationKey(c,length)){runStatus.textContent='There is no earlier population for these settings.';return;}seedGenomes.push(...lastPopulation.genomes);}
   const p=preset();
-  const job={config:c,opponents:list.map(({name,source})=>({name,source})),benchmarkName:suite?.name||'your warriors',name:`Evolved ${p.id==='custom'?'warrior':p.title.replace(/ hill$/,'')}`,
+  const job={config:{...c,warriorLength:length},opponents:list.map(({name,source})=>({name,source})),benchmarkName:suite?.name||'your warriors',name:`Evolved ${p.id==='custom'?'warrior':p.title.replace(/ hill$/,'')}`,
    seed:seed.value,workers:Math.max(1,Math.min(processors,Number(workers.value)||1)),scoring:{mode:scoringSelect.value,rounds:Math.max(10,Number(rounds.value)||100)},seedSources,seedGenomes,
    markov:seedSelect.value==='markov',holdOut:holdOut.checked?Math.min(0.5,Math.max(0.05,Number(holdOutShare.value)||0.2)):0,
    params:{population:Math.max(4,Number(population.value)||40),generations:Math.max(0,Number(generations.value)||0),mutation:Math.max(1,Number(mutation.value)||1.5),
@@ -309,7 +348,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
     scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0}};
   run?.worker.terminate();
   const worker=new Worker(new URL('./evolver-worker.mjs',import.meta.url),{type:'module'});
-  const r={worker,state:'running',job,opponents:list,history:[],snapshots:[],best:null,started:Date.now(),config:c,key:configKey(c)};run=r;
+  const r={worker,state:'running',job,opponents:list,history:[],snapshots:[],best:null,started:Date.now(),config:c,key:configKey(c),populationKey:populationKey(c,length),length};run=r;
   worker.onmessage=({data})=>{if(run===r)message(r,data);};
   worker.onerror=event=>{if(run!==r)return;r.state='finished';setRunning('finished');runStatus.textContent='The evolver stopped: '+(event.message||'worker error');};
   worker.postMessage({type:'start',job});
@@ -322,7 +361,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   if(data.type==='generation'){
    r.history.push(data.stats);r.last=data;keepSnapshot(r,data);
    if(data.best&&(!r.best||data.best.score!==r.best.score||data.best.source!==r.best.source)){r.best=data.best;showBest(r);}
-   lastPopulation={key:r.key,genomes:data.population};
+   lastPopulation={key:r.populationKey,genomes:data.population};
    if(r.best)lastBest={source:r.best.source,score:r.best.score,key:r.key,opponents:heldRows(r.best),heldOut:r.best.heldOut?.score??null,benchmark:r.job.benchmarkName};
    showStats(r);drawChart();showPopulation(false);schedulePersist();return;
   }

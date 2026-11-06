@@ -22,6 +22,8 @@ async function assembleSeeds(sources,config){
   const w=await assemble(source,hill);
   if(!w.ok)throw new Error(`The seed ${name} did not assemble for these settings:\n${w.errors}`);
   if(w.instructions.some(i=>i[0]>=16))throw new Error(`The seed ${name} uses P-space (LDP/STP), which the evolver does not write.`);
+  const max=genomeRules(config).maxLength;
+  if(w.instructions.length>max)throw new Error(`The seed ${name} has ${w.instructions.length} instructions, more than the warrior length of ${max}.`);
   out.push({code:w.instructions,start:w.start});
  }
  return out;
@@ -37,6 +39,8 @@ async function opponentModel(opponents,config){
 
 async function start(job){
  const config=matchConfig(job.config);
+ // The evolved warriors may be shorter than the hill allows (warriorLength); matches use the hill's settings.
+ const own={...config,warriorLength:Number(job.config.warriorLength)||0};
  // Held-out opponents never take part in selection (or in the Markov chain); the best warrior is
  // scored on them in the same mode, so the two scores compare.
  const {training:opponents,heldOut}=splitHoldOut(job.opponents,job.holdOut||0,job.seed);
@@ -50,10 +54,10 @@ async function start(job){
  const r={state:'running',pool,evaluator,validator,validation:null,validatedKey:null,started:Date.now(),elapsed:0,resumedAt:Date.now(),wake:null,job};
  run=r;
  try{
-  const seeds=[...(job.seedGenomes||[]),...await assembleSeeds(job.seedSources||[],config)];
-  const model=job.markov?await opponentModel(opponents,config):null;
+  const seeds=[...(job.seedGenomes||[]),...await assembleSeeds(job.seedSources||[],own)];
+  const model=job.markov?await opponentModel(opponents,own):null;
   if(model&&!model.warriors)throw new Error('None of the opponents assembled for these settings, so there is no Markov chain to draw from.');
-  r.evolution=new Evolution({evaluator,config,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model});
+  r.evolution=new Evolution({evaluator,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model});
   const engine=plannedEngine(config,mode);
   post({type:'started',why:mode.why,exact:mode.exact,rounds:mode.rounds,engine:engine.engine,engineWhy:engine.why,workers:pool?size:1,nested:!!pool||size===1,
    markov:model&&{warriors:model.warriors,instructions:model.instructions,shapes:model.shapes,skipped:opponents.length-model.warriors},
