@@ -1,4 +1,4 @@
-# John Metcalf's steady-state genetic optimizer (resources/genetic2.rb, v0.2),
+# John Metcalf's steady-state genetic optimizer (tools-import/metcalf/genetic2.rb, v0.2),
 # ported to the exMARS Ruby binding and to cwopt templates.
 #
 # The algorithm is unchanged: tournament selection (3 and 1), uniform,
