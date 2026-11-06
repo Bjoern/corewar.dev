@@ -132,6 +132,44 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
  assert.deepEqual(nicheGroups(list.map(x=>x.genome),0.3),{group:[0,0,0,1],leaders:[0,3]});
  e.params.niche=0;assert.deepEqual(e.survivors(list,3).map(x=>x.score),[200,190,180]);
 }
+// Results-based fitness sharing and niches by results.
+{
+ const {profile,profileDistance}=await import('./population.mjs');
+ const rules=genomeRules(nano),e=new Evolution({evaluator:null,config:nano,params:{fitness:'shared',niche:0.15,nicheSize:1,elite:1,nicheBy:'results'}}),pop=e.engine;
+ const base={code:[[2,6,0,0,0,1],[11,2,0,-1,0,0]],start:0},near={code:[[2,6,0,0,0,1],[11,2,0,-1,0,5]],start:0},other={code:[[1,2,0,0,0,0],[2,6,0,2,0,3],[11,2,0,-2,0,0]],start:0};
+ const m=(g,vec,own=null)=>({genome:normalize(g,rules),vec,own,score:(vec.reduce((a,b)=>a+b,0)+(own??0))/(vec.length+(own==null?0:1))});
+ assert.deepEqual(profile({opponents:[{score:10},{score:250,self:true},{score:30}]}),{vec:[10,30],own:250},'the self fight is kept apart');
+ assert.equal(profile({score:1}),null);
+ assert.equal(profileDistance([0,300],[300,0]),1);assert.equal(profileDistance([100,50],[100,50]),0);
+ // Two copies beat opponent A; one specialist beats B, which nobody else scores against: lower score, higher shared value.
+ const a1=m(base,[300,0]),a2=m(near,[290,0]),spec=m(other,[0,200]);
+ pop.share([a1,a2,spec]);
+ assert(spec.score<a1.score&&spec.fit>a1.fit,`the specialist ranks first by shared value (${spec.fit.toFixed(1)} vs ${a1.fit.toFixed(1)})`);
+ // Equally hard opponents: the shared value is the score.
+ const b1=m(base,[100,200]),b2=m(other,[200,100]);pop.share([b1,b2]);
+ assert(Math.abs(b1.fit-b1.score)<1e-9&&Math.abs(b2.fit-b2.score)<1e-9);
+ // The self fight is not weighed.
+ const c1=m(base,[100,200],150);pop.share([c1,m(other,[200,100],150)]);assert(Math.abs(c1.fit-c1.score)<1e-9);
+ // Survival by shared value, by results: a1 and a2 are one niche (alike results), the specialist leads its own;
+ // the elite (by plain score) stays first.
+ pop.share([a1,a2,spec]);
+ assert.deepEqual(e.survivors(pop.order([a1,a2,spec]),2),[a1,spec]);
+ e.params.elite=0;assert.deepEqual(e.survivors(pop.order([a1,a2,spec]),1),[spec],'without elites the shared value decides');
+ // By results, near-identical code with different results is two niches; by code, one.
+ const x=m(base,[300,0]),y=m(near,[0,300]);
+ assert.equal(pop.near(x,y),1);e.params.nicheBy='code';assert(pop.near(x,y)<0.15);
+ // Plain fitness: the shared value is the score, so nothing changes.
+ e.params.fitness='plain';pop.share([a1,a2,spec]);assert.equal(spec.fit,spec.score);
+ // A short run with both on, sampled scores and self fights: it runs, keeps profiles and counts niches by results.
+ const dir=new URL('../warriors_public/nanobm07/',import.meta.url),d=JSON.parse(readFileSync(new URL('suite.benchmark.json',dir),'utf8'));
+ const opponents=d.warriors.slice(0,5).map(f=>({name:f,source:readFileSync(new URL(f,dir),'latin1')}));
+ const ev=new Evaluator({runJob:runMatch,config:nano,opponents,options:{selfFight:true}});ev.setMode(scoringMode(nano,[],{mode:'sampled',rounds:20}));
+ const run=new Evolution({evaluator:ev,config:nano,params:{population:12,fitness:'shared',nicheBy:'results',niche:0.15,reseedEvery:1,scoreMemory:'mean'},seed:'shared'});
+ await run.init();await run.step();await run.step();
+ assert.equal(run.population.length,12);
+ assert(run.population.every(p=>p.vec?.length===5&&p.own!=null&&Number.isFinite(p.fit)),'members keep 5 opponents’ points, the self fight and a shared value');
+ assert(run.profiles()?.length===12&&run.history.at(-1).niches>=1);
+}
 // The population map: variants of one warrior sit closer together than to another kind.
 {
  const {mapLayout}=await import('./evolver-map.mjs');

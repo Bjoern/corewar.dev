@@ -11,9 +11,10 @@
 // line, so near-copies of the leader give way to the best of other kinds. The best `elite` are always
 // kept and a few random immigrants added. With a Markov chain of the benchmark's warriors
 // (markovModel), new code is drawn from the chain instead. population.mjs lists the other choices
-// (steady state, deterministic crowding, mean scores over seed sets, racing).
+// (steady state, deterministic crowding, mean scores over seed sets, racing, and results-based
+// fitness sharing and niching: fitness 'shared', nicheBy 'results').
 import {rng,genomeRules,randomGenome,markovGenome,normalize,mutate,crossover,genomeKey,renderGenome,redcodeHeader,distance,nicheGroups} from './evolver-genome.mjs';
-import {Population,POPULATION_DEFAULTS} from './population.mjs';
+import {Population,POPULATION_DEFAULTS,profileDistance} from './population.mjs';
 
 // niche: the clearing radius (genome distance 0 … 1, 0 = no niching); nicheSize: warriors a niche keeps.
 // Held-out opponents: a share of the opponents (at least one, and one left to train on) set aside
@@ -27,6 +28,8 @@ export function splitHoldOut(opponents,share,seed){
  const out=new Set(order.slice(0,k));
  return {training:opponents.filter((_,i)=>!out.has(i)),heldOut:opponents.filter((_,i)=>out.has(i))};
 }
+// The niche radius that suits results (per-opponent points, profileDistance) rather than code.
+export const RESULT_RADIUS=0.15;
 export const EVOLVER_DEFAULTS={...POPULATION_DEFAULTS,population:40,generations:200,scheme:'generational',survival:'clearing',elite:2,tournament:3,mateTournament:3,
  crossover:0.5,mutation:1.5,structural:0.3,immigrants:0.05,seedShare:0.5,reseedEvery:5,niche:0.3,nicheSize:2,scoreMemory:'latest',rescore:0,race:false};
 
@@ -75,10 +78,19 @@ export class Evolution{
   const scores=ranked.map(m=>m.score),mean=scores.reduce((a,b)=>a+b,0)/scores.length;
   const sorted=scores.slice().sort((a,b)=>a-b),median=sorted[sorted.length>>1];
   const div=ranked.reduce((s,m)=>s+distance(m.genome,top.genome),0)/ranked.length;
-  // Niches are counted with the clearing radius, or 0.3 when niching is off, so runs compare.
-  const niches=nicheGroups(ranked.map(m=>m.genome),this.params.survival==='clearing'&&this.params.niche>0?this.params.niche:0.3).leaders.length;
+  // Niches are counted the way survival sees them (by code or by results), with the clearing radius,
+  // or the default radius of that kind when niching is off, so runs compare.
+  const profiles=this.profiles(ranked);
+  const niches=(profiles?nicheGroups(profiles,this.nicheRadius,profileDistance):nicheGroups(ranked.map(m=>m.genome),this.nicheRadius)).leaders.length;
   this.history.push({generation:this.generation,best:this.best.score,top:top.score,mean,median,diversity:div,niches});
  }
+ // The per-opponent results of `list` when niches are by results and every member has them, else null.
+ profiles(list=this.ranked()){
+  if(this.params.nicheBy!=='results')return null;
+  const k=list[0]?.vec?.length;
+  return k&&list.every(m=>m.vec?.length===k)?list.map(m=>m.vec):null;
+ }
+ get nicheRadius(){return this.params.survival==='clearing'&&this.params.niche>0?this.params.niche:this.params.nicheBy==='results'?RESULT_RADIUS:0.3;}
  stats(){return {...this.history.at(-1),evaluations:this.evaluations};}
  ranked(){return this.engine.ranked();}
  bestSource(benchmark=''){
@@ -87,5 +99,5 @@ export class Evolution{
  }
  snapshot(){return this.engine.members.map(m=>m.genome);}
  // The population with scores, best first, for the population view.
- view(){return this.ranked().map(m=>({genome:m.genome,score:m.score}));}
+ view(){return this.ranked().map(m=>({genome:m.genome,score:m.score,fit:m.fit??m.score}));}
 }

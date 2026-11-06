@@ -4,7 +4,8 @@
 // evolver-presets.mjs. Scoring is the constant optimizer's (optimizer-fitness.mjs).
 import {el} from './tools.mjs';
 import {EVOLVER_PRESETS,CUSTOM_FIELDS,checkCustom,suiteFits,suiteHill,sameHill,splitWarriors} from './evolver-presets.mjs';
-import {EVOLVER_DEFAULTS} from './evolver-run.mjs';
+import {EVOLVER_DEFAULTS,RESULT_RADIUS} from './evolver-run.mjs';
+import {profileDistance} from './population.mjs';
 import {matchConfig,scoringMode,plannedEngine} from './optimizer-fitness.mjs';
 import {benchmarkCatalog} from './benchmark-catalog.mjs';
 import {readBenchmark} from './benchmarks.mjs';
@@ -25,6 +26,7 @@ const TOPICS=[
  ['Scores','Each warrior fights each opponent one on one: 3 points per win, 1 per tie, shown as (3W + T) per round × 100 and averaged over the opponents. 100 means all ties, 300 all wins. Small cores (nano, tiny with few positions) are scored exactly, over every legal start position with both starting orders; bigger cores are sampled on seeded positions that change every few generations, so a warrior cannot just fit one set of positions.'],
  ['Mutation settings','Mutations per child is the mean number of point changes (at least one). Structural share is how many of those insert, delete, duplicate or swap instructions or move the start. Crossover is the share of children with two parents. Immigrants are random new warriors per generation.'],
  ['Niching','Without niching, near-copies of the leader soon fill the population and the search narrows to one idea. With niching (clearing), the next generation is filled best first, but a warrior within the niche radius of a better one (0.3: differs in under 30% of opcodes, modifiers, modes and fields, instruction by instruction) only gets in while that niche has fewer than “Warriors per niche”; the others wait at the back and only fill places left over. So the best of each kind of warrior survives even when it scores below the leader’s copies. The elite are always kept. Niches is how many kinds the population holds. A radius of 0 turns it off; a bigger radius or fewer warriors per niche spreads the population wider.'],
+ ['Shared fitness and niches by results','Two optional settings for when one kind of warrior takes over. “Selection by: shared score” (results-based fitness sharing) weighs each opponent by how hard the population finds it: points against an opponent most warriors already beat count for little, points against one that hardly anyone scores against count for a lot, and the more copies of one kind there are, the less what they beat is worth. Parents and survivors are picked by that shared value, so a specialist that beats what the rest lose to survives even with a lower plain score. The shared value only means something within one population, so the best score, the chart, the elite and everything you see stay the plain score. Racing is off with it, as a child below the weakest score may still be worth keeping. “Compare warriors by: results” makes niching (and crowding) compare what two warriors score against each opponent instead of their code: two warriors are in one niche when their results are alike, however different the code, and two near-identical programs that beat different opponents are not. The radius is then the mean difference in points per opponent over the most there can be (300): 0.15 means about 45 points per opponent. Sampled scores make even two copies of one warrior differ a little (about 0.08 at 40 rounds per opponent), so more rounds make these niches sharper. The population view then rings and groups niches by results too, while the map still places warriors by code.'],
  ['Self fight','Some hills, Koenigstuhl among them, score a warrior against a copy of itself too. With “Self fight” on, each warrior fights itself as one more opponent, so with 50 benchmark warriors the self fight is 1 of 51 in the average (in the held-out score as well). A self fight has as many wins as losses (exactly so with exact scoring), so its score depends only on the ties: 150 when no round is tied, 100 when every round is, 150 − 50 × the tied share in between. So a warrior whose self fights end decisively gains up to 50 points there over one that ties itself, and selection takes that into account. It is the row “itself (self fight)” in the score per opponent.'],
  ['Breeding and survival','The evolver and the constant optimizer’s genetic algorithm share one population search, each with its own defaults. The evolver breeds whole generations (μ + λ): a child per place, then parents and children compete for the places, by score with niching (clearing). One child at a time (steady state) breeds from the latest population after every warrior instead; it adapts sooner but scores one warrior at a time, so with fewer opponents than CPU cores it leaves cores idle. Crowding (the optimizer’s default) lets a child replace the most similar weaker warrior, so each kind of warrior competes only with its own kind; the niche radius is then not used. With sampled scores, every few generations the warriors fight on new positions: “latest placements” takes the new score, “average over placements” the mean of all positions a warrior fought on, which is steadier and counts a warrior as the best only once it was scored on two sets. Racing stops scoring a child once it is clearly below the weakest warrior (sampled scores only); it saves time but also cuts short children that might have started a new niche.'],
  ['Seeding','A seed warrior is assembled for the chosen settings (labels, EQU and FOR loops are fine) and joins the first population with mutants of it; the rest is random code. “The last run” continues from the population the last run ended with, for the same settings.'],
@@ -102,6 +104,16 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const survivalSelect=choose([['clearing','Niches (clearing)'],['crowding','Crowding: replace the most similar weaker warrior']],saved.survival,EVOLVER_DEFAULTS.survival);
  const memorySelect=choose([['latest','Latest placements'],['mean','Average over placements']],saved.scoreMemory,EVOLVER_DEFAULTS.scoreMemory);
  const race=el('input',{type:'checkbox',checked:saved.race??EVOLVER_DEFAULTS.race});
+ const fitnessSelect=choose([['plain','score'],['shared','shared score (fitness sharing)']],saved.fitness,EVOLVER_DEFAULTS.fitness);
+ const nicheBySelect=choose([['code','code'],['results','results against each opponent']],saved.nicheBy,EVOLVER_DEFAULTS.nicheBy);
+ // Racing compares plain scores, so it is off while selection uses the shared score.
+ const showFitness=()=>{race.disabled=fitnessSelect.value==='shared'||!!run&&run.state!=='finished';};
+ fitnessSelect.addEventListener('change',showFitness);
+ // The radius means something else for each: switching swaps a radius still at the other one's default.
+ nicheBySelect.addEventListener('change',()=>{
+  const [from,to]=nicheBySelect.value==='results'?[EVOLVER_DEFAULTS.niche,RESULT_RADIUS]:[RESULT_RADIUS,EVOLVER_DEFAULTS.niche];
+  if(Number(niche.value)===from)niche.value=to;
+ });
  const scoringSelect=el('select',{},new Option('Exact when possible','auto'),new Option('Always sampled','sampled'));scoringSelect.value=saved.scoring||'auto';
  const rounds=num(saved.rounds??startDefaults.rounds??100,{min:10,max:5000,step:10});
  const processors=Math.max(1,navigator.hardwareConcurrency||2);
@@ -117,6 +129,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
     field(...labelled('evoStructural','Structural share',structural),...labelled('evoImmigrants','Immigrants',immigrants),...labelled('evoElite','Elite',elite)),
     field(...labelled('evoScheme','Breeding',schemeSelect),...labelled('evoSurvival','Survival',survivalSelect)),
     nicheFields,
+    field(...labelled('evoFitness','Selection by',fitnessSelect),...labelled('evoNicheBy','Compare warriors by',nicheBySelect)),
     field(...labelled('evoScoring','Scoring',scoringSelect),...labelled('evoRounds','Sampled rounds per opponent',rounds)),
     field(...labelled('evoMemory','Scores on new placements',memorySelect),el('label',{},race,' Racing: drop children clearly below the weakest')),
     field(...labelled('evoSeed','Random seed',seed),el('span',{className:'hint',textContent:'same seed, same run'})))),
@@ -181,6 +194,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  // ---- state
  let otherHills=new Map(),shownSuite='',shownPreset=presetSelect.value,kept=[];
  let run=null,suite=null,lastBest=saved.lastBest||null,lastPopulation=saved.lastPopulation||null;
+ showFitness();
  const suites=new Map();
  const preset=()=>EVOLVER_PRESETS.find(p=>p.id===presetSelect.value);
  function config(){
@@ -199,7 +213,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  function persist(){
   saveState({preset:presetSelect.value,warriorLength:warriorLength.value,custom:Object.fromEntries(CUSTOM_FIELDS.map(([k])=>[k,Number(customInputs[k].value)])),suites:{...(saved.suites||{}),[presetSelect.value]:suiteSelect.value},
    own,useRoster:useRoster.checked,selfFight:selfFight.checked,holdOut:holdOut.checked,holdOutShare:holdOutShare.value,seedMode:seedSelect.value,seedText:seedText.value,seedShare:seedShare.value,population:population.value,generations:generations.value,mutation:mutation.value,
-   structural:structural.value,crossover:crossoverRate.value,immigrants:immigrants.value,elite:elite.value,niche:niche.value,nicheSize:nicheSize.value,scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,scoring:scoringSelect.value,rounds:rounds.value,workers:workers.value,seed:seed.value,
+   structural:structural.value,crossover:crossoverRate.value,immigrants:immigrants.value,elite:elite.value,niche:niche.value,nicheSize:nicheSize.value,scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,scoring:scoringSelect.value,rounds:rounds.value,workers:workers.value,seed:seed.value,
    helpClosed:!help.open,populationOpen:popBox.open,advancedOpen:params.querySelector('.opt-advanced').open,lastBest,lastPopulation});
   saved.suites={...(saved.suites||{}),[presetSelect.value]:suiteSelect.value};
  }
@@ -331,15 +345,15 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const p=preset(),d=EVOLVER_DEFAULTS;
   population.value=p.defaults.population;generations.value=p.defaults.generations;rounds.value=p.defaults.rounds??100;
   mutation.value=d.mutation;structural.value=d.structural;crossoverRate.value=d.crossover;immigrants.value=d.immigrants;elite.value=d.elite;
-  niche.value=d.niche;nicheSize.value=d.nicheSize;schemeSelect.value=d.scheme;survivalSelect.value=d.survival;memorySelect.value=d.scoreMemory;race.checked=d.race;showNiche();scoringSelect.value='auto';seed.value='1';workers.value=Math.max(1,processors-1);
+  niche.value=d.niche;nicheSize.value=d.nicheSize;schemeSelect.value=d.scheme;survivalSelect.value=d.survival;memorySelect.value=d.scoreMemory;race.checked=d.race;fitnessSelect.value=d.fitness;nicheBySelect.value=d.nicheBy;showNiche();showFitness();scoringSelect.value='auto';seed.value='1';workers.value=Math.max(1,processors-1);
   persist();showOpponentCount();runStatus.textContent=`Evolution settings reset to the defaults for the ${p.title}.`;
  };
  function setRunning(state){
   const active=state==='running'||state==='paused'||state==='pausing';
   start.disabled=state==='running'||state==='pausing';pause.disabled=state!=='running';stop.disabled=!active;
   start.textContent=state==='paused'?'▶ Continue':'▶ Start';
-  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,warriorLength,selfFight,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,schemeSelect,survivalSelect,memorySelect,race,scoringSelect,rounds,workers,seed,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
-  if(!active)holdOutShare.disabled=!holdOut.checked;
+  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,warriorLength,selfFight,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,schemeSelect,survivalSelect,memorySelect,race,fitnessSelect,nicheBySelect,scoringSelect,rounds,workers,seed,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
+  if(!active){holdOutShare.disabled=!holdOut.checked;race.disabled=fitnessSelect.value==='shared';}
  }
  function begin(){
   if(run?.state==='paused'){run.worker.postMessage({type:'resume'});run.state='running';run.resumedAt=Date.now();setRunning('running');runStatus.textContent='Running.';return;}
@@ -360,7 +374,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
    params:{population:Math.max(4,Number(population.value)||40),generations:Math.max(0,Number(generations.value)||0),mutation:Math.max(1,Number(mutation.value)||1.5),
     structural:Math.min(1,Math.max(0,Number(structural.value))),crossover:Math.min(1,Math.max(0,Number(crossoverRate.value))),immigrants:Math.min(0.5,Math.max(0,Number(immigrants.value))),
     elite:Math.max(0,Number(elite.value)|0),niche:Math.min(1,Math.max(0,Number(niche.value)||0)),nicheSize:Math.max(1,Number(nicheSize.value)|0||1),
-    scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0}};
+    scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked&&fitnessSelect.value!=='shared',fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0}};
   run?.worker.terminate();
   const worker=new Worker(new URL('./evolver-worker.mjs',import.meta.url),{type:'module'});
   const r={worker,state:'running',job,opponents:list,history:[],snapshots:[],best:null,started:Date.now(),config:c,key:configKey(c),populationKey:populationKey(c,length),length};run=r;
@@ -434,7 +448,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  function keepSnapshot(r,data){
   if(!data.ranked)return;
   const following=Number(popSlider.value)>=r.snapshots.length-1;
-  r.snapshots.push({generation:data.stats.generation,genomes:data.ranked,scores:data.scores,radius:data.radius});
+  r.snapshots.push({generation:data.stats.generation,genomes:data.ranked,scores:data.scores,radius:data.radius,profiles:data.profiles||null});
   const size=()=>r.snapshots.reduce((t,x)=>t+x.genomes.reduce((u,g)=>u+g.code.length,0),0);
   // Over budget: drop every other older snapshot, keeping the first and the latest.
   while(r.snapshots.length>2&&size()>SNAPSHOT_BUDGET)r.snapshots=r.snapshots.filter((x,i,a)=>i===0||i===a.length-1||i%2===0);
@@ -444,7 +458,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  function snapshotShown(){const list=run?.snapshots;if(!list?.length)return null;return list[Math.min(list.length-1,Number(popSlider.value)||0)];}
  // Niches and map positions are worked out once per snapshot, when it is first shown.
  function analyse(snap){
-  if(!snap.groups){const {group,leaders}=nicheGroups(snap.genomes,snap.radius);snap.groups=group;snap.leaders=leaders;}
+  if(!snap.groups){const {group,leaders}=snap.profiles?nicheGroups(snap.profiles,snap.radius,profileDistance):nicheGroups(snap.genomes,snap.radius);snap.groups=group;snap.leaders=leaders;}
   if(!snap.coords)snap.coords=mapLayout(snap.genomes);
   return snap;
  }
@@ -456,7 +470,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   if(!snap){drawMap(null);return;}
   analyse(snap);
   const latest=snap===run.snapshots.at(-1),n=snap.genomes.length;
-  popLabel.textContent=`Generation ${snap.generation}${latest?' (latest)':''} · ${n} warriors · ${snap.leaders.length} niche${snap.leaders.length===1?'':'s'} (radius ${snap.radius}) · best ${fmt(snap.scores[0],2)}`;
+  popLabel.textContent=`Generation ${snap.generation}${latest?' (latest)':''} · ${n} warriors · ${snap.leaders.length} niche${snap.leaders.length===1?'':'s'} (${snap.profiles?'by results, ':''}radius ${snap.radius}) · best ${fmt(snap.scores[0],2)}`;
   if(selected&&selected.snap!==snap)selected=null;
   drawMap(snap);showNiches(snap);showSelected(snap);
  }

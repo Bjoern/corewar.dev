@@ -29,6 +29,14 @@
 //                members seen on two sets count as the best; 'latest': the newest score replaces the old.
 //   rescore      how many top members are scored again on new seeds (0 = the whole population).
 //   race         race each child against the weakest member.
+//   fitness      'plain': selection uses the score; 'shared': results-based fitness sharing (shared()
+//                below): points against an opponent count for more the fewer points the population
+//                takes from it, so a warrior that beats what the others lose to is worth keeping even
+//                with a lower score. Selection (tournaments, survival) uses the shared value; the
+//                score, the best, the elites and racing's bar stay plain (racing is off when shared).
+//   nicheBy      'code': niching and crowding compare genomes (ops.distance); 'results': they compare
+//                what members score against each opponent (profileDistance), so niches are kinds of
+//                result, however the code looks. Results need per-opponent rows ({opponents}) in the results.
 
 // sfc32: small, fast, and its four words are the whole state. A string seed is hashed.
 export class Rng{
@@ -53,9 +61,31 @@ export class Rng{
 const clone=o=>JSON.parse(JSON.stringify(o));
 
 export const POPULATION_DEFAULTS={population:50,scheme:'steady',survival:'crowding',niche:0.3,nicheSize:2,elite:2,tournament:3,mateTournament:1,
- crossover:0.75,immigrants:0.05,seedShare:0.5,reseedEvery:1,scoreMemory:'mean',rescore:6,race:true};
-export const SCHEMES=['steady','generational'],SURVIVALS=['crowding','clearing'],SCORE_MEMORIES=['mean','latest'];
+ crossover:0.75,immigrants:0.05,seedShare:0.5,reseedEvery:1,scoreMemory:'mean',rescore:6,race:true,fitness:'plain',nicheBy:'code'};
+export const SCHEMES=['steady','generational'],SURVIVALS=['crowding','clearing'],SCORE_MEMORIES=['mean','latest'],FITNESSES=['plain','shared'],NICHE_BY=['code','results'];
 const RETRIES=20,INVALID_LIMIT=1000;
+// Points against one opponent run 0 … 300 ((3W + T) / rounds × 100). SHARE_FLOOR keeps an opponent
+// the whole population scores nothing against from weighing without bound: 20 points is a tie in a
+// fifth of the rounds.
+const MAX_POINTS=300,SHARE_FLOOR=20;
+
+// A result's points against each opponent, the self fight apart (it is a different warrior for each
+// member, so it is never shared or compared): {vec, own} or null without per-opponent rows.
+export function profile(r){
+ const rows=r?.opponents;if(!rows?.length)return null;
+ const vec=[];let own=null;
+ for(const o of rows){if(o.self)own=o.score;else vec.push(o.score);}
+ return {vec,own};
+}
+// How unlike two profiles are, 0 … 1: the mean difference in points per opponent over the most
+// there can be, so 1 is the opposite result against every opponent. Sampling noise alone puts two
+// copies of one warrior some way apart (about 0.08 at 40 rounds), so radii of 0.1 … 0.2 suit it.
+export function profileDistance(a,b){
+ const n=Math.min(a.length,b.length);if(!n)return 1;
+ let d=0;for(let i=0;i<n;i++)d+=Math.abs(a[i]-b[i]);
+ return d/n/MAX_POINTS;
+}
+const fitOf=m=>m.fit??m.score;
 
 export class Population{
  // seeds: genomes the first population starts from (all valid for the operators).
@@ -76,6 +106,8 @@ export class Population{
  result(key){return this.results.get(key)??null;}
 
  rank(list){const size=this.ops.size;return list.slice().sort((a,b)=>b.score-a.score||(size?size(a.genome)-size(b.genome):0));}
+ // Best first by what selection uses: the shared value with fitness 'shared', else the score.
+ order(list){const size=this.ops.size;return list.slice().sort((a,b)=>fitOf(b)-fitOf(a)||b.score-a.score||(size?size(a.genome)-size(b.genome):0));}
  ranked(){return this.rank(this.s.pop);}
  best(){
   const p=this.s.pop;if(!p.length)return null;
@@ -83,7 +115,7 @@ export class Population{
   return this.rank(trusted.length?trusted:p)[0];
  }
  invalidate(){const s=this.s,k=s.params.rescore>0?s.params.rescore:s.pop.length;s.reeval=this.ranked().slice(0,k).map(m=>m.key);}
- tournament(size){const p=this.s.pop;let best=null;for(let i=0;i<Math.max(1,size|0);i++){const m=this.rng.choice(p);if(!best||m.score>best.score)best=m;}return best;}
+ tournament(size){const p=this.s.pop;let best=null;for(let i=0;i<Math.max(1,size|0);i++){const m=this.rng.choice(p);if(!best||fitOf(m)>fitOf(best))best=m;}return best;}
 
  ask(){
   const s=this.s,p=s.params,n=this.size;
@@ -98,7 +130,8 @@ export class Population{
    for(let t=0;known.has(key)&&t<RETRIES;t++){g=force?this.ops.mutate(g,this.rng,{force:true}):make();key=this.ops.key(g);}
    known.add(key);return {genome:g,key};
   };
-  const race=p.race&&s.pop.length>=n?Math.min(...s.pop.map(m=>m.score)):null;
+  // A child below the weakest score may still be worth keeping for its shared value, so no racing then.
+  const race=p.race&&p.fitness!=='shared'&&s.pop.length>=n?Math.min(...s.pop.map(m=>m.score)):null;
   if(this.initializing){
    // Seeds first, then mutants of them (seedShare), then new genomes; all at once, so they score in parallel.
    const count=s.born<n?n-s.born:Math.max(1,Math.min(10,n)-s.pop.length),seeds=s.seeds,mutants=seeds.length?Math.floor(n*p.seedShare):0;
@@ -134,8 +167,12 @@ export class Population{
     const m=s.pop.find(m=>m.key===c.key);
     if(m&&r?.complete){
      s.rescored++;this.results.set(m.key,r);
-     if(p.scoreMemory==='mean'){m.sum+=r.score;m.n++;m.score=m.sum/m.n;m.se=r.se/Math.sqrt(m.n);}
+     const pr=profile(r),mean=p.scoreMemory==='mean';
+     if(mean){m.sum+=r.score;m.n++;m.score=m.sum/m.n;m.se=r.se/Math.sqrt(m.n);}
      else{m.sum=r.score;m.n=1;m.score=r.score;m.se=r.se;}
+     // The profile follows the score: averaged over seed sets, or the latest.
+     if(pr&&mean&&m.vec?.length===pr.vec.length){m.vec=m.vec.map((v,j)=>v+(pr.vec[j]-v)/m.n);if(pr.own!=null)m.own=m.own==null?pr.own:m.own+(pr.own-m.own)/m.n;}
+     else if(pr){m.vec=pr.vec;m.own=pr.own;}
     }
     return;
    }
@@ -147,13 +184,16 @@ export class Population{
     return;
    }
    if(!r.complete||s.pop.some(m=>m.key===c.key)){s.discarded++;return;}
-   const m={genome:c.genome,key:c.key,sum:r.score,n:1,score:r.score,se:r.se};
+   const m={genome:c.genome,key:c.key,sum:r.score,n:1,score:r.score,se:r.se},pr=profile(r);
+   if(pr){m.vec=pr.vec;m.own=pr.own;}
    this.results.set(c.key,r);joined=true;
    if(p.survival==='crowding')this.crowd(m);else s.pop.push(m);
   });
   if(joined&&p.survival!=='crowding'){
-   const before=s.pop.length;s.pop=this.survivors(this.rank(s.pop),this.size);s.discarded+=before-s.pop.length;
+   const before=s.pop.length;this.share(s.pop);s.pop=this.survivors(this.order(s.pop),this.size);s.discarded+=before-s.pop.length;
   }
+  // Shared values depend on who is in the population, so they are worked out again for the survivors.
+  this.share(s.pop);
   this.forget();
   // A generation is `population` children; the first population is generation 0.
   const generation=Math.floor(s.children/this.size);
@@ -167,27 +207,53 @@ export class Population{
  crowd(child){
   const s=this.s;s.pop.push(child);
   if(s.pop.length<=this.size)return;
+  this.share(s.pop);
   let worst=null,wd=Infinity;
   for(const m of s.pop){
-   if(m===child||!(m.score<child.score))continue;
-   const d=this.ops.distance(m.genome,child.genome);
-   if(d<wd||(d===wd&&m.score<worst.score)){worst=m;wd=d;}
+   if(m===child||!(fitOf(m)<fitOf(child)))continue;
+   const d=this.near(m,child);
+   if(d<wd||(d===wd&&fitOf(m)<fitOf(worst))){worst=m;wd=d;}
   }
   s.pop.splice(s.pop.indexOf(worst??child),1);s.discarded++;
  }
- // Clearing on a list sorted best first: the best `elite` always stay, then niche leaders and the first
- // `nicheSize` of each niche, then the cleared ones by score while places are left.
+ // Clearing on a list sorted best first (order()): the best `elite` by score always stay, then niche
+ // leaders and the first `nicheSize` of each niche, then the cleared ones in order while places are left.
  survivors(list,n){
-  const p=this.s.params;
-  if(!(p.niche>0))return list.slice(0,n);
+  const p=this.s.params,elite=new Set(this.rank(list).slice(0,Math.max(0,p.elite|0)));
+  const first=list.filter(m=>elite.has(m));
+  if(!(p.niche>0))return [...first,...list.filter(m=>!elite.has(m))].slice(0,n);
   const leaders=[],kept=[],cleared=[];
-  list.forEach((m,i)=>{
-   const leader=leaders.find(l=>this.ops.distance(m.genome,l.m.genome)<p.niche);
-   if(!leader){leaders.push({m,count:1});kept.push(m);}
-   else if(leader.count<Math.max(1,p.nicheSize)||i<p.elite){leader.count++;kept.push(m);}
+  for(const m of list){
+   const leader=leaders.find(l=>this.near(m,l.m)<p.niche);
+   if(!leader){leaders.push({m,count:1});if(!elite.has(m))kept.push(m);}
+   else if(leader.count<Math.max(1,p.nicheSize)||elite.has(m)){leader.count++;if(!elite.has(m))kept.push(m);}
    else cleared.push(m);
-  });
-  return [...kept,...cleared].slice(0,n);
+  }
+  return [...first,...kept,...cleared].slice(0,n);
+ }
+ // How unlike two members are, for niching and crowding: by results with nicheBy 'results' (when both
+ // have per-opponent results to compare), else by code.
+ near(a,b){
+  if(this.s.params.nicheBy==='results'&&a.vec?.length&&a.vec.length===b.vec?.length)return profileDistance(a.vec,b.vec);
+  return this.ops.distance(a.genome,b.genome);
+ }
+ // Results-based fitness sharing over `list`: each opponent weighs 1 / (the population's mean points
+ // against it + SHARE_FLOOR), scaled so the weights average 1; a member's shared value is its weighted
+ // mean points (the self fight unweighted). Opponents the population beats easily count for little,
+ // the ones it hardly scores against for a lot, and many copies of one kind lower the weight of what
+ // they beat, so a crowd of copies is worth less than the same number of different kinds. When every
+ // opponent is equally hard the shared value is the score. With fitness 'plain' it is the score.
+ share(list){
+  for(const m of list)m.fit=m.score;
+  if(this.s.params.fitness!=='shared')return;
+  const k=list.find(m=>m.vec?.length)?.vec.length;if(!k)return;
+  const same=list.filter(m=>m.vec?.length===k),mean=new Array(k).fill(0);
+  for(const m of same)for(let j=0;j<k;j++)mean[j]+=m.vec[j]/same.length;
+  const w=mean.map(x=>1/(x+SHARE_FLOOR)),wm=w.reduce((a,b)=>a+b,0)/k;
+  for(const m of same){
+   let t=0;for(let j=0;j<k;j++)t+=m.vec[j]*w[j]/wm;
+   m.fit=(t+(m.own??0))/(k+(m.own==null?0:1));
+  }
  }
  // Results of members that left the population are no longer needed.
  forget(){if(this.results.size>4*this.size){const keep=new Set(this.s.pop.map(m=>m.key));for(const k of this.results.keys())if(!keep.has(k))this.results.delete(k);}}

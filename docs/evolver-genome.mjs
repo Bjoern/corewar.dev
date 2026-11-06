@@ -179,9 +179,10 @@ export function distance(a,b){
 }
 // Niches of a population, best first: each warrior joins the first better leader within `radius`,
 // or leads a new niche. Returns the niche index of every warrior and the leaders' indices.
-export function nicheGroups(genomes,radius){
+// `far` compares two items: genomes by default, or e.g. per-opponent results (profileDistance).
+export function nicheGroups(genomes,radius,far=distance){
  const leaders=[],group=genomes.map((g,i)=>{
-  const k=leaders.findIndex(l=>distance(g,genomes[l])<radius);
+  const k=leaders.findIndex(l=>far(g,genomes[l])<radius);
   if(k>=0)return k;leaders.push(i);return leaders.length-1;
  });
  return {group,leaders};
