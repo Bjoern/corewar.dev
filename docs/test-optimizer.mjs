@@ -72,6 +72,19 @@ const e1=new Evaluator({runJob:runMatch,config:nano,opponents:[imp,dwarf],option
 e1.setMode(sampled);e2.setMode(sampled);
 const s1=await e1.evaluate(t.render(t.startIndices())),s2=await e2.evaluate(t.render(t.startIndices()));
 assert.deepEqual(s1,s2);assert.equal(s1.rounds,50);
+// Self fight: a copy of the candidate as one more opponent; exact scoring gives as many wins as losses,
+// so its score is 150 − 50 × the tied share.
+{
+ const self=new Evaluator({runJob:runMatch,config:nano,opponents:[imp,dwarf],options:{selfFight:true}});self.setMode(mode);
+ const r=await self.evaluate(t.render(t.startIndices()));
+ assert.deepEqual(r.opponents.map(o=>o.name),['Imp','Dwarf','itself (self fight)']);
+ const me=r.opponents[2];assert(me.self);assert.equal(me.wins,me.losses);assert.equal(me.wins+me.ties+me.losses,142);
+ assert(Math.abs(me.score-(150-50*me.ties/142))<1e-9);
+ assert.deepEqual(r.opponents.slice(0,2),start.opponents,'the other opponents score as before');
+ assert(Math.abs(r.score-(start.score*2+me.score)/3)<1e-9,'one more opponent in the average');
+ const sampledSelf=new Evaluator({runJob:runMatch,config:nano,opponents:[imp],options:{selfFight:true,slices:2}});sampledSelf.setMode({exact:false,rounds:20});
+ const s=await sampledSelf.evaluate(t.render(t.startIndices()));assert.equal(s.opponents.length,2);assert.equal(s.opponents[1].wins+s.opponents[1].ties+s.opponents[1].losses,20);
+}
 // Every example parses for its benchmark's core.
 for(const e of examples){const c=e.id==='alcoholism'?nano:{coreSize:8000,maxLength:100,distance:100,tasks:8000,cycles:80000,pspace:500};assert(parseTemplate(e.source,templateConstants(c)).variables.length>0,e.id);}
 // !! markers: every value, in order, ! markers at their start value.

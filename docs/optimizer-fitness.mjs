@@ -12,7 +12,8 @@ import {ExmarsRunner,exmarsBlocker,ENGINE_NAMES} from './exmars.mjs';
 import {numericPosition} from './tournament-plan.mjs';
 import {permutationRounds} from './hill-scores.mjs';
 
-export const SCORING_DEFAULTS={rounds:250,slices:5,z:3,exactLimit:2000,reseedEvery:10,validateRounds:2000};
+// selfFight: the candidate also fights a copy of itself, as one more opponent (hills such as Koenigstuhl count it).
+export const SCORING_DEFAULTS={rounds:250,slices:5,z:3,exactLimit:2000,reseedEvery:10,validateRounds:2000,selfFight:false};
 export const matchConfig=config=>({coreSize:config.coreSize,cycles:config.cycles,tasks:config.tasks,maxLength:config.maxLength,distance:config.distance,pspace:config.pspace,rules88:config.rules88,noPspace:config.noPspace,formula:config.formula||'(W*W-1)/S'});
 const PSPACE_RE=/^[^;]*\b(ldp|stp)\b/im;
 export const usesPspace=source=>PSPACE_RE.test(source);
@@ -96,28 +97,30 @@ export class Evaluator{
   if(failed){if(failed.warrior===1)throw new Error('An opponent did not assemble: '+failed.error);this.lastError=failed;return null;}
   return results;
  }
- perOpponent(totals){return totals.map((t,i)=>({name:this.opponents[i].name,...t,score:points(t)}));}
+ // The opponents of one candidate: the benchmark, and with selfFight a copy of the candidate last.
+ rivals(source){return this.options.selfFight?[...this.opponents,{name:'itself (self fight)',source,self:true}]:this.opponents;}
+ perOpponent(totals,list){return totals.map((t,i)=>({name:list[i].name,...(list[i].self?{self:true}:{}),...t,score:points(t)}));}
  async exact(source){
-  const results=await this.jobs(this.opponents.map(o=>({config:this.config,a:source,b:o.source,rounds:this.mode.rounds,permutate:true})));
+  const list=this.rivals(source),results=await this.jobs(list.map(o=>({config:this.config,a:source,b:o.source,rounds:this.mode.rounds,permutate:true})));
   if(!results)return null;
-  const per=this.perOpponent(results),score=per.reduce((s,r)=>s+r.score,0)/per.length;
+  const per=this.perOpponent(results,list),score=per.reduce((s,r)=>s+r.score,0)/per.length;
   return {score,se:0,complete:true,slices:1,rounds:this.mode.rounds,opponents:per};
  }
  async sampled(source,race,epoch,{rounds=this.mode.rounds,slices=this.options.slices,useRace=true}={}){
-  const per=Math.ceil(rounds/slices),totals=this.opponents.map(()=>({wins:0,ties:0,losses:0})),sliceScores=[];
+  const list=this.rivals(source),per=Math.ceil(rounds/slices),totals=list.map(()=>({wins:0,ties:0,losses:0})),sliceScores=[];
   // Queue every slice at once so no worker waits between slices; racing cancels the rest.
-  const token={cancelled:false},queued=Array.from({length:slices},(_,k)=>Promise.all(this.opponents.map((o,i)=>this.runJob({config:this.config,a:source,b:o.source,rounds:per,position:this.position(epoch,k,i)},token))));
-  this.matches+=slices*this.opponents.length;
+  const token={cancelled:false},queued=Array.from({length:slices},(_,k)=>Promise.all(list.map((o,i)=>this.runJob({config:this.config,a:source,b:o.source,rounds:per,position:this.position(epoch,k,i)},token))));
+  this.matches+=slices*list.length;
   for(let k=0;k<slices;k++){
    const results=this.check(await queued[k]);
    if(!results){token.cancelled=true;return null;}
    results.forEach((r,i)=>{totals[i].wins+=r.wins;totals[i].ties+=r.ties;totals[i].losses+=r.losses;});
    sliceScores.push(results.reduce((s,r)=>s+points(r),0)/results.length);
    const {mean,se}=meanSe(sliceScores);
-   if(useRace&&race!==null&&k>=1&&k<slices-1&&mean+this.options.z*se<race){token.cancelled=true;return {score:mean,se,complete:false,slices:k+1,rounds:per*(k+1),opponents:this.perOpponent(totals)};}
+   if(useRace&&race!==null&&k>=1&&k<slices-1&&mean+this.options.z*se<race){token.cancelled=true;return {score:mean,se,complete:false,slices:k+1,rounds:per*(k+1),opponents:this.perOpponent(totals,list)};}
   }
   const {mean,se}=meanSe(sliceScores);
-  return {score:mean,se,complete:true,slices,rounds:per*slices,opponents:this.perOpponent(totals)};
+  return {score:mean,se,complete:true,slices,rounds:per*slices,opponents:this.perOpponent(totals,list)};
  }
  // Held out: placements no search step has seen, so the score is not biased by selection.
  async validate(source,rounds=this.options.validateRounds){

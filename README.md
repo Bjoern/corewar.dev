@@ -49,7 +49,8 @@ evolver defaulting to generational clearing and the optimizer to genetic2.rb's s
 tab's Benchmark mode (imported or session-made ones too), and under "Other hills" the '94 suites of other settings: picking one
 switches to its preset, or to Custom with its values (asking before it replaces custom settings). A warrior length below the
 hill's (`warriorLength`, see `genomeRules`) caps the evolved warriors while the matches keep the hill's length and distance,
-for example 20-instruction warriors against the LP hill. `markovModel`/`markovGenome` in `docs/evolver-genome.mjs` learn
+for example 20-instruction warriors against the LP hill. With Self fight (`selfFight` in the `Evaluator` options, also in the
+constant optimizer), each candidate also fights a copy of itself as one more opponent, as Koenigstuhl scores it. `markovModel`/`markovGenome` in `docs/evolver-genome.mjs` learn
 an order-2 Markov chain of instruction shapes from the opponents and draw the first population and immigrants from it.
 Survivors are chosen with clearing (`niche` radius on the genome distance, `nicheSize` warriors per niche), so
 near-copies of the leader give way to the best of other kinds.

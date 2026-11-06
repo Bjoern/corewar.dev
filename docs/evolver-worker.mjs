@@ -47,9 +47,11 @@ async function start(job){
  const mode=scoringMode(config,job.opponents.map(o=>o.source),job.scoring);
  const size=Math.max(1,job.workers|0);
  const pool=typeof Worker!=='undefined'&&size>1?new WorkerPool(size,new URL('./optimizer-worker.mjs',import.meta.url)):null;
- const evaluator=new Evaluator({runJob:pool?(j=>pool.run(j)):(j=>runMatch(j)),config,opponents,seed:job.seed});
+ // Self fight: every warrior also fights a copy of itself, in training and held-out scores alike.
+ const options={selfFight:!!job.selfFight};
+ const evaluator=new Evaluator({runJob:pool?(j=>pool.run(j)):(j=>runMatch(j)),config,opponents,options,seed:job.seed});
  evaluator.setMode(mode);
- const validator=heldOut.length?new Evaluator({runJob:pool?(j=>pool.run(j)):(j=>runMatch(j)),config,opponents:heldOut,seed:job.seed+':held-out'}):null;
+ const validator=heldOut.length?new Evaluator({runJob:pool?(j=>pool.run(j)):(j=>runMatch(j)),config,opponents:heldOut,options,seed:job.seed+':held-out'}):null;
  validator?.setMode(mode);
  const r={state:'running',pool,evaluator,validator,validation:null,validatedKey:null,started:Date.now(),elapsed:0,resumedAt:Date.now(),wake:null,job};
  run=r;

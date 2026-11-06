@@ -106,6 +106,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
  coreSlider.addEventListener('input',()=>{workers.value=coreSlider.value;});
  const seed=el('input',{value:saved.seed??'1',maxLength:40,size:6});
  const race=el('input',{type:'checkbox',checked:saved.race??true});
+ const selfFight=el('input',{type:'checkbox',checked:!!saved.selfFight});
  const sweep=el('input',{type:'checkbox',checked:saved.sweep??true});
  const sweepLimit=num(saved.sweepLimit??ANNEAL_DEFAULTS.sweepLimit,{min:2,max:10000});
  const restarts=el('input',{type:'checkbox',checked:saved.restarts??true});
@@ -130,6 +131,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
  const showNiche=()=>{nicheFields.hidden=survivalSelect.value!=='clearing';};survivalSelect.addEventListener('change',showNiche);showNiche();
  const settings=el('div',{className:'tool-form'},
   field(...labelled('optSuite','Opponents',suiteSelect)),suiteInfo,
+  field(el('label',{},selfFight,' Self fight: each candidate also fights itself, as on hills that count it (Koenigstuhl)')),
   field(...labelled('optMethod','Method',methodSelect),...labelled('optScoring','Scoring',scoringSelect),...labelled('optRounds','Sampled rounds per opponent',rounds)),
   field(...labelled('optWorkers','CPU cores',workers),coreSlider,...corePresets),
   el('p',{className:'hint opt-cores-hint',textContent:navigator.hardwareConcurrency?`${processors} logical processors available. Each core runs one fight at a time; the count applies when a run starts.`:'The browser did not report a processor count; using a limit of 2.'}),
@@ -174,7 +176,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
  let parsed=null,suite=null,run=null,methodShown=null;
  const suites=new Map();
  function persist(){
-  saveState({template:editor.value,suite:suiteSelect.value,method:searchMethod,scoring:scoringSelect.value,rounds:rounds.value,minutes:minutes.value,workers:workers.value,seed:seed.value,race:race.checked,
+  saveState({template:editor.value,suite:suiteSelect.value,method:searchMethod,scoring:scoringSelect.value,rounds:rounds.value,minutes:minutes.value,workers:workers.value,seed:seed.value,race:race.checked,selfFight:selfFight.checked,
    sweep:sweep.checked,sweepLimit:sweepLimit.value,restarts:restarts.checked,patience:patience.value,population:population.value,immigrants:immigrants.value,mutation:mutation.value,scheme:schemeSelect.value,survival:survivalSelect.value,niche:niche.value,nicheSize:nicheSize.value,crossover:crossoverRate.value,tournament:tournament.value,
    helpClosed:!help.open,advancedOpen:settings.querySelector('.opt-advanced').open,syntaxOpen:markerTable.open});
  }
@@ -287,7 +289,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
   start.disabled=state==='running';pause.disabled=state!=='running';stop.disabled=!['running','paused'].includes(state);
   start.textContent=state==='paused'?'▶ Continue':'▶ Start';
   editor.readOnly=['running','paused'].includes(state);
-  for(const c of [suiteSelect,methodSelect,scoringSelect,rounds,exampleSelect,rosterSelect,convert,workers,coreSlider,...corePresets,seed])c.disabled=['running','paused'].includes(state);
+  for(const c of [suiteSelect,selfFight,methodSelect,scoringSelect,rounds,exampleSelect,rosterSelect,convert,workers,coreSlider,...corePresets,seed])c.disabled=['running','paused'].includes(state);
   if(gridRun())methodSelect.disabled=true;
   validate.disabled=!run?.best||state==='running';
  }
@@ -300,7 +302,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
   const config=matchConfig(suite.config),template=parsed;
   const mode=scoringMode(config,[template.render(template.startIndices().map(v=>v??0)),...suite.warriors.map(w=>w.source)],{mode:scoringSelect.value,rounds:Math.max(10,Number(rounds.value)||250)});
   const pool=new WorkerPool(Math.max(1,Math.min(processors,Number(workers.value)||1)),new URL('./optimizer-worker.mjs',import.meta.url));
-  const evaluator=new Evaluator({runJob:job=>pool.run(job),config,opponents:suite.warriors,options:{},seed:seed.value});
+  const evaluator=new Evaluator({runJob:job=>pool.run(job),config,opponents:suite.warriors,options:{selfFight:selfFight.checked},seed:seed.value});
   evaluator.setMode(mode);
   const startX=template.startIndices(),numericSeed=hashSeed(seed.value);
   // Continuing from an earlier best of the same template seeds the GA with it.
@@ -467,7 +469,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
   const r=run;if(!r?.best||r.state==='running')return;
   validate.disabled=true;
   const pool=r.finished?new WorkerPool(Math.max(1,Math.min(processors,Number(workers.value)||1)),new URL('./optimizer-worker.mjs',import.meta.url)):null;
-  const ev=pool?new Evaluator({runJob:job=>pool.run(job),config:r.config,opponents:r.evaluator.opponents,seed:r.evaluator.seed}):r.evaluator;
+  const ev=pool?new Evaluator({runJob:job=>pool.run(job),config:r.config,opponents:r.evaluator.opponents,options:{selfFight:r.evaluator.options.selfFight},seed:r.evaluator.seed}):r.evaluator;
   ev.setMode(r.mode);
   validation.textContent=r.mode.exact?'Scoring exactly…':`Fighting ${SCORING_DEFAULTS.validateRounds} new rounds per opponent…`;
   try{
