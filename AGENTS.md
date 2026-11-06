@@ -19,3 +19,10 @@ deno run -A docs/test-evolver.mjs
 
 The site build and the preview server use Python: `python scripts/build.py`, then the `docs`
 entry in `.claude/launch.json`.
+
+## Sitemap
+
+`docs/sitemap.xml` lists every public page of the site. When you add, rename or remove a
+top-level `.html` page in `docs/`, update the sitemap in the same change. App modes reached by
+`#fragments` (Battle, Tournaments, the reference and about views inside the app) don't need entries,
+since search engines treat them as the same page.
