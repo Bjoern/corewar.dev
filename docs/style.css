@@ -693,3 +693,15 @@ button.small{padding:3px 8px;font-size:12px}
 .opt-opponents-box{margin-top:8px}.opt-opponents-box summary{margin:0 0 6px;font-size:13px}.opt-opponents-box .tool-table-wrap{max-height:320px}
 @media(max-width:900px){.sf-layout,.opt-layout{grid-template-columns:1fr}}
 @media(max-width:700px){#toolsPanel{overflow:auto}.tools-body{overflow:visible;padding:12px 16px}}
+/* Sortable results, the per-warrior view and the score matrix */
+.tournament-table th[aria-sort]{padding:0}.sort-button{all:unset;box-sizing:border-box;display:block;width:100%;padding:10px 8px;cursor:pointer;font-weight:600;text-align:inherit;white-space:nowrap}.sort-button:hover{color:var(--accent)}.sort-button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.link-button{all:unset;cursor:pointer;color:inherit;font-weight:600;text-decoration:underline;text-decoration-color:#fff4;text-underline-offset:3px}.link-button:hover{text-decoration-color:currentColor}.link-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tournament-table tr.picked td{background:var(--raised)}.tournament-table td.check{width:2em;text-align:center}.tournament-table td.check input{margin:0;vertical-align:middle}.warrior-results td{padding:3px 8px}.warrior-results .sort-button{padding:6px 8px}.tournament-table td.name{text-align:left}#warriorResultsTable th:nth-child(2){text-align:left}
+.warrior-results{border:1px solid var(--border);border-radius:8px;padding:12px;margin:0 0 20px;background:var(--panel)}.warrior-results h3{margin:0;color:inherit}.warrior-results .tournament-table{max-height:420px;overflow:auto;margin:8px 0}.warrior-results thead th{position:sticky;top:0;background:var(--panel)}
+.subset-row{margin:6px 0}#checkLowestCount{width:5em}#subsetStatus{font-size:13px;margin:6px 0}#subsetStatus[data-result=failed]{color:#ff8a8a}
+.matrix-scroll{overflow:auto;max-height:70vh;margin:8px 0 20px}
+.score-matrix{border-collapse:separate;border-spacing:1px;font-size:12px;font-variant-numeric:tabular-nums}
+.score-matrix td{min-width:34px;padding:4px 3px;text-align:center;color:#f2f7fa}
+.score-matrix tbody th,.score-matrix tfoot th{position:sticky;left:0;z-index:1;background:var(--bg);text-align:right;padding:2px 8px;white-space:nowrap;max-width:16em;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.score-matrix th.m-col{vertical-align:bottom;padding:4px 0;font-weight:600}.score-matrix th.m-col span{writing-mode:vertical-rl;transform:rotate(180deg);display:inline-block;max-height:12em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.score-matrix .m-avg{color:var(--muted);font-weight:600}

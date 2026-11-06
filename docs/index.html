@@ -136,7 +136,15 @@
 <div id="tournamentExclusions" class="tournament-exclusions" role="alert" hidden></div>
 <div id="pushoffResults" hidden><h3 id="pushoffTitle"></h3><div class="tournament-table"><table><thead><tr id="pushoffHead"></tr></thead><tbody id="pushoffStandings"></tbody></table></div>
 <details class="t-more"><summary>Removal log</summary><pre id="pushoffLog"></pre></details><h3>Match totals</h3></div>
-<div class="tournament-table"><table><thead><tr><th>Warrior</th><th>Rounds</th><th>Wins</th><th>Ties</th><th>Losses</th><th>Points</th><th>Points / round</th></tr></thead><tbody id="tournamentStandings"></tbody></table></div>
+<div class="tournament-table"><table id="tournamentStandings"></table></div>
+<p class="hint" id="standingsHint" hidden>Click a column to sort, or a warrior for its results against each opponent.</p>
+<section id="warriorResults" class="warrior-results" aria-labelledby="warriorResultsTitle" hidden><div class="t-row"><h3 id="warriorResultsTitle"></h3><span class="foot-spacer"></span><button id="closeWarriorResults" type="button">Close</button></div>
+<div class="tournament-table"><table id="warriorResultsTable"></table></div>
+<div class="t-row subset-row"><button id="checkAllOpponents" type="button">Check all</button><button id="checkNoOpponents" type="button">Check none</button><label>Check the <input id="checkLowestCount" type="number" min="1" value="10"> lowest by score</label><button id="checkLowest" type="button">Check</button></div>
+<div class="t-row subset-row"><label>Name <input id="subsetName" maxlength="100"></label><button id="saveSubset" type="button" disabled>New benchmark from checked</button></div>
+<p id="subsetStatus" role="status" aria-live="polite" hidden></p>
+<p class="hint">The new suite copies the checked opponents' sources and the settings this run used. It appears under Opponent suite in Benchmark mode and in the evolver's benchmark list, and is saved with your workspace.</p></section>
+<details id="matrixResults" class="t-more" open hidden><summary>Score matrix</summary><p class="hint">Score (points per 100 rounds) that each warrior on the left earned against each warrior along the top. Colour: wins minus losses, red for a loss, green for a win. Hover a cell for its record.</p><div id="scoreMatrix" class="matrix-scroll"></div></details>
 <canvas id="tournamentChart" aria-label="Tournament score progress"></canvas>
 <details class="t-more"><summary>Completed matchups</summary><ol id="matchupResults"></ol></details>
 </section>

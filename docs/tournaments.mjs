@@ -8,12 +8,14 @@ import {planTournament} from './tournament-plan.mjs';
 import {cacheKey,loadCached,saveCached,withCandidate,writeHillScores,defaultHillRounds,permutationRounds} from './hill-scores.mjs';
 import {HistoryChart} from './charts.mjs';
 import {warriorColor} from './display.mjs';
+import {defaults} from './settings.mjs';
+import {pairTotals,perRound,renderTable,renderMatrix} from './results-tables.mjs';
 const $=id=>document.getElementById(id);
 function download(blob,name){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 // One line for the settings a run uses, including the ones that are easy to miss.
 export function describeSettings(c){
  const positions=2*(c.coreSize-2*(c.distance||c.maxLength)+1);
- return `${c.rules88?'ICWS ’88':'ICWS ’94'} · core ${c.coreSize} · cycles ${c.cycles} · processes ${c.tasks} · length ${c.maxLength} · distance ${c.distance||c.maxLength} · ${c.noPspace?'no P-space':`P-space ${c.pspace||'auto'}`}${c.permutate?` · permutation: ${positions} rounds per full pass`:''}`;
+ return `${c.rules88?'ICWS ’88':'ICWS ’94'} · core ${c.coreSize} · cycles ${c.cycles} · processes ${c.tasks} · length ${c.maxLength} · distance ${c.distance||c.maxLength} · ${c.noPspace?'no P-space':`P-space ${c.pspace||'auto'}`}${c.permutate?` · permutation: ${positions} rounds per full pass`:''}${c.formula&&c.formula!==defaults.formula?` · score formula ${c.formula}`:''}`;
 }
 const authorOf=source=>/^\s*;\s*author\s+(.*?)\s*$/im.exec(source)?.[1]||'Anonymous';
 // onSuitesChanged: called when the user's own suites change, so the workspace saves them.
@@ -47,7 +49,7 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
   hill={id,key:null,data:null,pending};
   return pending;
  }
- const chart=new HistoryChart($('tournamentChart'),'Average points / round · completed matchups');
+ const chart=new HistoryChart($('tournamentChart'),'Average score (points / 100 rounds) · completed matchups');
  let chartWidth=0;
  new ResizeObserver(([entry])=>{const width=entry.contentRect.width;if(width>0&&width!==chartWidth){chartWidth=width;chart.draw();}}).observe($('tournamentChart'));
  const processors=Math.max(1,navigator.hardwareConcurrency||2);
@@ -241,15 +243,72 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
   if(run.excluded.length){const title=document.createElement('strong');title.textContent=`${run.excluded.length} warrior(s) excluded from this benchmark`;exclusions.append(title);
    const list=document.createElement('ul');for(const entry of run.excluded){const li=document.createElement('li');li.textContent=`${entry.name}: ${entry.reason}`;list.append(li);}exclusions.append(list);}
   const rows=resultRows();
-  chart.add(completed,rows.map(r=>r.rounds?r.score/r.rounds:0));
-  const body=$('tournamentStandings');body.replaceChildren();
-  rows.map((r,i)=>({...r,color:warriorColor(i)})).sort((a,b)=>(b.rounds?b.score/b.rounds:0)-(a.rounds?a.score/a.rounds:0)).forEach(r=>{
-   const tr=document.createElement('tr');for(const value of [r.name,r.rounds,r.wins,r.ties,r.losses,r.score,r.rounds?(r.score/r.rounds).toFixed(3):'—']){const td=document.createElement('td');td.textContent=value;tr.append(td);}tr.firstChild.style.color=r.color;body.append(tr);
-  });
+  chart.add(completed,rows.map(r=>r.rounds?r.score*100/r.rounds:0));
+  renderResultTables(rows);
   $('matchupResults').replaceChildren(...[...run.results].sort((a,b)=>a.id-b.id).map(result=>{
    const row=document.createElement('li');row.textContent=run.plan.jobs[result.id].warriors.map((w,i)=>`${w.name}: ${result.warriors[i].wins} wins, ${result.warriors[i].losses} losses, ${result.warriors[i].ties} ties (${result.warriors[i].score} points)`).join(' / ')+` · ${result.completed} rounds`;return row;
   }));renderPushoff();controls();
  }
+ // Sortable standings; with pairs (not melee), the score matrix and the picked warrior's results
+ // against each opponent, whose checked opponents can become a new benchmark suite.
+ const standingsSort={key:'perRound',dir:'desc'},detailSort={key:'perRound',dir:'asc'};
+ let pairs=null,picked=null,detailRows=[];const checked=new Set();
+ const count=(key,label)=>({key,label,value:r=>r[key]});
+ const totalColumns=[count('rounds','Rounds'),count('wins','Wins'),count('ties','Ties'),count('losses','Losses'),count('score','Points'),
+  {key:'perRound',label:'Score',title:'Points per 100 rounds. Points come from the score formula in the match settings: by default 3 for a win and 1 for a tie.',value:perRound,cell:r=>r.rounds?(perRound(r)*100).toFixed(1):'—'}];
+ function pick(id){if(picked!==id){picked=id;checked.clear();$('subsetName').value='';$('subsetStatus').hidden=true;}redrawResults();$('warriorResults').scrollIntoView({block:'nearest',behavior:'smooth'});}
+ const redrawResults=()=>renderResultTables(resultRows());
+ function renderResultTables(rows){
+  pairs=run?pairTotals({plan:run.plan,results:run.results,suite:run.suite,excluded:run.excluded}):null;
+  const colored=rows.map((r,i)=>({...r,color:warriorColor(i),rowClass:r.id===picked?'picked':''}));
+  const nameColumn={key:'name',label:'Warrior',firstDir:'asc',value:r=>r.name,cell:r=>{
+   const node=document.createElement(pairs?'button':'span');node.textContent=r.name;node.style.color=r.color;
+   if(pairs){node.type='button';node.className='link-button';node.title=`${r.name}: results against each opponent`;node.onclick=()=>pick(r.id);}
+   return node;}};
+  renderTable($('tournamentStandings'),[nameColumn,...totalColumns],colored,standingsSort,redrawResults);
+  $('standingsHint').hidden=!pairs||!rows.length;
+  const fought=pairs&&pairs.cells.some(row=>row.some(Boolean));
+  $('matrixResults').hidden=!fought||!['round-robin','benchmark'].includes(run.plan.mode);
+  if(!$('matrixResults').hidden&&$('matrixResults').open){
+   const index=new Map(pairs.rows.map((w,i)=>[w.id,i]));
+   const order=[...colored].sort((a,b)=>(perRound(b)??-1)-(perRound(a)??-1)).map(r=>index.get(r.id)).filter(i=>i!==undefined);
+   renderMatrix($('scoreMatrix'),pairs,{order,sameOrder:run.plan.mode==='round-robin',onPick:pick});
+  }
+  const r=pairs?pairs.rows.findIndex(w=>w.id===picked):-1;
+  $('warriorResults').hidden=r<0;if(r<0){detailRows=[];return;}
+  const name=pairs.rows[r].name;
+  $('warriorResultsTitle').textContent=`${name} against each opponent`;
+  $('subsetName').placeholder=`Hardest for ${name}`.slice(0,100);
+  detailRows=pairs.columns.map((w,c)=>pairs.cells[r][c]&&{...pairs.cells[r][c],id:w.id,name:w.name,warrior:w}).filter(Boolean);
+  const box={key:'check',label:'',sortable:false,className:'check',cell:row=>{
+   const input=document.createElement('input');input.type='checkbox';input.checked=checked.has(row.id);input.setAttribute('aria-label','Use '+row.name+' in a new benchmark');
+   input.onchange=()=>{if(input.checked)checked.add(row.id);else checked.delete(row.id);subsetButton();};return input;}};
+  renderTable($('warriorResultsTable'),[box,{key:'name',label:'Opponent',firstDir:'asc',className:'name',value:row=>row.name},...totalColumns],detailRows,detailSort,redrawResults);
+  subsetButton();
+ }
+ function subsetButton(){
+  const n=detailRows.filter(row=>checked.has(row.id)).length;
+  $('saveSubset').disabled=!n;$('saveSubset').textContent=n?`New benchmark from ${n} checked`:'New benchmark from checked';
+ }
+ $('closeWarriorResults').onclick=()=>{picked=null;checked.clear();redrawResults();};
+ $('checkAllOpponents').onclick=()=>{for(const row of detailRows)checked.add(row.id);redrawResults();};
+ $('checkNoOpponents').onclick=()=>{checked.clear();redrawResults();};
+ $('checkLowest').onclick=()=>{
+  const n=Math.max(1,Math.floor(Number($('checkLowestCount').value))||1);checked.clear();
+  for(const row of [...detailRows].sort((a,b)=>perRound(a)-perRound(b)).slice(0,n))checked.add(row.id);redrawResults();
+ };
+ $('matrixResults').addEventListener('toggle',()=>{if($('matrixResults').open&&run)redrawResults();});
+ $('saveSubset').onclick=()=>{
+  const feedback=$('subsetStatus');feedback.hidden=false;
+  try{
+   const warriors=detailRows.filter(row=>checked.has(row.id)).map(row=>row.warrior);if(!warriors.length)throw new Error('Check the opponents to put in the suite.');
+   const name=($('subsetName').value.trim()||$('subsetName').placeholder).slice(0,100),id='suite-'+(++serial),config=run.config;
+   const descriptor={version:1,name,parameters:{...Object.fromEntries(benchmarkParameters.filter(k=>k in config&&k!=='rounds').map(k=>[k,config[k]])),rounds:run.plan.rounds},warriors:suiteFilenames(warriors)};
+   suites.push(readBenchmark(descriptor,Object.fromEntries(warriors.map((w,i)=>[descriptor.warriors[i],w.source])),id));
+   refresh();onSuitesChanged();
+   feedback.dataset.result='ok';feedback.textContent=`Created “${name}” with ${warriors.length} opponent${warriors.length===1?'':'s'}. Pick it under Opponent suite in Benchmark mode, or in the evolver’s benchmark list. It is saved with your workspace in this browser.`;
+  }catch(error){feedback.dataset.result='failed';feedback.textContent=error.message;}
+ };
  function cacheRunHill(){
   if(!run.plan.pushoff||!run.plan.jobs.some(j=>j.kind==='hill'))return;
   const scores=runHill();if(scores.some(row=>row.includes(null)))return; // an excluded hill warrior leaves gaps
@@ -278,8 +337,10 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
    const next=plan(),count=Number($('tournamentWorkers').value);
    if(!Number.isInteger(count)||count<1||count>processors)throw new Error(`Choose 1–${processors} workers.`);
    dispose();clearTimeout(pendingRender);pendingRender=null;chart.clear();
-   run={plan:next,results:[],excluded:[],skipped:[],next:0,state:'running',workers:Math.min(count,next.jobs.length)};
-   if(next.pushoff)Object.assign(run,{variant:$('tournamentRanking').value,suite:{name:currentSuite().name,warriors:currentSuite().warriors},hillKey:hill.key,hillData:next.jobs.some(j=>j.kind==='hill')?null:hill.data});
+   run={plan:next,config:configForRun(),results:[],excluded:[],skipped:[],next:0,state:'running',workers:Math.min(count,next.jobs.length)};
+   picked=null;checked.clear();$('subsetStatus').hidden=true;
+   if(next.mode==='benchmark')run.suite={name:currentSuite().name,warriors:currentSuite().warriors};
+   if(next.pushoff)Object.assign(run,{variant:$('tournamentRanking').value,hillKey:hill.key,hillData:next.jobs.some(j=>j.kind==='hill')?null:hill.data});
    for(let i=0;i<run.workers;i++){
     const worker=new Worker(new URL('./tournament-worker.mjs',import.meta.url),{type:'module'}),slot={worker,job:null,timer:null};workers.push(slot);
     worker.onerror=e=>{if(workers.includes(slot))fail(e.message||'Worker failed.');};
