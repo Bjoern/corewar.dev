@@ -559,7 +559,24 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   }
   ctx.fillStyle='#54d8df';ctx.fillText('best',w-R-80,14);ctx.fillStyle='#f9a567';ctx.fillText('mean',w-R-44,14);
   if(held){ctx.fillStyle='#c792ea';ctx.fillText('held out',w-R-140,14);}
+  // Readout of the generation nearest the pointer.
+  if(chartHover==null||chartHover<L||chartHover>w-R)return;
+  let p=pts[0];for(const q of pts)if(Math.abs(xs(q.generation)-chartHover)<Math.abs(xs(p.generation)-chartHover))p=q;
+  const x=xs(p.generation);
+  ctx.strokeStyle='#ffffff55';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,h-B);ctx.stroke();
+  const rows=[[`Generation ${p.generation}`,'#ffffff']];
+  for(const [key,label,color] of [['best','best','#54d8df'],['mean','mean','#f9a567'],['heldOut','held out','#c792ea']]){
+   if(p[key]==null)continue;rows.push([`${label} ${fmt(p[key],2)}`,color]);
+   ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,ys(p[key]),3,0,2*Math.PI);ctx.fill();
+  }
+  const bw=Math.max(...rows.map(([t])=>ctx.measureText(t).width))+12,bh=rows.length*14+6;
+  const bx=x+8+bw<=w-R?x+8:x-8-bw,by=T+2;
+  ctx.fillStyle='#101d29e6';ctx.strokeStyle='#2a3d4d';ctx.fillRect(bx,by,bw,bh);ctx.strokeRect(bx,by,bw,bh);
+  rows.forEach(([t,color],i)=>{ctx.fillStyle=color;ctx.fillText(t,bx+6,by+15+i*14);});
  }
+ let chartHover=null;
+ chart.addEventListener('pointermove',event=>{chartHover=event.clientX-chart.getBoundingClientRect().left;drawChart();});
+ chart.addEventListener('pointerleave',()=>{chartHover=null;drawChart();});
  showOwn();refreshRoster();showPreset(false);showSeed();
  if(lastBest?.opponents)showOpponents(lastBest.opponents,null);
  if(lastBest)bestHead.textContent=`Best warrior of the last run: score ${fmt(lastBest.score,2)} against ${lastBest.benchmark||'its benchmark'}${lastBest.heldOut!=null?`, held out ${fmt(lastBest.heldOut,2)}`:''}.`;
