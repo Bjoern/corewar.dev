@@ -11,6 +11,9 @@ export const TOOLS=[
  {id:'evolver',title:'Warrior evolver',icon:'❋',
   summary:'Evolve whole warriors against a benchmark: opcodes, modes and fields mutate, instructions are inserted, deleted and duplicated, and parents cross over. Nano, tiny and ’94 presets.',
   load:()=>import('./tool-evolver.mjs')},
+ {id:'similar',title:'Similar warriors',icon:'≈',
+  summary:'Check whether a warrior is new or a known design: the code it runs is compared with the library’s hills and your warriors, reordered lines and new constants included, and the matching code is shown side by side.',
+  load:()=>import('./tool-similar.mjs')},
  {id:'step-finder',title:'Step finder',icon:'⌗',
   summary:'Rank bombing and scanning steps for a core size by how fast they leave no gap a small warrior could hide in, and see why a step is good or bad.',
   load:()=>import('./tool-stepfinder.mjs')}

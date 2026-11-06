@@ -27,7 +27,7 @@ const TOPICS=[
  ['Mutation settings','Mutations per child is the mean number of point changes (at least one). Structural share is how many of those insert, delete, duplicate or swap instructions or move the start. Crossover is the share of children with two parents. Immigrants are random new warriors per generation.'],
  ['Niching','Without niching, near-copies of the leader soon fill the population and the search narrows to one idea. With niching (clearing), the next generation is filled best first, but a warrior within the niche radius of a better one (0.3: differs in under 30% of opcodes, modifiers, modes and fields, instruction by instruction) only gets in while that niche has fewer than “Warriors per niche”; the others wait at the back and only fill places left over. So the best of each kind of warrior survives even when it scores below the leader’s copies. The elite are always kept. Niches is how many kinds the population holds. A radius of 0 turns it off; a bigger radius or fewer warriors per niche spreads the population wider.'],
  ['Shared fitness and niches by results','Two optional settings for when one kind of warrior takes over. “Selection by: shared score” (results-based fitness sharing) weighs each opponent by how hard the population finds it: points against an opponent most warriors already beat count for little, points against one that hardly anyone scores against count for a lot, and the more copies of one kind there are, the less what they beat is worth. Parents and survivors are picked by that shared value, so a specialist that beats what the rest lose to survives even with a lower plain score. The shared value only means something within one population, so the best score, the chart, the elite and everything you see stay the plain score. Racing is off with it, as a child below the weakest score may still be worth keeping. “Compare warriors by: results” makes niching (and crowding) compare what two warriors score against each opponent instead of their code: two warriors are in one niche when their results are alike, however different the code, and two near-identical programs that beat different opponents are not. The radius is then the mean difference in points per opponent over the most there can be (300): 0.15 means about 45 points per opponent. Sampled scores make even two copies of one warrior differ a little (about 0.08 at 40 rounds per opponent), so more rounds make these niches sharper. The population view then rings and groups niches by results too, while the map still places warriors by code.'],
- ['Compare with known warriors','“Compare with known warriors” checks whether the best warrior is something new or a known engine rebuilt: a Markov chain of the opponents, or a seed, can lead a run back to one, often with new constants, lines in another order and dead code around it, and its score then says little about the evolver. First a short solo run marks which of its instructions actually run; only those are compared, so leftovers that never execute cannot hide a match (the status line says which ran). They are compared with the benchmark, your opponents and warriors, and the library’s hills with the same settings, as assembled code, so labels, EQUs and layout make no difference, and one instruction repeated in a row (DAT filler) counts once. The comparison finds the best-matching block in each known warrior (a local alignment): identical instructions count most, then the same wiring (same opcode, modifier and modes, and the same fields where they point into the warrior, only far constants differing), then the same shape (other fields); a few lines added, removed or moved still align. Covered is the share of the code that runs matched at the same shape or closer. 80% identical is a copy, 80% covered the same design with other constants, half or more a partial match. When several known warriors hold the same code, it is a common engine (many LP papers share one loop), which the status line says. It compares code, not behaviour: a warrior that works like a known one with different code is not found.'],
+ ['Compare with known warriors','“Compare with known warriors” checks whether the best warrior is something new or a known engine rebuilt: a Markov chain of the opponents, or a seed, can lead a run back to one, often with new constants, lines in another order and dead code around it, and its score then says little about the evolver. First a short solo run marks which of its instructions actually run; only those are compared, so leftovers that never execute cannot hide a match (the status line says which ran). They are compared with the benchmark, your opponents and warriors, and the library’s hills with the same settings, as assembled code, so labels, EQUs and layout make no difference, and one instruction repeated in a row (DAT filler) counts once. The comparison finds the best-matching block in each known warrior (a local alignment): identical instructions count most, then the same wiring (same opcode, modifier and modes, and the same fields where they point into the warrior, only far constants differing), then the same shape (other fields); a few lines added, removed or moved still align. Covered is the share of the code that runs matched at the same shape or closer. 80% identical is a copy, 80% covered the same design with other constants, half or more a partial match. When several known warriors hold the same code, it is a common engine (many LP papers share one loop), which the status line says. It compares code, not behaviour: a warrior that works like a known one with different code is not found. The Similar warriors tool does the same for any warrior, against every library hill too, and shows the matching code side by side.'],
  ['Self fight','Some hills, Koenigstuhl among them, score a warrior against a copy of itself too. With “Self fight” on, each warrior fights itself as one more opponent, so with 50 benchmark warriors the self fight is 1 of 51 in the average (in the held-out score as well). A self fight has as many wins as losses (exactly so with exact scoring), so its score depends only on the ties: 150 when no round is tied, 100 when every round is, 150 − 50 × the tied share in between. So a warrior whose self fights end decisively gains up to 50 points there over one that ties itself, and selection takes that into account. It is the row “itself (self fight)” in the score per opponent.'],
  ['Breeding and survival','The evolver and the constant optimizer’s genetic algorithm share one population search, each with its own defaults. The evolver breeds whole generations (μ + λ): a child per place, then parents and children compete for the places, by score with niching (clearing). One child at a time (steady state) breeds from the latest population after every warrior instead; it adapts sooner but scores one warrior at a time, so with fewer opponents than CPU cores it leaves cores idle. Crowding (the optimizer’s default) lets a child replace the most similar weaker warrior, so each kind of warrior competes only with its own kind; the niche radius is then not used. With sampled scores, every few generations the warriors fight on new positions: “latest placements” takes the new score, “average over placements” the mean of all positions a warrior fought on, which is steadier and counts a warrior as the best only once it was scored on two sets. Racing stops scoring a child once it is clearly below the weakest warrior (sampled scores only); it saves time but also cuts short children that might have started a new niche.'],
  ['Seeding','A seed warrior is assembled for the chosen settings (labels, EQU and FOR loops are fine) and joins the first population with mutants of it; the rest is random code. “The last run” continues from the population the last run ended with, for the same settings.'],
@@ -454,33 +454,15 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  // and the library's hills with the same settings, assembled once per hill settings and source.
  const assembled=new Map();
  async function knownWarriors(c){
+  const {libraryHills,libraryWarriors,assembleKnown}=await import('./evolver-similar.mjs');
   const list=[...(suite?.warriors??[]).map(w=>({name:w.name,source:w.source,from:suite.name})),...own.map(w=>({name:w.name,source:w.source,from:'your opponents'})),
-   ...roster().map(w=>({name:w.name,source:w.source,from:'your warriors'}))];
+   ...roster().map(w=>({name:w.name,source:w.source,from:'your warriors'}))].map(w=>({...w,hill:c}));
   let libraryNote='';
-  try{
-   const {libraryCatalog}=await import('./library-catalog.mjs');
-   for(const h of libraryCatalog){
-    const fits=suiteHill(h.parameters);if(!fits||!sameHill(fits,c))continue;
-    const [index,texts]=await Promise.all([fetch(h.index).then(r=>r.json()),fetch(h.text).then(r=>r.json())]);
-    for(const w of index)if(texts[w.file])list.push({name:`${w.name}${w.author?' by '+w.author:''}`,source:texts[w.file],from:'library '+h.label});
-   }
-  }catch{libraryNote=' (the library could not be loaded)';}
-  const {assemble}=await import('./dist/exmars/fighter-client.mjs'),{hillOf}=await import('./exmars.mjs');
-  const hill=hillOf({...c,distance:c.distance||c.maxLength}),key=configKey(c),out=[],seen=new Set();let failed=0;
-  for(const [i,w] of list.entries()){
-   if(seen.has(w.source))continue;seen.add(w.source);
-   const k=key+'\n'+w.source;
-   if(!assembled.has(k)){let g=null;try{const a=await assemble(w.source,hill);if(a.ok)g={code:a.instructions,start:a.start};}catch{}assembled.set(k,g);}
-   // The same warrior under two names (the benchmark's copy and the library's) counts once.
-   const g=assembled.get(k),code=g&&g.code.map(i=>i.join()).join(';');
-   if(!g)failed++;else if(!seen.has(code)){seen.add(code);out.push({...w,genome:g});}
-   if(i%25===24){similarStatus.textContent=`Assembling known warriors… ${i+1} of ${list.length}`;await new Promise(r=>setTimeout(r));}
-  }
-  return {known:out,failed,libraryNote};
+  try{for(const h of await libraryHills()){const fits=suiteHill(h.parameters);if(fits&&sameHill(fits,c))list.push(...await libraryWarriors(h));}}
+  catch{libraryNote=' (the library could not be loaded)';}
+  const {known,failed}=await assembleKnown(list,{cache:assembled,progress:(i,n)=>{similarStatus.textContent=`Assembling known warriors… ${i} of ${n}`;}});
+  return {known,failed,libraryNote};
  }
- const pct=x=>Math.round(100*x)+'%';
- // Instruction numbers as ranges, from 1: 2–8, 11.
- const ranges=list=>{const out=[];for(const i of list){const last=out.at(-1);if(last&&i===last[1]+1)last[1]=i;else out.push([i,i]);}return out.map(([a,b])=>a===b?String(a+1):`${a+1}–${b+1}`).join(', ');};
  checkBest.onclick=async()=>{
   if(!need())return;
   const source=bestSource(),c=bestConfig();checkBest.disabled=true;similarStatus.textContent='Finding the code that runs…';
@@ -488,30 +470,22 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
    const {assemble}=await import('./dist/exmars/fighter-client.mjs'),{hillOf}=await import('./exmars.mjs');
    const mine=await assemble(source,hillOf({...c,distance:c.distance||c.maxLength}));
    if(!mine.ok)throw new Error('The best warrior did not assemble: '+mine.errors);
-   const {closest,prepare,traceExecuted}=await import('./evolver-similar.mjs');
+   const {closest,prepare,traceExecuted,summary}=await import('./evolver-similar.mjs');
    // The code that runs, from a short solo run; all of it if the trace fails.
    let ran=null,traceNote='';
    try{ran=await traceExecuted(source,c,mine.start,mine.instructions.length);}catch(error){traceNote=` (the solo run failed, so all its code was compared: ${error.message})`;}
-   const yours=prepare({code:mine.instructions},c.coreSize,{keep:ran,near:c.maxLength}),total=mine.instructions.length;
+   const yours=prepare({code:mine.instructions},c.coreSize,{keep:ran,near:c.maxLength});
    similarStatus.textContent='Loading known warriors…';
    const {known,failed,libraryNote}=await knownWarriors(c);
    // The best warrior itself, once added to your warriors, is not a match.
-   const {rows,matching}=closest(yours,known.filter(k=>k.source!==source),c.coreSize,15);
+   const found=closest(yours,known.filter(k=>k.source!==source),c.coreSize,15),{rows}=found;
    const label={copy:' · copy',known:' · same design',partial:' · partly'};
    similarBox.hidden=!rows.length;
    similarTable.replaceChildren(el('thead',{},el('tr',{},...[['Warrior'],['From'],['Length','instructions, a run of one instruction counted once'],['Covered','share of the code that runs aligned to the same shape or closer'],['Identical','instructions identical, fields and all'],['Same wiring','same shape, and the fields that point into the warrior the same'],['Score','local alignment score']].map(([h,title])=>el('th',{scope:'col',textContent:h,title:title||''})))),
     el('tbody',{},...rows.map(r=>el('tr',{className:r.verdict?'evo-held':''},el('td',{textContent:r.name+(label[r.verdict]??'')}),el('td',{textContent:r.from}),
-     ...[String(r.length),pct(r.share),String(r.identical),String(r.wiring),fmt(r.score,1)].map(v=>el('td',{className:'num',textContent:v}))))));
-   const top=rows[0],n=yours.length;
-   const runs=ran?`${n} instruction${n===1?'':'s'} run${n===1?'s':''} (${ranges([...ran].sort((a,b)=>a-b))} of ${total}; repeats counted once)`:`${n} instructions`;
+     ...[String(r.length),Math.round(100*r.share)+'%',String(r.identical),String(r.wiring),fmt(r.score,1)].map(v=>el('td',{className:'num',textContent:v}))))));
    const checked=`${known.length} known warrior${known.length===1?'':'s'}${failed?` (${failed} did not assemble for these settings)`:''}${libraryNote}${traceNote}`;
-   const also=matching>1?` The same code is in ${matching} known warriors, so it may be a common engine rather than one warrior’s.`:'';
-   similarStatus.textContent=!top?`Nothing to compare with${libraryNote}.`
-    :n<3?`Only ${runs}: too little to compare. Compared with ${checked}.`
-    :top.verdict==='copy'?`Of its code, ${runs}: ${top.identical} identical to ${top.name} (${top.from}). A copy.${also} Compared with ${checked}.`
-    :top.verdict==='known'?`Of its code, ${runs}: ${pct(top.share)} match ${top.name} (${top.from}) in design: ${top.identical} identical, ${top.wiring} the same wiring with other constants, the rest the same shape.${also} Compared with ${checked}.`
-    :top.verdict==='partial'?`Of its code, ${runs}: ${pct(top.share)} match ${top.name} (${top.from}), the rest is its own.${also} Compared with ${checked}.`
-    :`Of its code, ${runs}: no close match among ${checked}. The closest, ${top.name}, covers ${pct(top.share)}.`;
+   similarStatus.textContent=summary(found,{yours,ran,total:mine.instructions.length,checked})+(rows.length?' The Similar warriors tool shows the code side by side.':'');
   }catch(error){similarStatus.textContent=error.message;similarBox.hidden=true;}
   finally{checkBest.disabled=false;}
  };

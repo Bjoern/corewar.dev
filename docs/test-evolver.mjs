@@ -259,5 +259,21 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
  const rr=rng('similar');
  for(let i=0;i<30;i++){const g=randomGenome(rr,{...rules,maxLength:12},6+rr.int(6));const v=check(g.code).rows[0].verdict;assert(v!=='copy'&&v!=='known','random code matched '+v);}
  assert.equal(check(T.slice(0,2)).rows[0].verdict,null);
+ // The alignment in pairs, for the side-by-side view: places in the assembled code, gaps as -1.
+ const p=prepare({code:[[1,0,0,0,0,0],[1,0,0,0,0,0],[2,6,1,3,1,4],[0,0,0,0,0,0]]},cs,{keep:new Set([0,1,2]),near});
+ assert.deepEqual(p.index,[0,2],'a repeat counts once, at its first place');
+ r=check(code,new Set(changed.map((_,i)=>i)));const top=r.rows[0];
+ assert.equal(top.pairs.filter(x=>x[2]==='identical').length,top.identical);assert.equal(top.pairs.filter(x=>x[2]==='wiring').length,top.wiring);
+ for(const [y,t] of top.pairs){assert(y<0||y<8);assert(t<0||t<top.theirs.length);}
+ // Known warriors: assembled once per hill, the same code under two names counted once, other
+ // hills assembled for their own settings; a warrior moved to the X hill (another core size) is found.
+ const {assembleKnown,hillSettings}=await import('./evolver-similar.mjs');
+ const xHill=hillSettings({coreSize:55440,cycles:500000,tasks:10000,maxLength:200,distance:200}),lpHill=hillSettings(lp);
+ const src=readFileSync(new URL(d.warriors[0],dir),'latin1'),cache=new Map();
+ const k=await assembleKnown([{name:'a',source:src,from:'x',hill:lpHill},{name:'b',source:src.replace(/^;name.*$/m,';name renamed'),from:'y',hill:lpHill},{name:'c',source:src.replace(/^;assert.*$/gm,''),from:'z',hill:xHill},{name:'bad',source:'nonsense',from:'z',hill:lpHill}],{cache});
+ assert.deepEqual(k.known.map(x=>x.name),['a','c']);assert.equal(k.failed,1);assert.equal(cache.size,4);
+ const lpOnly=k.known.filter(x=>x.name==='a');
+ const onX=prepare(k.known.find(x=>x.name==='c').genome,xHill.coreSize,{near:xHill.maxLength});
+ assert(['copy','known'].includes(closest(onX,lpOnly,xHill.coreSize,1).rows[0].verdict));
 }
 console.log('Evolver checks passed.');
