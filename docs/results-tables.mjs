@@ -3,7 +3,8 @@
 
 // Per-pair totals of a run. Rows are the entrants; columns are their opponents: the entrants
 // again, or the suite's warriors in Benchmark mode. cells[r][c] holds what row r scored against
-// column c ({wins,ties,losses,score,rounds}), or null where they did not fight. Melee has no pairs.
+// column c ({wins,ties,losses,score,rounds}, plus given: what c scored against r), or null where
+// they did not fight. Melee has no pairs.
 export function pairTotals({plan,results,suite=null,excluded=[]}){
  if(plan.mode==='melee')return null;
  const out=w=>excluded.some(e=>e.source===w.source);
@@ -13,19 +14,19 @@ export function pairTotals({plan,results,suite=null,excluded=[]}){
  const rowIndex=new Map(rows.map((w,i)=>[w.id,i]));
  const columnIndex=benchmark?new Map((suite?.warriors||[]).map((w,o)=>[o,columns.indexOf(w)])):rowIndex;
  const cells=rows.map(()=>columns.map(()=>null));
- const add=(r,c,w,rounds)=>{
+ const add=(r,c,w,rounds,other)=>{
   if(r===undefined||c===undefined||r<0||c<0)return;
-  const cell=cells[r][c]??={wins:0,ties:0,losses:0,score:0,rounds:0};
-  for(const key of ['wins','ties','losses','score'])cell[key]+=w[key];cell.rounds+=rounds;
+  const cell=cells[r][c]??={wins:0,ties:0,losses:0,score:0,given:0,rounds:0};
+  for(const key of ['wins','ties','losses','score'])cell[key]+=w[key];cell.given+=other.score;cell.rounds+=rounds;
  };
  for(const result of results){
   const job=plan.jobs[result.id];
   if(job.kind==='self'||job.kind==='hill')continue;
   const [x,y]=result.warriors,a=rowIndex.get(job.warriors[0].id);
-  if(benchmark){add(a,columnIndex.get(job.opponent),x,result.completed);continue;}
+  if(benchmark){add(a,columnIndex.get(job.opponent),x,result.completed,y);continue;}
   const b=rowIndex.get(job.warriors[1].id);
-  add(a,b,x,result.completed);
-  if(a!==b)add(b,a,y,result.completed);
+  add(a,b,x,result.completed,y);
+  if(a!==b)add(b,a,y,result.completed,x);
  }
  return {rows,columns,cells};
 }
@@ -44,8 +45,9 @@ export function sortRows(rows,columns,{key,dir}){
 }
 
 // Fill a <table> with sortable headers. columns: {key,label,value(row),cell?(row)→string|Node,
-// firstDir?,title?}. state {key,dir} is updated in place on a header click, then onSort() runs.
-export function renderTable(table,columns,rows,state,onSort){
+// cellTitle?(row),firstDir?,title?}. state {key,dir} is updated in place on a header click, then
+// onSort() runs. foot: optional cell contents, one per column, for a summary row below the rows.
+export function renderTable(table,columns,rows,state,onSort,foot=null){
  const head=document.createElement('thead'),tr=document.createElement('tr');
  for(const column of columns){
   const th=document.createElement('th');th.scope='col';
@@ -65,13 +67,17 @@ export function renderTable(table,columns,rows,state,onSort){
   for(const column of columns){
    const td=document.createElement('td'),content=column.cell?column.cell(row):column.value(row);
    if(column.className)td.className=column.className;
+   if(column.cellTitle)td.title=column.cellTitle(row);
    if(content instanceof Node)td.append(content);else td.textContent=content==null?'—':String(content);
    tr.append(td);
   }
   if(row.rowClass)tr.className=row.rowClass;
   body.append(tr);
  }
- table.replaceChildren(head,body);
+ if(!foot)return table.replaceChildren(head,body);
+ const tfoot=document.createElement('tfoot'),last=document.createElement('tr');
+ for(const [i,content] of foot.entries()){const td=document.createElement('td');if(columns[i]?.className)td.className=columns[i].className;td.textContent=content??'';last.append(td);}
+ tfoot.append(last);table.replaceChildren(head,body,tfoot);
 }
 
 // Cell colour from wins minus losses over rounds (−1 … 1): red for a loss, green for a win,

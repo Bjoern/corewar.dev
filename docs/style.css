@@ -698,6 +698,7 @@ button.small{padding:3px 8px;font-size:12px}
 .link-button{all:unset;cursor:pointer;color:inherit;font-weight:600;text-decoration:underline;text-decoration-color:#fff4;text-underline-offset:3px}.link-button:hover{text-decoration-color:currentColor}.link-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .tournament-table tr.picked td{background:var(--raised)}.tournament-table td.check{width:2em;text-align:center}.tournament-table td.check input{margin:0;vertical-align:middle}.warrior-results td{padding:3px 8px}.warrior-results .sort-button{padding:6px 8px}.tournament-table td.name{text-align:left}#warriorResultsTable th:nth-child(2){text-align:left}
 .warrior-results{border:1px solid var(--border);border-radius:8px;padding:12px;margin:0 0 20px;background:var(--panel)}.warrior-results h3{margin:0;color:inherit}.warrior-results .tournament-table{max-height:420px;overflow:auto;margin:8px 0}.warrior-results thead th{position:sticky;top:0;background:var(--panel)}
+.warrior-results tfoot td{position:sticky;bottom:0;background:var(--panel);font-weight:600;border-top:1px solid #2a3d4d;border-bottom:0}#warriorResultsLegend{margin:6px 0 0}
 .subset-row{margin:6px 0}#checkLowestCount{width:5em}#subsetStatus{font-size:13px;margin:6px 0}#subsetStatus[data-result=failed]{color:#ff8a8a}
 .matrix-scroll{overflow:auto;max-height:70vh;margin:8px 0 20px}
 .score-matrix{border-collapse:separate;border-spacing:1px;font-size:12px;font-variant-numeric:tabular-nums}

@@ -15,8 +15,8 @@ const [a,b,c]=[w('a'),w('b'),w('c')];
   {id:3,completed:10,warriors:[side(4,2,4),side(4,2,4)]}];
  const t=pairTotals({plan:{mode:'round-robin',entrants:[a,b,c],jobs},results});
  assert.deepEqual(t.columns.map(x=>x.id),['a','b','c']);
- assert.deepEqual(t.cells[0][1],{wins:6,ties:1,losses:3,score:19,rounds:10});
- assert.deepEqual(t.cells[1][0],{wins:3,ties:1,losses:6,score:10,rounds:10});
+ assert.deepEqual(t.cells[0][1],{wins:6,ties:1,losses:3,score:19,given:10,rounds:10});
+ assert.deepEqual(t.cells[1][0],{wins:3,ties:1,losses:6,score:10,given:19,rounds:10});
  assert.equal(t.cells[1][2],null,'unfinished matchup');
  assert.equal(t.cells[0][0].rounds,10,'self fight counted once');
  assert.equal(perRound(t.cells[0][1]),1.9);
@@ -30,6 +30,7 @@ const [a,b,c]=[w('a'),w('b'),w('c')];
  const t=pairTotals({plan:{mode:'benchmark',entrants:[a],jobs},results,suite,excluded:[o[1]]});
  assert.deepEqual(t.columns.map(x=>x.id),['x','z']);
  assert.deepEqual(t.cells[0].map(x=>x?.rounds),[5,5]);
+ assert.deepEqual(t.cells[0].map(x=>[x.score,x.given]),[[15,0],[15,0]],'points given come from the opponent');
 }
 assert.equal(pairTotals({plan:{mode:'melee',entrants:[a,b],jobs:[]},results:[]}),null);
 // Sorting: by number either way, empty values last.

@@ -260,6 +260,19 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
  const count=(key,label)=>({key,label,value:r=>r[key]});
  const totalColumns=[count('rounds','Rounds'),count('wins','Wins'),count('ties','Ties'),count('losses','Losses'),count('score','Points'),
   {key:'perRound',label:'Score',title:'Points per 100 rounds. Points come from the score formula in the match settings: by default 3 for a win and 1 for a tie.',value:perRound,cell:r=>r.rounds?(perRound(r)*100).toFixed(1):'—'}];
+ // One warrior's results against each opponent, as on the KOTH hill pages: shares of rounds and
+ // points per 100 rounds, both ways. format turns a value (or the column's average) into text.
+ const fixed1=x=>x==null?'—':x.toFixed(1);
+ const numeric=column=>({...column,cell:r=>column.format(column.value(r))});
+ const pairColumns=name=>[
+  numeric({key:'rounds',label:'Rounds',value:r=>r.rounds,format:x=>x==null?'—':String(Math.round(x))}),
+  ...[['wins','W%','won'],['ties','T%','tied'],['losses','L%','lost']].map(([key,label,verb])=>numeric({key,label,
+   title:`Share of rounds ${name} ${verb} against this opponent`,value:r=>r.rounds?r[key]*100/r.rounds:null,format:fixed1,
+   cellTitle:r=>`${r[key]} of ${r.rounds} rounds ${verb}`})),
+  numeric({key:'perRound',label:'Points taken',title:`Points ${name} scored per 100 rounds. Points come from the score formula in the match settings: by default 3 for a win and 1 for a tie.`,
+   value:r=>r.rounds?r.score*100/r.rounds:null,format:fixed1,cellTitle:r=>`${r.score} points in ${r.rounds} rounds`}),
+  numeric({key:'given',label:'Points given',title:`Points the opponent scored against ${name} per 100 rounds`,
+   value:r=>r.rounds?r.given*100/r.rounds:null,format:fixed1,cellTitle:r=>`${r.given} points in ${r.rounds} rounds`})];
  function pick(id){if(picked!==id){picked=id;checked.clear();$('subsetName').value='';$('subsetStatus').hidden=true;}redrawResults();$('warriorResults').scrollIntoView({block:'nearest',behavior:'smooth'});}
  const redrawResults=()=>renderResultTables(resultRows());
  function renderResultTables(rows){
@@ -284,10 +297,14 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
   $('warriorResultsTitle').textContent=`${name} against each opponent`;
   $('subsetName').placeholder=`Hardest for ${name}`.slice(0,100);
   detailRows=pairs.columns.map((w,c)=>pairs.cells[r][c]&&{...pairs.cells[r][c],id:w.id,name:w.name,warrior:w}).filter(Boolean);
+  $('warriorResultsLegend').textContent=`Every column is from ${name}’s side. W%, T% and L% are the share of rounds ${name} won, tied and lost against that opponent. Points taken are the points ${name} scored per 100 rounds; points given, the points the opponent scored against ${name}. The averages weigh each opponent equally.`;
   const box={key:'check',label:'',sortable:false,className:'check',cell:row=>{
    const input=document.createElement('input');input.type='checkbox';input.checked=checked.has(row.id);input.setAttribute('aria-label','Use '+row.name+' in a new benchmark');
    input.onchange=()=>{if(input.checked)checked.add(row.id);else checked.delete(row.id);subsetButton();};return input;}};
-  renderTable($('warriorResultsTable'),[box,{key:'name',label:'Opponent',firstDir:'asc',className:'name',value:row=>row.name},...totalColumns],detailRows,detailSort,redrawResults);
+  const columns=[box,{key:'name',label:'Opponent',firstDir:'asc',className:'name',value:row=>row.name},...pairColumns(name)];
+  const mean=values=>{const v=values.filter(x=>x!=null);return v.length?v.reduce((s,x)=>s+x,0)/v.length:null;};
+  const foot=columns.map(c=>c.key==='name'?'Averages':c.format?c.format(mean(detailRows.map(c.value))):'');
+  renderTable($('warriorResultsTable'),columns,detailRows,detailSort,redrawResults,detailRows.length?foot:null);
   subsetButton();
  }
  function subsetButton(){
