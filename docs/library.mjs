@@ -20,21 +20,26 @@ const FIELDS=['name','author','strategy','file'];
 // "imp" finds "Imp" and "imps" but not "simple", and "paper/stone" finds "paper stone".
 const fold=text=>' '+text.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 
-// "author:metcalf paper" → [{field:'author',text:' metcalf'},{field:null,text:' paper'}]; quotes keep a phrase together.
+// "author:metcalf paper" → [{field:'author',text:' metcalf',not:false},{field:null,text:' paper',not:false}];
+// quotes keep a phrase together, and "not" before a term keeps only warriors without it: "not source:stp".
+// A quoted "not", or one with nothing after it, is searched as a word.
 export function parseQuery(query){
- const terms=[];
- for(const m of query.matchAll(/(?:(\w+):)?(?:"([^"]*)"?|(\S+))/g)){
+ const terms=[];let not=false;
+ const found=[...query.matchAll(/(?:(\w+):)?(?:"([^"]*)"?|(\S+))/g)];
+ for(const [i,m] of found.entries()){
+  if(!m[1]&&m[3]?.toLowerCase()==='not'&&i<found.length-1){not=!not;continue;}
   let field=m[1]?.toLowerCase()??null,text=m[2]??m[3]??'';
   if(field && !FIELDS.includes(field) && field!=='source'){text=m[1]+':'+text;field=null;}
   text=fold(text);
-  if(text.trim())terms.push({field,text});
+  if(text.trim())terms.push({field,text,not});
+  not=false;
  }
  return terms;
 }
 // Unprefixed terms search the header fields, plus the whole source when it is loaded for full-text search.
 export function matches(warrior,terms,fullText=false){
  const fields=fullText?[...FIELDS,'source']:FIELDS;
- return terms.every(({field,text})=>field?(warrior.folded[field]??'').includes(text):fields.some(f=>warrior.folded[f]?.includes(text)));
+ return terms.every(({field,text,not})=>not!==(field?(warrior.folded[field]??'').includes(text):fields.some(f=>warrior.folded[f]?.includes(text))));
 }
 
 // The ids of the hills to search: the chosen ones, or every hill when none is chosen.
@@ -164,13 +169,15 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
   // "Show selected only" lists the selection itself, whatever the hills and search say.
   if(selectedOnly){results=sortResults([...selected.values()]);render();return;}
   const serial=++searchSerial,searched=ids(),fullText=$('libraryFullText').checked;
-  const missing=searched.filter(id=>!hills.has(id)||(fullText&&!texts.has(id)));
+  const terms=parseQuery($('librarySearch').value),top50=$('libraryTop50').checked;
+  // A source: term needs the sources even with full-text search off.
+  const needText=fullText||terms.some(t=>t.field==='source');
+  const missing=searched.filter(id=>!hills.has(id)||(needText&&!texts.has(id)));
   if(missing.length){
-   $('libraryCount').textContent=fullText&&searched.some(id=>!texts.has(id))?'Loading warrior sources for full-text search…':'Loading…';
-   try{await Promise.all(searched.map(id=>fullText?loadText(id):load(id)));}catch(error){$('libraryCount').textContent=error.message;return;}
+   $('libraryCount').textContent=needText&&searched.some(id=>!texts.has(id))?'Loading warrior sources…':'Loading…';
+   try{await Promise.all(searched.map(id=>needText?loadText(id):load(id)));}catch(error){$('libraryCount').textContent=error.message;return;}
    if(serial!==searchSerial)return; // A newer search started while this one was loading.
   }
-  const terms=parseQuery($('librarySearch').value),top50=$('libraryTop50').checked;
   results=sortResults(searched.flatMap(id=>hills.get(id)).filter(w=>(!top50||inTop50(w))&&matches(w,terms,fullText)));
   render();
  }
