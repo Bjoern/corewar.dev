@@ -148,7 +148,9 @@ Opening the tournament tab pauses a running graphical battle.
 - Melee runs all selected warriors in one core.
 - Challenge runs a selected challenger against each other entrant.
 - Benchmark runs selected candidates against a suite. Identical-source self fights
-  are excluded unless enabled. Rankings show candidates only.
+  are excluded unless enabled. Rankings show candidates only. Picking a suite copies its
+  settings into the match settings (and its rounds into Rounds per matchup); runs and warrior
+  validation use the match settings, so they can still be changed, for example to turn off P-space.
 
 Bundled examples are provided as a sample suite, not a classic benchmark.
 Save session suite copies selected sources and current match settings into a named

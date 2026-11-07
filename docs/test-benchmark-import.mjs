@@ -47,7 +47,12 @@ try{
  const pushSuite={...descriptor,name:'Nano push-off',parameters:{...descriptor.parameters,rounds:5}};
  const imported=async(label)=>{await page.waitForFunction(text=>document.querySelector('#tournamentStatus').textContent.includes(text),label);};
  await page.locator('#benchmarkFiles').setInputFiles([file('push.benchmark.json',JSON.stringify(pushSuite)),...opponents]);await imported('Nano push-off');
- assert(await page.locator('#tournamentSettingsSlot').evaluate(e=>e.inert));assert.match(await page.locator('#suiteSettingsNote').textContent(),/core 80 · cycles 800/);
+ // Picking the suite puts its settings into the match settings, which stay editable; a change shows in the note.
+ assert(!(await page.locator('#tournamentSettingsSlot').evaluate(e=>e.inert)));assert.equal(await page.locator('#coreSize').inputValue(),'80');
+ assert.match(await page.locator('#suiteSettingsText').textContent(),/are “Nano push-off”’s own/);assert(await page.locator('#useSuiteSettings').isHidden());
+ await page.locator('#noPspace').evaluate(e=>{e.checked=true;e.dispatchEvent(new Event('input'));});
+ assert.match(await page.locator('#suiteSettingsText').textContent(),/differ from “Nano push-off” in P-space/);assert.match(await page.locator('#tournamentRules').textContent(),/no P-space/);
+ await page.locator('#useSuiteSettings').click();assert(!(await page.locator('#noPspace').isChecked()));assert(await page.locator('#useSuiteSettings').isHidden());
  await page.locator('#tournamentRanking').selectOption('sd-diversity');
  await page.waitForFunction(()=>document.querySelector('#hillText').textContent.startsWith('No hill scores'));
  assert.match(await page.locator('#tournamentWorkload').textContent(),/^6 matchups \(3 between hill warriors\)/);
@@ -67,7 +72,7 @@ try{
  await page.locator('#benchmarkFiles').setInputFiles([file('shipped.benchmark.json',JSON.stringify({...pushSuite,name:'Nano shipped',scores:'hill-scores.json'})),file('hill-scores.json',scores),...opponents]);await imported('Nano shipped');
  await page.waitForFunction(()=>document.querySelector('#hillText').textContent.includes('shipped with the suite'));
  assert.match(await page.locator('#tournamentWorkload').textContent(),/^3 matchups ·/);
- await page.locator('#mode-round-robin').click();assert(!(await page.locator('#tournamentSettingsSlot').evaluate(e=>e.inert)));assert(await page.locator('#suiteSettingsNote').isHidden());
+ await page.locator('#mode-round-robin').click();assert(await page.locator('#suiteSettingsNote').isHidden());assert.equal(await page.locator('#coreSize').inputValue(),'80');
  assert.deepEqual(errors,[]);
- console.log('PASS: separate benchmark upload, descriptor editing, defaults and rounds override, missing-file recovery, unchanged roster, suite-owned settings, push-off hill caching and shipped hill scores.');
+ console.log('PASS: separate benchmark upload, descriptor editing, defaults and rounds override, missing-file recovery, unchanged roster, suite settings copied into the match settings, push-off hill caching and shipped hill scores.');
 }finally{await browser.close();}

@@ -5,7 +5,7 @@ import {benchmarkCatalog} from './benchmark-catalog.mjs';
 import {readBenchmark,importBenchmarkFiles,benchmarkParameters,benchmarkHeader} from './benchmarks.mjs';
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {planTournament} from './tournament-plan.mjs';
-import {cacheKey,loadCached,saveCached,withCandidate,writeHillScores,defaultHillRounds,permutationRounds} from './hill-scores.mjs';
+import {cacheKey,loadCached,saveCached,withCandidate,writeHillScores,defaultHillRounds,permutationRounds,sameParameters,hillParameters} from './hill-scores.mjs';
 import {HistoryChart} from './charts.mjs';
 import {warriorColor} from './display.mjs';
 import {defaults} from './settings.mjs';
@@ -18,8 +18,13 @@ export function describeSettings(c){
  return `${c.rules88?'ICWS ’88':'ICWS ’94'} · core ${c.coreSize} · cycles ${c.cycles} · processes ${c.tasks} · length ${c.maxLength} · distance ${c.distance||c.maxLength} · ${c.noPspace?'no P-space':`P-space ${c.pspace||'auto'}`}${c.permutate?` · permutation: ${positions} rounds per full pass`:''}${c.formula&&c.formula!==defaults.formula?` · score formula ${c.formula}`:''}`;
 }
 const authorOf=source=>/^\s*;\s*author\s+(.*?)\s*$/im.exec(source)?.[1]||'Anonymous';
+// The suite parameters that picking a suite copies into the match settings (rounds go to Rounds per matchup).
+const suiteKeys=benchmarkParameters.filter(k=>k!=='rounds');
+const differences=(a,b)=>suiteKeys.filter(k=>String(a[k])!==String(b[k]));
+const settingNames={coreSize:'core size',cycles:'cycles',tasks:'processes',maxLength:'length',distance:'distance',pspace:'P-space size',rules88:'ICWS standard',noPspace:'P-space',permutate:'permutation',formula:'score formula'};
 // onSuitesChanged: called when the user's own suites change, so the workspace saves them.
-export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}}) {
+// applyConfig: puts a suite's settings into the match settings, which every run then uses.
+export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onSuitesChanged=()=>{}}) {
  // Catalog suites start as their descriptors; warriors and hill scores load on first use.
  const suites=benchmarkCatalog.map(s=>({id:s.id,descriptor:s.descriptor,...benchmarkHeader(s.descriptor),data:s.data,warriors:null}));
  const loading=new Map();
@@ -40,12 +45,19 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
  let serial=0,run=null,workers=[],pendingRender=null,displayedSuite=null;
  // Hill scores for the selected suite: shipped with it, cached in this browser, or none yet.
  let hill={id:null,key:null,data:null};
+ // The suite (id and settings) whose settings Benchmark mode last put into the match settings.
+ let settingsFrom=null;
  const engine=fetch(new URL('./engine-lock.json',import.meta.url)).then(r=>r.json()).then(lock=>lock.commit||'').catch(()=>'');
  const suiteId=suite=>suite.id+'|'+JSON.stringify(suite.config);
- async function lookupHill(suite){
-  const id=suiteId(suite);if(hill.id===id&&!hill.pending)return hill;
+ // The match settings, or null while a field holds an invalid value.
+ const matchConfig=()=>{try{return readConfig();}catch{return null;}};
+ // Hill scores belong to the suite's warriors and the match settings that decide who wins;
+ // shipped scores count only while those settings are still the suite's own.
+ const hillId=(suite,config)=>suiteId(suite)+'|'+JSON.stringify(hillParameters(config));
+ async function lookupHill(suite,config=readConfig()){
+  const id=hillId(suite,config);if(hill.id===id&&!hill.pending)return hill;
   if(hill.id===id&&hill.pending)return hill.pending;
-  const pending=(async()=>{const key=await cacheKey(suite.warriors,suite.config,await engine),data=suite.hillScores||await loadCached(key);if(hill.id===id){hill={id,key,data};refresh();}return hill;})();
+  const pending=(async()=>{const key=await cacheKey(suite.warriors,config,await engine),data=(sameParameters(config,suite.config)&&suite.hillScores)||await loadCached(key);if(hill.id===id){hill={id,key,data};refresh();}return hill;})();
   hill={id,key:null,data:null,pending};
   return pending;
  }
@@ -87,7 +99,8 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
   onTab(index);if(index===1){refresh();chart.draw();}
  }
  tabs.forEach((tab,index)=>{tab.onclick=()=>selectTab(index);tab.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(index+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length;selectTab(next);tabs[next].focus();}};});
- function configForRun(){const config=readConfig();const suite=suites.find(s=>s.id===$('benchmarkSuite').value);return $('tournamentMode').value==='benchmark'&&suite?.config?{...config,...suite.config}:config;}
+ // Every mode runs with the match settings; picking a suite copies its settings there (useSuiteSettings).
+ const configForRun=()=>readConfig();
  const currentSuite=()=>suites.find(s=>s.id===$('benchmarkSuite').value);
  const benchmarkPushoff=()=>$('tournamentMode').value==='benchmark'&&$('tournamentRanking').value!=='average';
  function plan(){
@@ -118,32 +131,38 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
    $('benchmarkDescriptor').value=JSON.stringify(suite.descriptor,null,2);
    $('removeBenchmark').hidden=builtIn(suite);resetRemove();
    $('benchmarkEditHint').textContent=builtIn(suite)?'Editing a built-in suite changes it for this session only.':'Your suite: changes are saved with your workspace in this browser. Download benchmark (.zip) keeps a copy elsewhere.';
-   const hillDefault=defaultHillRounds(suite.config);$('hillRounds').value=hillDefault.rounds;$('hillPermutate').checked=hillDefault.permutate;
+   const hillDefault=defaultHillRounds(matchConfig()||suite.config);$('hillRounds').value=hillDefault.rounds;$('hillPermutate').checked=hillDefault.permutate;
   }
-  // Benchmark runs use the suite's own settings; the shared match settings do not apply.
-  const suiteOwned=mode==='benchmark'&&!!suite;
-  $('tournamentSettingsSlot').inert=suiteOwned;$('tournamentSettingsSlot').classList.toggle('suite-owned',suiteOwned);
-  $('suiteSettingsNote').hidden=!suiteOwned;
-  if(suiteOwned)$('suiteSettingsNote').textContent=`This benchmark uses the settings of “${suite.name}”, not the match settings above: ${describeSettings(suite.config)}. Edit them under Suite details.`;
+  // Benchmark runs use the match settings above, which picking the suite set to the suite's own.
+  // A workspace restored in Benchmark mode keeps its saved settings, changes included.
+  if(mode==='benchmark'&&settingsFrom===null)settingsFrom=suiteId(suite);
+  const config=matchConfig(),changed=mode==='benchmark'&&config?differences(config,suite.config):[];
+  $('suiteSettingsNote').hidden=mode!=='benchmark';
+  $('suiteSettingsText').textContent=mode!=='benchmark'?'':changed.length?`The match settings above differ from “${suite.name}” in ${changed.map(k=>settingNames[k]).join(', ')}. Runs use the match settings; the suite’s own are ${describeSettings(suite.config)}.`:`The match settings above are “${suite.name}”’s own. Change them there for your runs; Suite details changes the suite itself.`;
+  $('useSuiteSettings').hidden=!changed.length;
   const pushing=benchmarkPushoff();$('hillStatus').hidden=!pushing;
   if(pushing&&pending){
    $('hillText').textContent=suite.loadError||'Loading the suite…';
    $('recomputeHillField').hidden=$('hillFightSetup').hidden=$('hillWarning').hidden=true;
+  }else if(pushing&&!config){
+   $('hillText').textContent='Fix the match settings above to look up hill scores.';
+   $('recomputeHillField').hidden=$('hillFightSetup').hidden=$('hillWarning').hidden=true;
   }else if(pushing){
-   if(hill.id!==suiteId(suite))lookupHill(suite);
-   const data=hill.id===suiteId(suite)&&hill.data,pairs=suite.warriors.length*(suite.warriors.length+1)/2;
+   if(hill.id!==hillId(suite,config))lookupHill(suite,config);
+   const data=hill.id===hillId(suite,config)&&hill.data,pairs=suite.warriors.length*(suite.warriors.length+1)/2;
    $('hillText').textContent=hill.pending?'Looking for hill scores…':data?`Hill scores ${data.source==='suite'?'shipped with the suite':'cached in this browser'}: ${data.permutate?'every starting position':`${data.rounds.toLocaleString()} rounds per pair`}${data.createdAt?`, ${data.createdAt}`:''}. Only the selected warriors fight.`:`${suite.scoresProblem?suite.scoresProblem+' ':''}No hill scores yet: this run also fights the ${pairs.toLocaleString()} hill pairs and caches the result in this browser.`;
    $('recomputeHillField').hidden=!data;
-   const fighting=!hill.pending&&(!data||$('recomputeHill').checked),positions=permutationRounds(suite.config);$('hillFightSetup').hidden=!fighting;
+   const fighting=!hill.pending&&(!data||$('recomputeHill').checked),positions=permutationRounds(config);$('hillFightSetup').hidden=!fighting;
    $('hillPermutateLabel').textContent=`All starting positions (${positions.toLocaleString()} rounds per pair)`;
    if($('hillPermutate').checked)$('hillRounds').value=positions;$('hillRounds').disabled=$('hillPermutate').checked;
    // Hill fights run once and are reused, so more rounds are worth it, within reason for a browser.
    const hillRounds=Number($('hillRounds').value)*pairs;$('hillWarning').hidden=!fighting||!(hillRounds>5e6);
    $('hillWarning').textContent=`That is ${hillRounds.toLocaleString()} rounds of hill fights (${pairs.toLocaleString()} pairs × ${Number($('hillRounds').value).toLocaleString()}). In the browser this can take hours; scripts/precompute-hill.mjs runs it once and ships the result with the suite.`;
   }
-  $('downloadHillScores').disabled=!(hill.id===suiteId(suite)&&hill.data);
+  // A hill-scores file ships with the suite, so it must be for the suite's own settings.
+  $('downloadHillScores').disabled=!(config&&hill.id===hillId(suite,config)&&hill.data&&sameParameters(config,suite.config));
   $('tournamentEntrants').textContent=roster().map(w=>w.name).join(', ')||'Select warriors in the roster above.';
-  try {const c=configForRun();$('tournamentRules').textContent=`${suiteOwned?'Suite settings':'Match settings'} · ${describeSettings(c)}`;if(mode==='benchmark'&&pending)throw new Error(suite.loadError||'Loading the suite’s opponents…');const p=plan(),hillJobs=p.jobs.filter(j=>j.kind==='hill').length;$('tournamentWorkload').textContent=`${p.jobs.length.toLocaleString()} matchups${hillJobs?` (${hillJobs.toLocaleString()} between hill warriors)`:''} · ${p.totalRounds.toLocaleString()} rounds`;}
+  try {const c=configForRun();$('tournamentRules').textContent=`Match settings · ${describeSettings(c)}`;if(mode==='benchmark'&&pending)throw new Error(suite.loadError||'Loading the suite’s opponents…');const p=plan(),hillJobs=p.jobs.filter(j=>j.kind==='hill').length;$('tournamentWorkload').textContent=`${p.jobs.length.toLocaleString()} matchups${hillJobs?` (${hillJobs.toLocaleString()} between hill warriors)`:''} · ${p.totalRounds.toLocaleString()} rounds`;}
   catch(error){$('tournamentWorkload').textContent=error.message;}
  }
  function dispose(){for(const slot of workers){clearTimeout(slot.timer);slot.worker.terminate();}workers=[];}
@@ -354,7 +373,7 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
  $('tournamentStart').onclick=async()=>{
   try {
    if($('tournamentMode').value==='benchmark')await loadSuite(currentSuite());
-   if(benchmarkPushoff())await lookupHill(currentSuite());
+   if(benchmarkPushoff())await lookupHill(currentSuite(),configForRun());
    const next=plan(),count=Number($('tournamentWorkers').value);
    if(!Number.isInteger(count)||count<1||count>processors)throw new Error(`Choose 1–${processors} workers.`);
    dispose();clearTimeout(pendingRender);pendingRender=null;chart.clear();
@@ -426,7 +445,21 @@ export function setupTournaments({roster,readConfig,onTab,onSuitesChanged=()=>{}
   download(new Blob([JSON.stringify(writeHillScores(suite,hill.data))+'\n'],{type:'application/json'}),'hill-scores.json');
   $('tournamentStatus').textContent='Saved hill-scores.json. Put it next to the suite descriptor and add "scores": "hill-scores.json" to ship it with the suite.';
  };
- function suiteDefaults(){const suite=suites.find(s=>s.id===$('benchmarkSuite').value);if($('tournamentMode').value==='benchmark')$('tournamentRounds').value=suite.rounds;refresh();}
+ // Entering Benchmark mode, or picking, importing or editing a suite in it, puts the suite's settings and
+ // rounds into the match settings and Rounds per matchup, where they can still be changed for a run.
+ function useSuiteSettings(){
+  const suite=currentSuite();if(!suite)return;settingsFrom=suiteId(suite);
+  if(!differences(matchConfig()||{},suite.config).length)return;
+  applyConfig(Object.fromEntries(suiteKeys.map(k=>[k,suite.config[k]])));
+  $('tournamentStatus').textContent=`Match settings set to those of “${suite.name}”. Change them above for your runs.`;
+ }
+ function suiteDefaults(){
+  const suite=currentSuite();
+  if($('tournamentMode').value!=='benchmark')settingsFrom=null;
+  else if(settingsFrom!==suiteId(suite)){$('tournamentRounds').value=suite.rounds;useSuiteSettings();}
+  refresh();
+ }
+ $('useSuiteSettings').onclick=()=>{useSuiteSettings();refresh();};
  for(const id of ['benchmarkFiles','benchmarkFolder'])$(id).onchange=async()=>{
   try{const suite=await importBenchmarkFiles($(id).files,'import-'+(++serial));suites.push(suite);refresh();$('benchmarkSuite').value=suite.id;suiteDefaults();$('tournamentStatus').textContent=`Imported “${suite.name}” (${suite.warriors.length} opponents). It is saved with your workspace in this browser.`;onSuitesChanged();}
   catch(error){$('tournamentStatus').textContent=error.message;}finally{$(id).value='';}

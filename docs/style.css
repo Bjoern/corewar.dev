@@ -585,7 +585,7 @@ body[data-welcome=true] .tracker-strip{display:none}
 #tournamentRounds{width:110px}#tournamentSeed{width:150px}#benchmarkSuite,#tournamentRanking,#challenger{max-width:min(320px,80vw)}
 .t-check{display:flex;align-items:center;gap:6px;font-size:13px;padding-bottom:6px}
 #rankingHint{margin:8px 0 0}.t-hill{margin:6px 0 0}.t-hill .hint{margin:0 0 8px}.t-warning{margin:8px 0 0;padding:8px 12px;border-left:3px solid #d68a24;background:#2a2112;color:#f1c96b;font-size:13px;border-radius:0 6px 6px 0}.t-check-inline{display:inline-flex;align-items:center;gap:4px;margin-left:6px;white-space:nowrap}
-.tournament-settings.suite-owned{opacity:.45}.t-suite-note{margin:-4px 0 12px;padding:8px 12px;border-left:3px solid var(--accent);background:var(--raised);font-size:13px;border-radius:0 6px 6px 0}
+.t-suite-note{margin:-4px 0 12px;padding:8px 12px;border-left:3px solid var(--accent);background:var(--raised);font-size:13px;border-radius:0 6px 6px 0}
 .t-more{margin-top:10px}.t-more>summary{margin-bottom:6px;font-size:13px}
 .t-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.t-row label{display:flex;align-items:center;gap:6px}.t-row button,.t-results-head button{font-size:12px;padding:6px 10px}
 .t-block{display:flex;flex-direction:column;gap:4px;margin:8px 0}

@@ -100,7 +100,9 @@ function checkWarrior(index,automatic=false) {
  if(!automatic)cancelAutoValidation();
  cancelCompileCheck();if(!automatic)showConsole();
  let config;
- try {config={...readSettings({warriors:sources.length}),brief:automatic,assembleOnly:true};}
+ // Permutation only decides starting positions and needs exactly two warriors, so it does not
+ // stop a check of one warrior's assembly while more are loaded (benchmark suites often use it).
+ try {config={...readSettings({warriors:sources.length},{permutate:false}),brief:automatic,assembleOnly:true};}
  catch(error){compileStates[index]='failed';refreshCompileButtons();log(error.message);if(automatic)nextValidation();return;}
  const ticket=revision;
  if(!automatic)log('Compiling '+draftName(sources[index],index)+'…','stdout');
@@ -1234,6 +1236,8 @@ tools=setupTools({
 tournaments=setupTournaments({
  roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),
  readConfig:()=>readSettings({warriors:2}),
+ // A benchmark suite's settings become the match settings (as custom settings); warriors revalidate.
+ applyConfig:values=>{applySettingsSnapshot({preset:'custom',values});markDirty();},
  onSuitesChanged:()=>schedulePersist(),
  onTab:index=>{
   const from=shownMode(),name=MODE_NAMES[index];

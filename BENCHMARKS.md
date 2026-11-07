@@ -33,10 +33,13 @@ that a smaller suite is derived from.
 
 Selecting a suite (or applying an edited descriptor) sets its default rounds.
 The editable Rounds per matchup field overrides that default for the next run.
-All other suite parameters replace the shared match settings for benchmark runs.
-While Benchmark mode is selected, the match settings bar is dimmed, and a note
-states the settings the suite actually uses, such as ICWS ’88 for the '88 hill.
-The tournament seed still controls placement.
+Entering Benchmark mode, or selecting, importing or editing a suite in it, also
+copies all other suite parameters into the shared match settings, such as
+ICWS ’88 for the '88 hill. Benchmark runs and warrior validation use the match
+settings, so they can still be changed for a run, for example to turn off
+P-space. A note under the settings says whether they still match the suite's,
+and *Use the suite’s settings* puts them back. The settings stay when you leave
+Benchmark mode. The tournament seed still controls placement.
 
 ## Push-off rankings
 
@@ -49,7 +52,8 @@ Round robin with push-off ranking covers that.
 The hill warriors' results against each other come, in this order, from:
 
 1. a scores file shipped with the suite: `"scores": "hill-scores.json"` in the
-   descriptor, next to it;
+   descriptor, next to it, used while the match settings that decide results
+   are still the suite's own;
 2. this browser's cache, keyed by the warrior sources, the match settings that
    decide results (not rounds, seed or score formula) and the engine build;
 3. otherwise the run also fights every hill pair once, self fights included,

@@ -9,13 +9,14 @@ const flags = [['brief','-b Brief'],['verbose','-V Verbose assembly'],['koth','-
  ['permutate','-P Permutate positions'],['assembleOnly','-A Assemble only'],
  ['noPspace','No P-space instructions (94nop hill)']];
 const keys = [...numbers.map(x=>x[0]),'rounds',...flags.map(x=>x[0]),'fixedPosition','formula'];
-export function readSettings(extra={}) {
+// extra fills in what the fields do not set (the warrior count); overrides replace field values.
+export function readSettings(extra={},overrides={}) {
  const result={...extra};
  for(const key of keys) {
   const el=$(key);
   result[key]=el.type==='checkbox'?el.checked:el.type==='number'?Number(el.value):el.value;
  }
- return settings(result);
+ return settings({...result,...overrides});
 }
 // Raw field values for the saved workspace; readSettings still validates them before a run.
 export function settingsSnapshot() {
