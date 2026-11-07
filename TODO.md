@@ -47,3 +47,17 @@ a "Coming soon" note under the welcome card, and plain text in
 `docs/redcode.html` (its nav link and the "further reading" entry). When the
 tutorial exists, turn these back into `#tutorial` links and bring back a
 **Start the tutorial** button in the welcome card's footer.
+
+## Remove the exMARS assembler's leftover safeguards
+
+`docs/dist/exmars/fighter-client.mjs` (vendored from Bjoern/exMARS `wasm/`)
+still replaces its assembler instance after an `exit()` (`ExitStatus`) or once
+its memory passes 32 MiB (`ASSEMBLER_MEMORY_LIMIT`). Both were workarounds for
+the old assembler, which called `exit()` after 9 errors and kept about 116 KB
+per warrior. Since exMARS 0ee805a/b82e002 (vendored here at 4d5a828) neither
+happens: errors come back as `{ok: false}` and memory stays at 16 MiB.
+Remove the `ExitStatus` branch and the memory limit in exMARS
+`wasm/fighter-client.mjs`, keep the replacement after a trap
+(`WebAssembly.RuntimeError`, the instance's state is unknown then), update
+`wasm/README.md`, cut a release (`wasm/release.py`), and vendor it here
+(`exmars-lock.json`).
