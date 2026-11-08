@@ -42,7 +42,8 @@ mode and field mutations, insert/delete/duplicate/swap, and crossover, all keepi
 exact on nano). The population itself is `docs/population.mjs`, shared with the constant optimizer's genetic algorithm:
 it sees genomes only through operators (random, mutate, crossover, key, distance) and its methodology is configurable
 (steady state or generational breeding, crowding or clearing, mean or latest scores over seed sets, racing), with the
-evolver defaulting to generational clearing and the optimizer to genetic2.rb's steady-state crowding. `docs/evolver-worker.mjs` runs it in a Web Worker that hands matches to a pool of
+evolver defaulting to generational clearing and the optimizer to genetic2.rb's steady-state crowding. `docs/evolver-soup.mjs` is a third way to breed, a yabevolver-style soup: a toroidal grid whose cells duel
+their neighbours, the loser replaced by a mutant of the winner, with a hall of fame scored against the benchmark. `docs/evolver-worker.mjs` runs it in a Web Worker that hands matches to a pool of
 `optimizer-worker.mjs` workers, one message per candidate with all its opponents (`runBatch`), split over the workers only when
 some would otherwise sit idle. Presets (nano, tiny, standard '94, LP, custom) and their benchmarks from
 `warriors_public/` are in `docs/evolver-presets.mjs`; the benchmark list also offers every fitting suite of the Tournaments

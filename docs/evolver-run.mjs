@@ -32,7 +32,9 @@ export function splitHoldOut(opponents,share,seed){
 // The niche radius that suits results (per-opponent points, profileDistance) rather than code.
 export const RESULT_RADIUS=0.15;
 export const EVOLVER_DEFAULTS={...POPULATION_DEFAULTS,population:40,generations:200,scheme:'generational',survival:'clearing',elite:2,tournament:3,mateTournament:3,
- crossover:0.5,mutation:1.5,structural:0.3,immigrants:0.05,seedShare:0.5,reseedEvery:5,niche:0.3,nicheSize:2,scoreMemory:'latest',rescore:0,race:false,keepStructure:false};
+ crossover:0.5,mutation:1.5,structural:0.3,immigrants:0.05,seedShare:0.5,reseedEvery:5,niche:0.3,nicheSize:2,scoreMemory:'latest',rescore:0,race:false,keepStructure:false,
+ // Soup mode (scheme 'soup', evolver-soup.mjs): the grid and the rounds of a duel between neighbours.
+ soupWidth:20,soupHeight:12,duelRounds:100};
 // Screened scoring (scoringMode 'screen'): every generation new placements, the leaders scored again
 // on them and their scores averaged, so a lucky few rounds do not keep a warrior on top for long
 // (corewar-rl evo.py: 8 rounds, the top 10 rescored, matched exact scoring at equal time).
@@ -78,6 +80,11 @@ export function runNotes(o){
   :o.scoring.exact?`Scoring: exact, all ${o.scoring.rounds} placements per opponent`:`Scoring: sampled, ${o.scoring.rounds} rounds per opponent`);
  if(o.selfFight)lines.push('Self fight: on');
  if(p.keepStructure)lines.push(`Structure: the seed's, kept (length and opcodes in order fixed)${o.structure?': '+o.structure:''}`);
+ if(p.scheme==='soup'){
+  lines.push(`Breeding: soup, a ${p.soupWidth} × ${p.soupHeight} grid, neighbours duel ${p.duelRounds} rounds, the loser replaced by a mutant of the winner`,
+   `Warrior length: ${o.length}`,'Mutation: yabevolver’s rates per line','Strength: a hall of fame of harvested warriors, scored against the benchmark');
+  return lines;
+ }
  lines.push(`Population: ${p.population}`,`Warrior length: ${o.length}`,`Mutations per child: ${p.mutation}`,`Structural share: ${p.structural}`,`Crossover rate: ${p.crossover}`,`Immigrants: ${p.immigrants}`);
  lines.push('Niching: '+(p.survival==='crowding'?'crowding':p.niche>0?`radius ${p.niche}, ${p.nicheSize} per niche`:'off'));
  const other=OTHER_SETTINGS.filter(([k])=>p[k]!==EVOLVER_DEFAULTS[k]).map(([k,f])=>f(p[k]));

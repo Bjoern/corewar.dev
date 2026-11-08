@@ -11,7 +11,7 @@ import {benchmarkCatalog} from './benchmark-catalog.mjs';
 import {readBenchmark} from './benchmarks.mjs';
 import {describeSettings} from './tournaments.mjs';
 import {warriorFilename} from './warrior-files.mjs';
-import {genomeRules,renderInstruction,redcodeHeader,nicheGroups} from './evolver-genome.mjs';
+import {genomeRules,renderInstruction,redcodeHeader,nicheGroups,structureOf,structureText} from './evolver-genome.mjs';
 import {mapLayout} from './evolver-map.mjs';
 
 const STEPS=[
@@ -34,6 +34,7 @@ const TOPICS=[
  ['Runs and luck','A blind run (random code, no seed) on the nano hill needs a few thousand generations before it levels off, which is why the nano preset runs 3000: about 300,000 warriors scored at population 100, a quarter of an hour to an hour depending on your CPU cores. Even then a strong warrior is a lucky run. In tests against the nano top 50, about 1 run in 10 found one of the best kinds of warrior; the others settled 10 to 25 points lower, and a larger population did not change that. So rather than one very long run, run several with different random seeds (under More settings) and keep the best; a run that has not improved for a thousand generations seldom does. Stopping at 200 generations leaves a blind nano run about 10 points below where it would end.'],
  ['Seeding','A seed warrior is assembled for the chosen settings (labels, EQU and FOR loops are fine) and joins the first population with mutants of it; the rest is random code. “The last run” continues from the population the last run ended with, for the same settings.'],
  ['Keeping the seed’s structure','With a seed warrior, “Keep the seed’s structure” tunes the warrior you have instead of letting the evolver redesign it. Every warrior of the run keeps the seed’s length and its instructions in the same order: a seed of SPL, SPL, MOV, SPL, MOV stays SPL, SPL, MOV, SPL, MOV. What changes is everything else: the numbers in the fields, the modifiers (.I, .AB …), the addressing modes, and where the warrior starts; two lines with the same instruction may also swap places. Crossover then mixes two warriors line by line, and the random newcomers are random code with the same instructions. Use it when the design is right but the constants are not, or to see how far a known shape can go against your benchmark. In tests on the nano hill, runs started from a top warrior with a fifth to a quarter of its numbers and modes scrambled found their way back near it in about half the runs, so give such a run a few thousand generations and several random seeds too. Without it, mutations may insert, delete and change instructions, and a run started from your warrior can end up as something else entirely.'],
+ ['Soup','“Breeding: Soup” is a different way to evolve, after Terry Newton’s yabevolver. The warriors live on a grid whose edges wrap around. Again and again a random warrior and one of its eight neighbours fight a short duel (100 rounds); the loser’s place goes to a copy of the winner, most copies changed a little (a number, a mode, now and then an instruction), some crossed with a neighbour, and about half exact. A tie changes nothing. The benchmark plays no part in this: a warrior only has to beat its neighbours, so a lineage can pass through weak forms on its way to a strong one, and different kinds of warrior hold their own patches of the grid for a long time. To track how strong the soup is, one random warrior is scored against the benchmark every so often (at least once per generation, exactly on nano); the best of these make up a hall of fame, whose best is the run’s best warrior, and the Population mean is the mean of the ones scored in that generation. A generation is as many duels as the grid has cells. The grid size is a setting: the default 20 × 12 suits most computers; bigger grids (yabevolver’s is 77 × 20) keep more kinds alive and more CPU cores busy, but each generation takes longer. The population view draws the grid as it is, each kind of warrior (its instructions in order) in a colour of its own. In tests on the nano hill a 77 × 20 soup reached about 150 against the top 50 within a quarter of an hour on one core and then mostly levelled off, so run several. The settings of the other ways to breed (population, survival, niches, mutation rates, crossover, immigrants) do not apply.'],
  ['Markov chain','“A Markov chain of the opponents” assembles the benchmark’s warriors (and yours) and counts how often each instruction shape (opcode, modifier and both addressing modes) follows the one and two before it, and which shapes start and end a warrior. New warriors are drawn from those odds, each instruction with an A and B field seen on that shape. The chain mostly follows the longest context it knows and now and then forgets one, so it recombines warriors rather than copying them. It writes the first population and the immigrants of every generation.'],
  ['Benchmarks','The benchmark list has the preset’s own picks first, then every other suite of the Tournaments tab’s Benchmark mode with the same core size and a length that fits: built-in suites, and your own: imported, or made from your warriors or the library (saved with your workspace). Under “Other hills” come the suites made for other settings (ICWS ’94 only, as the evolver writes no ’88 code): picking one switches to its settings, to the preset with the same core, processes, cycles, length and distance, or to Custom with its values. When that would replace custom settings of your own, the evolver asks first. Population, generations and rounds then take the new preset’s defaults, as when you pick a preset, unless you changed them from the old preset’s defaults: values of your own are kept. Reset to defaults always sets them. An opponent that does not assemble for the hill’s settings (your own, or one checked in the Battle tab) is left out when the run starts, as in the Tournaments tab, and the Run card lists it with the assembler’s message.'],
  ['Warrior length','The longest warrior the evolver writes, at most the hill’s maximum length (empty: the hill’s). The hill’s length and distance still hold for the matches, so a benchmark of full-length warriors can be fought by short evolved ones: the best 20-instruction warrior against the LP hill, to build on later (add a q-scan by hand, say), or entries for a tournament that caps length below the hill’s. Shorter warriors also mean a much smaller search space. With a Markov chain, the chain learns from the opponents’ first instructions only, up to the warrior length.'],
@@ -109,7 +110,10 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const niche=num(saved.niche??EVOLVER_DEFAULTS.niche,{min:0,max:1,step:0.05});
  const nicheSize=num(saved.nicheSize??EVOLVER_DEFAULTS.nicheSize,{min:1,max:50,step:1});
  const choose=(options,value,fallback)=>{const s=el('select',{},...options.map(([v,label])=>new Option(label,v)));s.value=options.some(([v])=>v===value)?value:fallback;return s;};
- const schemeSelect=choose([['generational','Whole generations (μ + λ)'],['steady','One child at a time (steady state)']],saved.scheme,EVOLVER_DEFAULTS.scheme);
+ const schemeSelect=choose([['generational','Whole generations (μ + λ)'],['steady','One child at a time (steady state)'],['soup','Soup: a grid of warriors that duel their neighbours']],saved.scheme,EVOLVER_DEFAULTS.scheme);
+ // Soup mode: the grid (it wraps around at the edges) and the rounds of each duel.
+ const soupWidth=num(saved.soupWidth??EVOLVER_DEFAULTS.soupWidth,{min:3,max:200,step:1}),soupHeight=num(saved.soupHeight??EVOLVER_DEFAULTS.soupHeight,{min:3,max:100,step:1});
+ const duelRounds=num(saved.duelRounds??EVOLVER_DEFAULTS.duelRounds,{min:1,max:1000,step:10});
  const survivalSelect=choose([['clearing','Niches (clearing)'],['crowding','Crowding: replace the most similar weaker warrior']],saved.survival,EVOLVER_DEFAULTS.survival);
  const memorySelect=choose([['latest','Latest placements'],['mean','Average over placements']],saved.scoreMemory,EVOLVER_DEFAULTS.scoreMemory);
  const race=el('input',{type:'checkbox',checked:saved.race??EVOLVER_DEFAULTS.race});
@@ -135,7 +139,12 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const screenFields=field(...labelled('evoScreenRounds','Selection rounds per opponent',screenRounds),el('span',{className:'hint',textContent:'random placements; the leaders get exact scores'}));
  const showScoring=()=>{screenFields.hidden=scoringSelect.value!=='screen';};scoringSelect.addEventListener('change',showScoring);showScoring();
  const nicheFields=field(...labelled('evoNiche','Niche radius',niche),...labelled('evoNicheSize','Warriors per niche',nicheSize),el('span',{className:'hint',textContent:'radius 0 = no niching'}));
- const showNiche=()=>{nicheFields.hidden=survivalSelect.value!=='clearing';};survivalSelect.addEventListener('change',showNiche);showNiche();
+ const soupFields=field(...labelled('evoSoupWidth','Soup width',soupWidth),...labelled('evoSoupHeight','height',soupHeight),...labelled('evoDuelRounds','Rounds per duel',duelRounds),
+  el('span',{className:'hint',textContent:'a bigger grid keeps more kinds of warrior and more CPU cores busy, but each generation takes longer'}));
+ // A soup has no survival step or niches; its size is the grid's.
+ const showNiche=()=>{const soup=schemeSelect.value==='soup';soupFields.hidden=!soup;for(const x of [survivalSelect,survivalSelect.labels?.[0]])if(x)x.hidden=soup;
+  nicheFields.hidden=soup||survivalSelect.value!=='clearing';population.disabled=soup||!!run&&run.state!=='finished';};
+ survivalSelect.addEventListener('change',showNiche);schemeSelect.addEventListener('change',showNiche);
  const params=el('div',{className:'tool-form'},
   field(...labelled('evoPopulation','Population',population),...labelled('evoGenerations','Generations',generations),el('span',{className:'hint',textContent:'0 = until stopped'})),
   field(...labelled('evoMutation','Mutations per child',mutation),...labelled('evoCrossover','Crossover rate',crossoverRate)),
@@ -143,7 +152,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
    el('div',{className:'tool-form'},
     field(...labelled('evoStructural','Structural share',structural),...labelled('evoImmigrants','Immigrants',immigrants),...labelled('evoElite','Elite',elite)),
     field(...labelled('evoScheme','Breeding',schemeSelect),...labelled('evoSurvival','Survival',survivalSelect)),
-    nicheFields,
+    soupFields,nicheFields,
     field(...labelled('evoFitness','Selection by',fitnessSelect),...labelled('evoNicheBy','Compare warriors by',nicheBySelect)),
     field(...labelled('evoScoring','Scoring',scoringSelect),...labelled('evoRounds','Sampled rounds per opponent',rounds)),
     screenFields,
@@ -187,9 +196,12 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const nicheTable=el('table',{className:'tool-table evo-niches'});
  const popCode=el('pre',{className:'evo-pop-code',hidden:true});
  const popEdit=el('button',{type:'button',className:'small',textContent:'Open in editor',hidden:true});
+ const MAP_HINT='Each dot is a warrior; similar code sits close together. Colour: score (darker is lower). Ringed: niche leaders. Click a dot or a row for its code.';
+ const GRID_HINT='The soup as it is: each square a warrior, coloured by its kind (its instructions in order; grey: the less common kinds). A light edge: scored against the benchmark. Click a square or a row for its code.';
+ const popHint=el('p',{className:'hint',textContent:MAP_HINT});
  const popBox=el('details',{className:'opt-advanced evo-population',open:!!saved.populationOpen},el('summary',{textContent:'Population and niches'}),
   el('div',{className:'tool-actions'},popSlider,popLatest),popLabel,popMap,
-  el('p',{className:'hint',textContent:'Each dot is a warrior; similar code sits close together. Colour: score (darker is lower). Ringed: niche leaders. Click a dot or a row for its code.'}),
+  popHint,
   popHistory,el('div',{className:'tool-table-wrap'},nicheTable),popCode,popEdit);
  const help=el('details',{className:'tool-help',open:!saved.helpClosed},el('summary',{textContent:'How to use the evolver'}),
   el('ol',{className:'tool-steps'},...STEPS.map(s=>el('li',{textContent:s}))),
@@ -217,7 +229,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  // ---- state
  let otherHills=new Map(),shownSuite='',shownPreset=presetSelect.value,kept=[];
  let run=null,suite=null,lastBest=saved.lastBest||null,lastPopulation=saved.lastPopulation||null;
- showFitness();
+ showFitness();showNiche();
  const suites=new Map();
  const preset=()=>EVOLVER_PRESETS.find(p=>p.id===presetSelect.value);
  function config(){
@@ -236,7 +248,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  function persist(){
   saveState({preset:presetSelect.value,warriorLength:warriorLength.value,custom:Object.fromEntries(CUSTOM_FIELDS.map(([k])=>[k,Number(customInputs[k].value)])),suites:{...(saved.suites||{}),[presetSelect.value]:suiteSelect.value},
    own,useRoster:useRoster.checked,selfFight:selfFight.checked,holdOut:holdOut.checked,holdOutShare:holdOutShare.value,seedMode:seedSelect.value,seedText:seedText.value,seedShare:seedShare.value,keepStructure:keepStructure.checked,population:population.value,generations:generations.value,mutation:mutation.value,
-   structural:structural.value,crossover:crossoverRate.value,immigrants:immigrants.value,elite:elite.value,niche:niche.value,nicheSize:nicheSize.value,scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,scoring:scoringSelect.value,rounds:rounds.value,screenRounds:screenRounds.value,workers:workers.value,seed:seed.value,runName:runName.value,
+   structural:structural.value,crossover:crossoverRate.value,immigrants:immigrants.value,elite:elite.value,niche:niche.value,nicheSize:nicheSize.value,scheme:schemeSelect.value,soupWidth:soupWidth.value,soupHeight:soupHeight.value,duelRounds:duelRounds.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,scoring:scoringSelect.value,rounds:rounds.value,screenRounds:screenRounds.value,workers:workers.value,seed:seed.value,runName:runName.value,
    helpClosed:!help.open,populationOpen:popBox.open,advancedOpen:params.querySelector('.opt-advanced').open,lastBest,lastPopulation});
   saved.suites={...(saved.suites||{}),[presetSelect.value]:suiteSelect.value};
  }
@@ -369,15 +381,15 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const p=preset(),d=EVOLVER_DEFAULTS;
   population.value=p.defaults.population;generations.value=p.defaults.generations;rounds.value=p.defaults.rounds??100;
   mutation.value=d.mutation;structural.value=d.structural;crossoverRate.value=d.crossover;immigrants.value=d.immigrants;elite.value=d.elite;
-  niche.value=d.niche;nicheSize.value=d.nicheSize;schemeSelect.value=d.scheme;survivalSelect.value=d.survival;memorySelect.value=d.scoreMemory;race.checked=d.race;fitnessSelect.value=d.fitness;nicheBySelect.value=d.nicheBy;showNiche();showFitness();scoringSelect.value='auto';screenRounds.value=8;showScoring();seed.value='1';workers.value=Math.max(1,processors-1);
+  niche.value=d.niche;nicheSize.value=d.nicheSize;schemeSelect.value=d.scheme;soupWidth.value=d.soupWidth;soupHeight.value=d.soupHeight;duelRounds.value=d.duelRounds;survivalSelect.value=d.survival;memorySelect.value=d.scoreMemory;race.checked=d.race;fitnessSelect.value=d.fitness;nicheBySelect.value=d.nicheBy;showNiche();showFitness();scoringSelect.value='auto';screenRounds.value=8;showScoring();seed.value='1';workers.value=Math.max(1,processors-1);
   persist();showOpponentCount();runStatus.textContent=`Evolution settings reset to the defaults for the ${p.title}.`;
  };
  function setRunning(state){
   const active=state==='running'||state==='paused'||state==='pausing';
   start.disabled=state==='running'||state==='pausing';pause.disabled=state!=='running';stop.disabled=!active;
   start.textContent=state==='paused'?'▶ Continue':'▶ Start';
-  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,keepStructure,warriorLength,selfFight,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,schemeSelect,survivalSelect,memorySelect,race,fitnessSelect,nicheBySelect,scoringSelect,rounds,screenRounds,workers,seed,runName,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
-  if(!active){holdOutShare.disabled=!holdOut.checked;race.disabled=fitnessSelect.value==='shared';}
+  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,keepStructure,warriorLength,selfFight,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,schemeSelect,soupWidth,soupHeight,duelRounds,survivalSelect,memorySelect,race,fitnessSelect,nicheBySelect,scoringSelect,rounds,screenRounds,workers,seed,runName,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
+  if(!active){holdOutShare.disabled=!holdOut.checked;race.disabled=fitnessSelect.value==='shared';showNiche();}
  }
  function begin(){
   if(run?.state==='paused'){run.worker.postMessage({type:'resume'});run.state='running';run.resumedAt=Date.now();setRunning('running');runStatus.textContent='Running.';return;}
@@ -391,6 +403,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   if(seedSelect.value==='paste'){if(!seedText.value.trim()){runStatus.textContent='Paste the seed warrior first.';return;}seedSources.push({name:/^\s*;\s*name\s+(.*?)\s*$/im.exec(seedText.value)?.[1]||'the pasted warrior',source:seedText.value});}
   const length=lengthFor(c);
   if(seedSelect.value==='last'){if(lastPopulation?.key!==populationKey(c,length)){runStatus.textContent='There is no earlier population for these settings.';return;}seedGenomes.push(...lastPopulation.genomes);}
+  const soup=schemeSelect.value==='soup',width=Math.min(200,Math.max(3,Number(soupWidth.value)|0||20)),height=Math.min(100,Math.max(3,Number(soupHeight.value)|0||12));
   const p=preset(),now=new Date(),two=n=>String(n).padStart(2,'0');
   const day=`${now.getFullYear()}${two(now.getMonth()+1)}${two(now.getDate())}`,time=`${two(now.getHours())}${two(now.getMinutes())}`;
   const name=runName.value.trim().replace(/\s+/g,' ')||`${p.id}-${day}-${time}`;
@@ -400,10 +413,10 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
    before:lineage.every(x=>x.generations!=null)?lineage.reduce((t,x)=>t+x.generations,0):0,
    seed:seed.value,workers:Math.max(1,Math.min(processors,Number(workers.value)||1)),scoring:{mode:scoringSelect.value,rounds:Math.max(10,Number(rounds.value)||100),screenRounds:Math.max(1,Number(screenRounds.value)|0||8)},seedSources,seedGenomes,
    markov:seedSelect.value==='markov',selfFight:selfFight.checked,holdOut:holdOut.checked?Math.min(0.5,Math.max(0.05,Number(holdOutShare.value)||0.2)):0,
-   params:{population:Math.max(4,Number(population.value)||40),generations:Math.max(0,Number(generations.value)||0),mutation:Math.max(1,Number(mutation.value)||1.5),
+   params:{population:soup?width*height:Math.max(4,Number(population.value)||40),generations:Math.max(0,Number(generations.value)||0),mutation:Math.max(1,Number(mutation.value)||1.5),
     structural:Math.min(1,Math.max(0,Number(structural.value))),crossover:Math.min(1,Math.max(0,Number(crossoverRate.value))),immigrants:Math.min(0.5,Math.max(0,Number(immigrants.value))),
     elite:Math.max(0,Number(elite.value)|0),niche:Math.min(1,Math.max(0,Number(niche.value)||0)),nicheSize:Math.max(1,Number(nicheSize.value)|0||1),
-    scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked&&fitnessSelect.value!=='shared',fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0,
+    scheme:schemeSelect.value,...(soup?{soupWidth:width,soupHeight:height,duelRounds:Math.max(1,Number(duelRounds.value)|0||100)}:{}),survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked&&fitnessSelect.value!=='shared',fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0,
     keepStructure:keepStructure.checked&&seedSources.length>0}};
   const held=job.holdOut&&list.length>1?Math.min(list.length-1,Math.max(1,Math.round(list.length*job.holdOut))):0;
   const mode=scoringMode(matchConfig(c),list.map(o=>o.source),job.scoring);
@@ -535,7 +548,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  function keepSnapshot(r,data){
   if(!data.ranked)return;
   const following=Number(popSlider.value)>=r.snapshots.length-1;
-  r.snapshots.push({generation:data.stats.generation,genomes:data.ranked,scores:data.scores,radius:data.radius,profiles:data.profiles||null});
+  r.snapshots.push({generation:data.stats.generation,genomes:data.ranked,scores:data.scores,radius:data.radius,profiles:data.profiles||null,grid:data.grid||null});
   const size=()=>r.snapshots.reduce((t,x)=>t+x.genomes.reduce((u,g)=>u+g.code.length,0),0);
   // Over budget: drop every other older snapshot, keeping the first and the latest.
   while(r.snapshots.length>2&&size()>SNAPSHOT_BUDGET)r.snapshots=r.snapshots.filter((x,i,a)=>i===0||i===a.length-1||i%2===0);
@@ -545,6 +558,18 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  function snapshotShown(){const list=run?.snapshots;if(!list?.length)return null;return list[Math.min(list.length-1,Number(popSlider.value)||0)];}
  // Niches and map positions are worked out once per snapshot, when it is first shown.
  function analyse(snap){
+  // A soup: kinds of warrior by their instructions in order, most cells first; no map.
+  if(snap.grid){
+   if(!snap.groups){
+    const names=snap.genomes.map(g=>structureText(structureOf(g))),cells=new Map();
+    names.forEach((k,i)=>{if(!cells.has(k))cells.set(k,[]);cells.get(k).push(i);});
+    const order=[...cells.entries()].sort((a,b)=>b[1].length-a[1].length),index=new Map(order.map(([k],i)=>[k,i]));
+    snap.kinds=order.map(([k])=>k);snap.groups=names.map(k=>index.get(k));
+    // Each kind's leader: its best harvested warrior, else its first cell.
+    snap.leaders=order.map(([,list])=>list.reduce((b,i)=>snap.scores[i]!=null&&(snap.scores[b]==null||snap.scores[i]>snap.scores[b])?i:b,list[0]));
+   }
+   return snap;
+  }
   if(!snap.groups){const {group,leaders}=snap.profiles?nicheGroups(snap.profiles,snap.radius,profileDistance):nicheGroups(snap.genomes,snap.radius);snap.groups=group;snap.leaders=leaders;}
   if(!snap.coords)snap.coords=mapLayout(snap.genomes);
   return snap;
@@ -555,15 +580,17 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const snap=snapshotShown();
   drawHistory();
   if(!snap){drawMap(null);return;}
-  analyse(snap);
+  analyse(snap);popHint.textContent=snap.grid?GRID_HINT:MAP_HINT;
   const latest=snap===run.snapshots.at(-1),n=snap.genomes.length;
-  popLabel.textContent=`Generation ${snap.generation}${latest?' (latest)':''} · ${n} warriors · ${snap.leaders.length} niche${snap.leaders.length===1?'':'s'} (${snap.profiles?'by results, ':''}radius ${snap.radius}) · best ${fmt(snap.scores[0],2)}`;
+  if(snap.grid){const known=snap.scores.filter(v=>v!=null);
+   popLabel.textContent=`Generation ${snap.generation}${latest?' (latest)':''} · ${snap.grid.width} × ${snap.grid.height} soup · ${snap.leaders.length} kind${snap.leaders.length===1?'':'s'} of warrior (by instructions in order)${known.length?` · best harvested ${fmt(Math.max(...known),2)}`:''}`;}
+  else popLabel.textContent=`Generation ${snap.generation}${latest?' (latest)':''} · ${n} warriors · ${snap.leaders.length} niche${snap.leaders.length===1?'':'s'} (${snap.profiles?'by results, ':''}radius ${snap.radius}) · best ${fmt(snap.scores[0],2)}`;
   if(selected&&selected.snap!==snap)selected=null;
   drawMap(snap);showNiches(snap);showSelected(snap);
  }
  function nicheStats(snap){
   return snap.leaders.map((leader,k)=>{const members=[];snap.groups.forEach((g,i)=>{if(g===k)members.push(i);});
-   const scores=members.map(i=>snap.scores[i]);return {k,leader,members,best:Math.max(...scores),mean:scores.reduce((a,b)=>a+b,0)/scores.length};});
+   const scores=members.map(i=>snap.scores[i]).filter(v=>v!=null);return {k,leader,members,best:Math.max(...scores),mean:scores.reduce((a,b)=>a+b,0)/scores.length};});
  }
  function oneLine(g){
   const parts=g.code.slice(0,6).map(ins=>renderInstruction(ins,run.config.coreSize).replace(/\s+/g,' '));
@@ -571,7 +598,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  }
  function showNiches(snap){
   const rows=nicheStats(snap),shown=rows.slice(0,40);
-  nicheTable.replaceChildren(el('thead',{},el('tr',{},...['Niche','Warriors','Best','Mean','Leader'].map(h=>el('th',{scope:'col',textContent:h})))),
+  nicheTable.replaceChildren(el('thead',{},el('tr',{},...(snap.grid?['Kind','Cells','Best','Mean','Best harvested, or the first']:['Niche','Warriors','Best','Mean','Leader']).map(h=>el('th',{scope:'col',textContent:h})))),
    el('tbody',{},...shown.map(row=>{
     const tr=el('tr',{className:selected?.niche===row.k?'selected':''},el('td',{className:'num',textContent:String(row.k+1)}),el('td',{className:'num',textContent:String(row.members.length)}),
      el('td',{className:'num',textContent:fmt(row.best,1)}),el('td',{className:'num',textContent:fmt(row.mean,1)}),el('td',{},el('code',{textContent:oneLine(snap.genomes[row.leader])})));
@@ -582,7 +609,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  function select(snap,index){selected={snap,index,niche:snap.groups[index]};showPopulation(false);}
  function warriorSource(snap,index){
   const rules=genomeRules(run.config);
-  return evolvedSource(snap.genomes[index],rules,{run:run.job.name,generation:snap.generation,before:run.job.before,index:index+1,score:snap.scores[index],benchmark:run.job.benchmarkName,header:redcodeHeader(run.config),notes:run.job.notes});
+  return evolvedSource(snap.genomes[index],rules,{run:run.job.name,generation:snap.generation,before:run.job.before,index:index+1,score:snap.scores[index]??null,benchmark:run.job.benchmarkName,header:redcodeHeader(run.config),notes:run.job.notes});
  }
  function showSelected(snap){
   if(!selected){popCode.hidden=popEdit.hidden=true;return;}
@@ -601,6 +628,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const ctx=popMap.getContext('2d');ctx.scale(ratio,ratio);ctx.fillStyle='#101d29';ctx.fillRect(0,0,w,h);
   mapPoints=[];
   if(!snap){ctx.font='11px system-ui';ctx.fillStyle='#aec0ce';ctx.fillText(run?'Waiting for the first generation':'Start a run to see the population',12,h/2);return;}
+  if(snap.grid){drawGrid(ctx,snap,w,h);return;}
   const c=snap.coords,pad=14;let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
   for(const [x,y] of c){x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);}
   const span=Math.max(x1-x0,y1-y0,1e-9),k=Math.min((w-2*pad)/Math.max(x1-x0,span*0.2),(h-2*pad)/Math.max(y1-y0,span*0.2));
@@ -616,6 +644,21 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
    if(selected?.index===i){ctx.strokeStyle='#ffffff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(px,py,r+5,0,2*Math.PI);ctx.stroke();}
   }
   ctx.globalAlpha=1;ctx.font='11px system-ui';ctx.fillStyle='#aec0ce';ctx.fillText(`score ${fmt(lo,0)} … ${fmt(hi,0)}`,8,h-6);
+ }
+ // A soup's grid: one square per cell, coloured by its kind of warrior (the eight commonest kinds
+ // get colours of their own, the rest grey); a light edge marks harvested warriors.
+ const KIND_COLOURS=['#54d8df','#f9a567','#c792ea','#9ccc65','#ef6f6c','#ffd54f','#4f9cf9','#f48fb1'];
+ function drawGrid(ctx,snap,w,h){
+  const {width:gw,height:gh}=snap.grid,cell=Math.max(2,Math.floor(Math.min((w-8)/gw,(h-22)/gh))),ox=Math.floor((w-cell*gw)/2),oy=4,gap=cell>4?1:0;
+  for(let i=0;i<snap.genomes.length;i++){
+   const x=ox+(i%gw)*cell,y=oy+Math.floor(i/gw)*cell,k=snap.groups[i];mapPoints.push([x+cell/2,y+cell/2,i]);
+   ctx.globalAlpha=selected&&k!==selected.niche?0.25:1;ctx.fillStyle=KIND_COLOURS[k]??'#5b6b78';ctx.fillRect(x,y,cell-gap,cell-gap);
+   if(snap.scores[i]!=null&&cell>5){ctx.strokeStyle='#ffffffaa';ctx.lineWidth=1;ctx.strokeRect(x+0.5,y+0.5,cell-2,cell-2);}
+  }
+  ctx.globalAlpha=1;
+  if(selected){const i=selected.index,x=ox+(i%gw)*cell,y=oy+Math.floor(i/gw)*cell;ctx.strokeStyle='#ffffff';ctx.lineWidth=2;ctx.strokeRect(x-1,y-1,cell+1,cell+1);}
+  ctx.font='11px system-ui';ctx.fillStyle='#aec0ce';
+  ctx.fillText(snap.kinds.slice(0,3).map((k,i)=>`${['1st','2nd','3rd'][i]}: ${k}`).join(' · '),8,h-6);
  }
  popMap.addEventListener('click',event=>{
   const snap=snapshotShown();if(!snap)return;const box=popMap.getBoundingClientRect(),x=event.clientX-box.left,y=event.clientY-box.top;

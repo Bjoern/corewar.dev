@@ -68,6 +68,25 @@ export async function runBatch(job,options){
  }
  return out;
 }
+// Several one-on-one matches in one job (the evolver's soup duels): job {config, duels: [[a, b]],
+// rounds, positions: [placement seed per duel] (optional)}. Returns runMatch's result per duel.
+export async function runDuels(job,options){
+ const useExmars=options?.useExmars!==false,out=[],settings=jobSettings({...job,position:''});
+ for(let i=0;i<job.duels.length;i++){
+  const [a,b]=job.duels[i],position=job.positions?.[i];
+  let why=null;
+  if(useExmars){
+   exmars??=new ExmarsRunner();
+   const r=await exmars.pairs(settings,a,[b],{positions:position!=null?[position]:null}),p=Array.isArray(r)?r[0]:r;
+   if(!p.fallback){out.push(p);continue;}
+   why=p.fallback;
+  }
+  const r=await runMatch({config:job.config,a,b,rounds:job.rounds,position},{useExmars:false});
+  if(!r.error&&why)r.fallback=why;
+  out.push(r);
+ }
+ return out;
+}
 // The same through a function that runs one match (runMatch's job), for callers that only have one.
 export const batchOf=runJob=>(job,token)=>Promise.all(job.opponents.map((b,i)=>runJob({config:job.config,a:job.a,b,rounds:job.rounds,permutate:job.permutate,
  ...(job.positions?{position:job.positions[i]}:{})},token)));

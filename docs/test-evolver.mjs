@@ -7,7 +7,8 @@ import {readFileSync} from 'node:fs';
 import {rng,genomeRules,randomGenome,mutate,mutateOnce,crossover,normalize,renderGenome,genomeKey,signed,MUTATIONS,markovModel,markovGenome,nicheGroups,structureOf,hasStructure,structureText,structuredGenome,mutateStructured,crossoverStructured} from './evolver-genome.mjs';
 import {Evolution,splitHoldOut,evolvedSource,runNotes,EVOLVER_DEFAULTS} from './evolver-run.mjs';
 import {EVOLVER_PRESETS,checkCustom,splitWarriors,suiteFits} from './evolver-presets.mjs';
-import {Evaluator,runMatch,scoringMode} from './optimizer-fitness.mjs';
+import {Evaluator,runMatch,runDuels,scoringMode} from './optimizer-fitness.mjs';
+import {SoupEvolution,soupGenome,soupMutate} from './evolver-soup.mjs';
 import {assemble} from './dist/exmars/fighter-client.mjs';
 import {hillOf} from './exmars.mjs';
 import {Engine} from './engine.mjs';
@@ -161,6 +162,31 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
   assert.throws(()=>new Evolution({evaluator,config:nano,params:{keepStructure:true}}),/needs a seed/);
   assert.throws(()=>new Evolution({evaluator,config:nano,params:{keepStructure:true},seeds:[seedG,{code:[[0,0,1,0,1,0]],start:0}]}),/differ/);
   assert.match(runNotes({when:'w',seed:1,length:5,benchmark:{name:'b',opponents:1},params:{keepStructure:true},structure:structureText(s)}).join('\n'),new RegExp('Structure: the seed\'s, kept \\(length and opcodes in order fixed\\): '+structureText(s)));
+ }
+ // Soup mode: a grid of warriors that duel their neighbours; a hall of fame scored on the benchmark.
+ {
+  const rules=genomeRules(nano),r=rng('soup');
+  for(let i=0;i<300;i++){const g=soupGenome(r,rules),m=soupMutate(g,r,rules,{mate:soupGenome(r,rules)});valid(g,rules);valid(m,rules);
+   const s=structureOf(g);assert(hasStructure(soupMutate(g,r,rules,{mate:g,locked:true}),s));}
+  let copies=0;const g0=soupGenome(rng('c'),{...rules,maxLength:5});for(let i=0;i<400;i++)if(genomeKey(soupMutate(g0,r,rules))===genomeKey(g0))copies++;
+  assert(copies>100&&copies<350,'yabevolver rates: many copies are exact ('+copies+' of 400)');
+  const duel=(list,rounds,rand)=>runDuels({config:nano,duels:list,rounds,positions:list.map(()=>String(6+rand.below(70)))});
+  const make=seed=>new SoupEvolution({evaluator,config:nano,params:{scheme:'soup',soupWidth:8,soupHeight:6,duelRounds:20},seed,duel});
+  const a=make('soup'),b=make('soup');
+  await a.init();await b.init();for(let i=0;i<4;i++){await a.step();await b.step();}
+  assert.equal(a.generation,4);assert(a.duels>=4*48&&a.duels<5*48);
+  assert.deepEqual(a.snapshot(),b.snapshot(),'a soup repeats with its seed');assert.deepEqual(a.history,b.history);
+  assert.equal(a.snapshot().length,48);assert.deepEqual(a.grid,{width:8,height:6});
+  assert(a.evaluations>=5,'at least one harvest per generation');assert(a.hall.length<=20);
+  const exact=await evaluator.evaluate(a.source(a.best.genome));assert.equal(a.best.score,exact.score,'the hall of fame is scored exactly');
+  for(let i=1;i<a.history.length;i++)assert(a.history[i].best>=a.history[i-1].best);
+  assert.equal(a.history.at(-1).niches,a.kinds().length);assert(a.view().every(m=>m.score===null||typeof m.score==='number'));
+  for(const g of a.snapshot())valid(g,rules);
+  assert.match(runNotes({when:'w',seed:1,length:5,benchmark:{name:'b',opponents:1},params:{scheme:'soup'}}).join('\n'),/Breeding: soup, a 20 × 12 grid, neighbours duel 100 rounds/);
+  // Seeds fill their share of the grid; a kept structure holds in the soup too.
+  const w=await assemble(opponents[3].source,hillOf(nano)),seedG={code:w.instructions,start:w.start};
+  const k=new SoupEvolution({evaluator,config:nano,params:{scheme:'soup',soupWidth:5,soupHeight:4,duelRounds:10,keepStructure:true,seedShare:0.5},seeds:[seedG],seed:'k',duel});
+  await k.init();await k.step();for(const g of k.snapshot())assert(hasStructure(g,structureOf(seedG)));
  }
  // Seeding from genomes (the last population) starts from them.
  const again=new Evolution({evaluator,config:nano,params:{population:24},seeds:e.snapshot(),seed:'test2'});

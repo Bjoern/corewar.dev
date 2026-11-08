@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // The evolver runs here, off the page's thread: the population, breeding and bookkeeping
-// (evolver-run.mjs). Matches go to a pool of the constant optimizer's match workers
+// (evolver-run.mjs, or the soup of evolver-soup.mjs). Matches go to a pool of the constant optimizer's match workers
 // (optimizer-worker.mjs), one per CPU core asked for; a browser without nested workers runs
 // them here, one at a time. Messages in: start, pause, resume, stop. Out: started, generation,
 // paused, done, error.
-import {Evaluator,WorkerPool,runMatch,runBatch,scoringMode,matchConfig,plannedEngine,engineSummary} from './optimizer-fitness.mjs';
+import {Evaluator,WorkerPool,runMatch,runBatch,runDuels,scoringMode,matchConfig,plannedEngine,engineSummary} from './optimizer-fitness.mjs';
 import {Evolution,splitHoldOut,runNotes,SCREEN_PARAMS} from './evolver-run.mjs';
 import {genomeRules,markovModel,structureOf,structureText} from './evolver-genome.mjs';
-import {hillOf} from './exmars.mjs';
+import {SoupEvolution} from './evolver-soup.mjs';
+import {hillOf,separationOf} from './exmars.mjs';
 
 let run=null;
 const post=message=>self.postMessage(message);
@@ -62,7 +63,9 @@ async function start(job){
  // Held-out opponents never take part in selection (or in the Markov chain); the best warrior is
  // scored on them in the same mode, so the two scores compare.
  const {training:opponents,heldOut}=splitHoldOut(usable,job.holdOut||0,job.seed);
- const mode=scoringMode(config,usable.map(o=>o.source),job.scoring);
+ // A soup scores only the warriors it harvests, each one in full: no screened scoring there.
+ const soup=job.params.scheme==='soup';
+ const mode=scoringMode(config,usable.map(o=>o.source),soup&&job.scoring?.mode==='screen'?{...job.scoring,mode:'auto'}:job.scoring);
  // The run's notes count the opponents that take part.
  // Screened scoring sets how scores are kept (SCREEN_PARAMS); the notes say so.
  if(mode.judge)job.params={...job.params,...SCREEN_PARAMS};
@@ -87,7 +90,8 @@ async function start(job){
   if(job.params.keepStructure&&seeds.length)notes({structure:structureText(structureOf(seeds[0]))});
   const model=job.markov&&!job.params.keepStructure?await opponentModel(opponents,own):null;
   if(model&&!model.warriors)throw new Error('None of the opponents assembled for these settings, so there is no Markov chain to draw from.');
-  r.evolution=new Evolution({evaluator,judge,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model,notes:job.notes||[],before:job.before||0});
+  const setup={evaluator,judge,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model,notes:job.notes||[],before:job.before||0};
+  r.evolution=soup?new SoupEvolution({...setup,duel:duels(pool,config)}):new Evolution(setup);
   const engine=plannedEngine(config,mode);
   post({type:'started',why:mode.why,exact:mode.exact,rounds:mode.rounds,engine:engine.engine,engineWhy:engine.why,workers:pool?size:1,nested:!!pool||size===1,
    markov:model&&{warriors:model.warriors,instructions:model.instructions,shapes:model.shapes,skipped:opponents.length-model.warriors},
@@ -108,6 +112,17 @@ async function start(job){
   r.state='stopped';pool?.terminate();post({type:'error',message:error.message});
  }
 }
+// The soup's duels: random placements from the soup's own random numbers (so a run repeats with any
+// number of workers), shared out over the pool in one job per worker.
+function duels(pool,config){
+ const sep=separationOf(config),span=config.coreSize-2*sep+1;
+ return async(list,rounds,rand)=>{
+  const positions=list.map(()=>String(sep+1+rand.below(span-1))),parts=pool?Math.min(pool.size,list.length):1,size=Math.ceil(list.length/Math.max(1,parts));
+  const jobs=[];for(let s=0;s<list.length;s+=size)jobs.push({config,duels:list.slice(s,s+size),rounds,positions:positions.slice(s,s+size)});
+  const results=await Promise.all(jobs.map(j=>pool?pool.run(j):runDuels(j)));
+  return results.flatMap((r,k)=>Array.isArray(r)&&r.length===jobs[k].duels.length?r:Array(jobs[k].duels.length).fill(null));
+ };
+}
 function elapsed(r){return r.elapsed+(r.state==='running'?Date.now()-r.resumedAt:0);}
 async function report(r,stats){
  const e=r.evolution,b=e.best;
@@ -115,12 +130,14 @@ async function report(r,stats){
  if(r.validator&&b&&r.validatedKey!==b.key){r.validation=await r.validator.evaluate(e.source(b.genome));r.validatedKey=b.key;}
  if(r.validation)stats={...stats,heldOut:r.validation.score};
  const engines={...r.evaluator.engines};if(r.judge)for(const k in engines)engines[k]+=r.judge.engines[k];
- post({type:'generation',stats,elapsed:elapsed(r),matches:r.evaluator.matches+(r.judge?.matches??0),engines:engineSummary(engines),cached:r.evaluator.cached,invalid:r.evaluator.invalid,
+ post({type:'generation',stats,elapsed:elapsed(r),matches:r.evaluator.matches+(r.judge?.matches??0)+(e.duels??0),engines:engineSummary(engines),cached:r.evaluator.cached,invalid:r.evaluator.invalid,
   best:b?{source:e.bestSource(r.job.benchmarkName,{heldOut:r.validation?.score??null}),score:b.score,se:b.se,generation:b.generation,length:b.genome.code.length,opponents:b.result?.opponents??[],
    heldOut:r.validation?{score:r.validation.score,se:r.validation.se,opponents:r.validation.opponents}:null}:null,
   population:e.snapshot(),scores:e.view().map(m=>m.score),ranked:e.view().map(m=>m.genome),radius:e.nicheRadius,
   // Niches by results: the population view groups by these instead of by code.
-  profiles:e.profiles()});
+  profiles:e.profiles(),
+  // A soup: the grid, row by row (the population view draws it as a grid).
+  ...(e.grid?{grid:e.grid}:{})});
 }
 function finish(r,reason){
  if(r.state!=='stopped')r.elapsed=elapsed(r);
