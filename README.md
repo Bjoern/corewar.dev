@@ -14,8 +14,7 @@ Headless matches of 2 to 36 warriors in Tournaments and Tools run on exMARS
 (<https://github.com/Bjoern/exMARS>) when it gives the
 same result as pMARS: ICWS '94, the default P-space size, a numeric or no placement seed, a
 score formula in W and S (scored from exMARS's survivor counts by `docs/score-formula.mjs`,
-a port of pMARS's evaluator), and a permutation only when it covers every position without
-P-space.
+a port of pMARS's evaluator), and a permutation only when it covers every position.
 Its fighter stays loaded in each worker, so warriors are assembled once. `exmars-lock.json`
 pins its commit and the hashes of `docs/dist/exmars/`; `docs/exmars.mjs` decides which
 engine runs a match, and both pages say which one ran. `docs/test-exmars.mjs` checks that

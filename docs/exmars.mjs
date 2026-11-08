@@ -5,8 +5,9 @@
 // It runs a match only when the result is the same as pMARS's: ICWS '94, the default P-space
 // size, a numeric or no placement seed, a score formula in W and S (scored here from exMARS's
 // survivor counts, as pMARS scores them: score-formula.mjs), and a permutation only when it
-// covers every position without P-space (exMARS's exact mode). Everything else, and anything
-// the fighter refuses, runs on pMARS as before.
+// covers every position (exMARS's exact mode, pMARS's -P: one match, so P-space persists between
+// its rounds, and the placement seed orders them as -F does). Everything else, and anything the
+// fighter refuses, runs on pMARS as before.
 import {defaults} from './settings.mjs';
 import {formulaTable,scoreFrom} from './score-formula.mjs';
 
@@ -76,15 +77,13 @@ export class ExmarsRunner{
    if(list.some(w=>!w.ok))return {fallback:'assembly'};
    const pspace=list.some(w=>w.pspace);
    if(c.noPspace&&pspace)return {fallback:'P-space on a no-P-space hill'};
-   // pMARS's permutation runs the positions in a shuffled order; only without P-space is the order irrelevant.
-   if(c.permutate&&pspace)return {fallback:'a permutation with P-space'};
    onAssembled();
    const position=c.fixedPosition?Number(c.fixedPosition):0;
    // Per warrior: rounds it ended dead, then alive with 1, 2, … n survivors.
    let histograms;
    if(list.length>2)histograms=this.fighter.fightMany(list.map(w=>w.handle),{rounds:c.rounds,position}).results;
    else{
-    const [a,b]=list,r=c.permutate?this.fighter.exact(a.handle,b.handle):this.fighter.fight(a.handle,b.handle,{rounds:c.rounds,position});
+    const [a,b]=list,r=c.permutate?this.fighter.exact(a.handle,b.handle,{position}):this.fighter.fight(a.handle,b.handle,{rounds:c.rounds,position});
     histograms=[[r.losses,r.wins,r.ties],[r.wins,r.losses,r.ties]];
    }
    // As the site's pMARS reports: a win is a round survived alone, a tie one survived with others.

@@ -76,10 +76,14 @@ for(const [change,reason] of [[{rules88:true},/’88/],[{formula:'X*2'},/formula
  [{permutate:true,rounds:100},/permutation/],[{pspace:7},/P-space size/],[{coreSize:65536,distance:100,maxLength:100},/65535/],[{distance:10},/distance/]])
  assert.match(exmarsBlocker({...base,...change})??'',reason,JSON.stringify(change));
 assert.equal(exmarsBlocker(base),null);
-// Decided after assembly: a permutation with P-space, P-space on a no-P-space hill, and assembly errors.
-const pspaceWarrior=collection('psptop50','HILL32').find(w=>/^[^;]*\b(ldp|stp)\b/im.test(w.source));
 const tinyPspace=';redcode\n;name reader\nldp.ab #0, #1\nspl 0\njmp -1\nend\n';
-assert.match((await runner.run({...base,permutate:true,rounds:permutationRoundsOf(base)},[tinyPspace,tinyPspace])).fallback,/permutation with P-space/);
+// A permutation with P-space: one -P match, rounds in the seed's order (pMARS -P -F), P-space kept between them.
+// The switcher plays an imp after a round it survived and SPL 0 after a loss (last result 0).
+{const switcher={name:'switcher',source:';redcode\n;name switcher\nldp.ab #0, 1\njmz.b 3, #0\nmov 0, 1\ndat 0, 0\nspl 0\nend\n'},nanoAll=collection('nanobm07');
+ for(let i=0;i<6;i++)await same('nano permutation with P-space',{...suite('nanobm07'),permutate:true,rounds:142,fixedPosition:String(5+i*13)},switcher,i===0?switcher:pick(nanoAll));
+ await same('tiny permutation with P-space',{...base,permutate:true,rounds:permutationRoundsOf(base),fixedPosition:'321'},{name:'reader',source:tinyPspace},{name:'reader',source:tinyPspace});}
+// Decided after assembly: P-space on a no-P-space hill, and assembly errors.
+const pspaceWarrior=collection('psptop50','HILL32').find(w=>/^[^;]*\b(ldp|stp)\b/im.test(w.source));
 assert.match((await runner.run(settings({...suite('94top50'),warriors:2}),[pspaceWarrior.source,pspaceWarrior.source])).fallback,/no-P-space/);
 assert.equal((await runner.run(base,['mov 0, 1\nbogus 1, 2\n','mov 0, 1\n'])).fallback,'assembly');
 // After all that the same runner still agrees with pMARS.
