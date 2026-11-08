@@ -403,7 +403,7 @@ another seed could give a few more or fewer").
 | ◇ 3.c | Odd one out | Run | Alone: exactly 3 processes, held for 1,000 cycles | ≤ 6 lines · ★ ≤ 4 lines | `spl 1` only doubles; uneven splits |
 | 3.d | Captured code | Repair | Kettle has a copy of a Janitor patrol's code: the Dwarf. Make it survive a hit, so it loses at most 5 of 100 rounds against the original, and wins at least 30 | ≤ 2 changes · ★ 1 change, ★ 0 losses | Reading enemy code; one hit need not be fatal |
 | 3.e | Leftovers | Challenge | All 100 rounds against the Short Dummy (3 cells of `JMP` in a loop) | ≤ 6 lines · ★ 2 lines | The bombing gap; core clears; **reveal: a clear is the Janitor** |
-| 3.f | Clean sweep | Challenge | At least 45 wins of 100 against the Dwarf, at most 5 ties | ≤ 8 lines · ★ 50 wins | Bomb first, clear after |
+| 3.f | Clean sweep | Challenge | At least 45 wins of 100 against the Dwarf, at most 5 ties | ≤ 8 lines · ★ 60 wins | A clear against a bomber; small is hard to hit |
 | 3.4 | Imp train | Run | Alone: at least 3 processes, all still running after 80,000 cycles | ≤ 3 lines | Several processes on one Imp |
 | 3.5 | Copy machine | Build | A copy of your own code at +2000, with a process running in it | ≤ 8 lines · ★ fewest cycles | Copy loops |
 | 3.6 | Paper | Run | Alone: at least 10 copies of your code in the core after 10,000 cycles | ≤ 8 lines · ★ ≤ 5 lines | Self-copying warriors (Silk-style) |
@@ -455,13 +455,25 @@ turn it against it), and it could replace 3.7 Hold the line in the first release
   win all 100. A dummy rather than the Dwarf, so the clear wins every round and the lesson is not
   muddied by the enemy shooting back. Kettle recognises the pattern: this is how the Janitor swept
   the Academy (the reveal TRIALS gives to 2.7 Broom, which is not built yet).
-- **3.f Clean sweep.** Back to the Dwarf: a quarter of the rounds are ties because each Dwarf only
-  ever bombs the other's `bomb` cell. A Dwarf that counts its 1,999 bombs with `djn` and then falls
-  into a clear (`mov.i bomb, <bomb` / `jmp`) wins 53, ties 0 and loses 47; the plain Dwarf goes
-  32 / 22 / 46 and the `spl 0` Dwarf from 3.d 55 / 45 / 0. Kettle's debrief says the obvious next
-  step, a warrior that never loses *and* never ties, needs both ideas at once and belongs in the
-  Workshop (chapter 6). Combining them naively (`spl 0`, bombing, then switching the step to -1)
-  only reached 60 / 40 / 0, because a hit on the loop still leaves the bomber stuck in `spl 0`.
+- **3.f Clean sweep.** The player's clear against the Dwarf, which shoots back. The plain 2-line
+  clear `mov.i 2, >1` / `jmp -1, 2` wins 62, ties 0 and loses 38; the plain Dwarf goes 32 / 22 / 46
+  and the `spl 0` Dwarf from 3.d 55 / 45 / 0. A clear never ties because nobody can hide from it,
+  and 2 lines sit in only 2 of the Dwarf's 4 bombing lanes, so in about half the placements its
+  bombs never land. Kettle's debrief sets it beside 3.d: one never loses, the other never ties, and
+  doing both needs both ideas at once, which belongs in the Workshop (chapter 6).
+
+  Two traps, both in the hints. A clear that keeps its pointer in a separate `DAT` line ties: the
+  Dwarf bombs the same cells on every pass, so when the pointer is one of them it keeps being reset
+  and the clear sweeps the same stretch forever (the 4-line sweeper from 2.a goes 60 / 8 / 32, the
+  same with `end start` and the data first 54 / 10 / 36). Keeping the pointer in the `jmp`'s
+  B-number fixes it (3 lines: 60 / 0 / 40). And "bomb first, clear after", the first draft of this
+  stage, does not work: a Dwarf that counts 1,999 bombs and then clears goes 53 / 0 / 47, and the
+  same with the clear replaced by `jmp 0` goes 52 / 0 / 48. Its ties vanish only because 6 lines
+  cover all 4 bombing lanes, so the enemy always finds a fatal line, and by the time the clear would
+  start the enemy has long finished its own pass. No layout escapes that: the loop plus a clear is
+  at least 4 lines of code in a row, and one of them always sits in the lane that the gap rounds
+  depend on. A clear that survives a hit (several clears launched far apart, as the player
+  suggested) is a Workshop idea too.
 
 ### Chapter 4 — Eyes in the dark (Observatory)
 
@@ -581,7 +593,9 @@ real engine (standard core, 100 rounds). Two runs, as ranges:
 | 3.d (400 rounds × 2 orders) | Dwarf with `spl 0` | 5 | Dwarf | 204–209 / 188–196 / 0–3 |
 | 3.e Leftovers | Dwarf | 4 | Short Dummy | 86 / 14 / 0 |
 | 3.e | Clear | 2 | Short Dummy | 100 / 0 / 0 |
-| 3.f Clean sweep | Dwarf, then clear | 6 | Dwarf | 53 / 0 / 47 |
+| 3.f Clean sweep | Clear | 2 | Dwarf | 62 / 0 / 38 |
+| 3.f | Clear, pointer in the `jmp` | 3 | Dwarf | 60 / 0 / 40 |
+| 3.f | Sweeper, separate pointer | 4 | Dwarf | 60 / 8 / 32 |
 | 3.8 Paper beats stone | Silk | 5 | Stone | 60–62 / 0 / 38–40 |
 | 3.8 | Silk | 5 | Dwarf | 5–9 / 45–46 / 45–50 |
 | 3.a Strength in numbers | Imp Train | 3 | Dwarf | 0 / 77–83 / 17–23 |
