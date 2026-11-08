@@ -279,7 +279,8 @@ out, 3.d Captured code, 3.e Leftovers and 3.f Clean sweep. The rest of those win
 their briefings introduce what the missing stages would have taught (`ADD`, `@`, `SPL`). A
 "Skip for now" button opens the next stage without clearing the current one, marked ⤼ on the map,
 and `trials.html?unlock` (or `/?unlock#trials` in the site's Trials tab) opens every stage for that
-visit without changing the saved progress.
+visit without changing the saved progress. Each stage keeps its own chat with Kettle (briefing,
+hints, results, debrief), so going back to a stage shows that conversation again.
 A collapsible Debugger under the core view pauses and steps the run (saying which program ran which
 instruction), lists the core from any clicked cell, and passes other commands to pMARS's cdb
 (`list`, `step`, `continue`, `help`, …).

@@ -17,11 +17,25 @@ $('titleKettle').addEventListener('click', () => setMood($('titleKettle').firstE
 const KEY = 'corewar-trials';
 const byId = Object.fromEntries(stages.map(stage => [stage.id, stage]));
 
-// Saved progress: {current, stages: {id: {cleared, stars, source, briefed, hints}}, chat: [[kind, text]]}.
+// Saved progress: {current, stages: {id: {cleared, stars, source, briefed, hints, chat: [[kind, text]]}}}.
+// Each stage keeps its own conversation with Kettle; going back to a stage shows its chat again.
 function load() { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch { return null; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
-const fresh = () => ({current: stages[0].id, stages: {}, chat: []});
-let state = load();
+const fresh = () => ({current: stages[0].id, stages: {}});
+// Saves from before per-stage chats kept one long chat, with a divider line ("Drill 1.1 · Echo") where each
+// stage began. Each part goes to the stage its divider names; lines before the first divider belong to the first stage.
+function splitChat(saved) {
+  if (!Array.isArray(saved?.chat)) return saved;
+  let id = stages[0].id;
+  for (const [kind, text] of saved.chat) {
+    const named = kind === 'divider' && text.match(/^\S+ (\S+) · /)?.[1];
+    if (named && byId[named]) id = named;
+    ((saved.stages[id] ??= {}).chat ??= []).push([kind, text]);
+  }
+  delete saved.chat;
+  return saved;
+}
+let state = splitChat(load());
 
 const record = id => (state.stages[id] ??= {});
 // A stage opens once the one before it is cleared or skipped (skipping is for trying later stages early).
@@ -44,16 +58,23 @@ function append(kind, text) {
   li.className = kind; li.innerHTML = format(text);
   $('chatLog').append(li); li.scrollIntoView({block: 'nearest'});
 }
-function remember(kind, text) { state.chat.push([kind, text]); state.chat = state.chat.slice(-300); save(); }
+// A line belongs to the stage that was open when Kettle started saying it, even if the player has moved on.
+function remember(id, kind, text) {
+  const saved = record(id);
+  saved.chat = [...(saved.chat ?? []), [kind, text]].slice(-300); save();
+  if (current?.id === id) append(kind, text);
+}
+function showChat(stage) { $('chatLog').replaceChildren(); for (const [kind, text] of state.stages[stage.id]?.chat ?? []) append(kind, text); }
 // Lines arrive one by one, with a short pause that grows with their length. Clicking the chat skips the wait.
 function say(lines, vars = {}, mood = '') {
+  const id = current.id;
   if (mood) queue = queue.then(() => setMood(avatar(), mood));
   for (const raw of lines) {
     const text = raw.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? '');
     const seq = ++queued;
     queue = queue.then(async () => {
       const kind = kindOf(text);
-      if (seq > flushed) {
+      if (seq > flushed && current?.id === id) {
         const typing = document.createElement('li');
         typing.className = 'typing'; typing.textContent = kind === 'system' ? '▒' : '…';
         $('chatLog').append(typing); typing.scrollIntoView({block: 'nearest'});
@@ -61,13 +82,13 @@ function say(lines, vars = {}, mood = '') {
         await new Promise(resolve => setTimeout(resolve, Math.min(1600, 300 + text.length * 14)));
         typing.remove(); setTalking(avatar(), false);
       }
-      append(kind, text); remember(kind, text);
+      remember(id, kind, text);
     });
   }
   if (mood) queue = queue.then(() => setMood(avatar(), mood, 2500));
   return queue;
 }
-function divider(text) { queue = queue.then(() => { append('divider', text); remember('divider', text); }); }
+function divider(text) { const id = current.id; queue = queue.then(() => remember(id, 'divider', text)); }
 $('chatLog').addEventListener('click', () => { flushed = queued; });
 
 // ---- Stars ------------------------------------------------------------------------------------
@@ -206,8 +227,9 @@ function open(stage) {
     display.configure(stage.settings.coreSize);
   showMarks(stage.setups[0]);
   renderMap();
+  flushed = queued; // Lines still typing for the last stage arrive at once, in that stage's chat.
+  showChat(stage);
   if (!saved.briefed) {
-    flushed = queued; // Lines still typing from the last stage arrive at once.
     divider(`${kindLabel(stage)} ${stage.id} · ${stage.title}`);
     say(stage.briefing ?? []);
     saved.briefed = true; save();
@@ -499,8 +521,6 @@ function startGame() {
   document.body.dataset.screen = 'game';
   $('title').hidden = true; $('game').hidden = false;
   if (!display) { display = new CoreDisplay($('core')); display.setCellSize(0); }
-  $('chatLog').replaceChildren();
-  for (const [kind, text] of state.chat) append(kind, text);
   open(byId[state.current] ?? stages[0]);
 }
 function showTitle() {
