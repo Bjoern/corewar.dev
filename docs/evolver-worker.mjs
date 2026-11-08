@@ -59,7 +59,7 @@ async function start(job){
   const seeds=[...(job.seedGenomes||[]),...await assembleSeeds(job.seedSources||[],own)];
   const model=job.markov?await opponentModel(opponents,own):null;
   if(model&&!model.warriors)throw new Error('None of the opponents assembled for these settings, so there is no Markov chain to draw from.');
-  r.evolution=new Evolution({evaluator,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model});
+  r.evolution=new Evolution({evaluator,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model,notes:job.notes||[],before:job.before||0});
   const engine=plannedEngine(config,mode);
   post({type:'started',why:mode.why,exact:mode.exact,rounds:mode.rounds,engine:engine.engine,engineWhy:engine.why,workers:pool?size:1,nested:!!pool||size===1,
    markov:model&&{warriors:model.warriors,instructions:model.instructions,shapes:model.shapes,skipped:opponents.length-model.warriors},
@@ -87,7 +87,7 @@ async function report(r,stats){
  if(r.validator&&b&&r.validatedKey!==b.key){r.validation=await r.validator.evaluate(e.source(b.genome));r.validatedKey=b.key;}
  if(r.validation)stats={...stats,heldOut:r.validation.score};
  post({type:'generation',stats,elapsed:elapsed(r),matches:r.evaluator.matches,engines:engineSummary(r.evaluator.engines),cached:r.evaluator.cached,invalid:r.evaluator.invalid,
-  best:b?{source:e.bestSource(r.job.benchmarkName),score:b.score,se:b.se,generation:b.generation,length:b.genome.code.length,opponents:b.result?.opponents??[],
+  best:b?{source:e.bestSource(r.job.benchmarkName,{heldOut:r.validation?.score??null}),score:b.score,se:b.se,generation:b.generation,length:b.genome.code.length,opponents:b.result?.opponents??[],
    heldOut:r.validation?{score:r.validation.score,se:r.validation.se,opponents:r.validation.opponents}:null}:null,
   population:e.snapshot(),scores:e.view().map(m=>m.score),ranked:e.view().map(m=>m.genome),radius:e.nicheRadius,
   // Niches by results: the population view groups by these instead of by code.

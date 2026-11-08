@@ -192,8 +192,9 @@ export function renderInstruction(ins,coreSize){
  const [op,m,am,a,bm,b]=ins;
  return `${OPCODES[op]}.${MODIFIERS[m]}`.padEnd(7)+` ${MODES[am]}${signed(a,coreSize)}, ${MODES[bm]}${signed(b,coreSize)}`;
 }
-export function renderGenome(g,rules,{name='Evolved',author='corewar.dev evolver',strategy=[],header=';redcode-94'}={}){
- const lines=[header,`;name ${name}`,`;author ${author}`,...strategy.map(s=>`;strategy ${s}`),';assert 1'];
+// strategy: ;strategy lines (hills show them); comments: plain ; lines after them, which hills leave out.
+export function renderGenome(g,rules,{name='Evolved',author='corewar.dev evolver',strategy=[],comments=[],header=';redcode-94'}={}){
+ const lines=[header,`;name ${name}`,`;author ${author}`,...strategy.map(s=>`;strategy ${s}`),';assert 1',...comments.map(s=>`; ${s}`)];
  g.code.forEach((ins,i)=>lines.push((i===g.start?'start':'').padEnd(7)+renderInstruction(ins,rules.coreSize)));
  lines.push('       end start');
  return lines.join('\n')+'\n';

@@ -4,14 +4,14 @@
 // evolver-presets.mjs. Scoring is the constant optimizer's (optimizer-fitness.mjs).
 import {el} from './tools.mjs';
 import {EVOLVER_PRESETS,CUSTOM_FIELDS,checkCustom,suiteFits,suiteHill,sameHill,splitWarriors} from './evolver-presets.mjs';
-import {EVOLVER_DEFAULTS,RESULT_RADIUS} from './evolver-run.mjs';
+import {EVOLVER_DEFAULTS,RESULT_RADIUS,evolvedSource,runNotes} from './evolver-run.mjs';
 import {profileDistance} from './population.mjs';
 import {matchConfig,scoringMode,plannedEngine} from './optimizer-fitness.mjs';
 import {benchmarkCatalog} from './benchmark-catalog.mjs';
 import {readBenchmark} from './benchmarks.mjs';
 import {describeSettings} from './tournaments.mjs';
 import {warriorFilename} from './warrior-files.mjs';
-import {genomeRules,renderGenome,renderInstruction,redcodeHeader,nicheGroups} from './evolver-genome.mjs';
+import {genomeRules,renderInstruction,redcodeHeader,nicheGroups} from './evolver-genome.mjs';
 import {mapLayout} from './evolver-map.mjs';
 
 const STEPS=[
@@ -37,6 +37,7 @@ const TOPICS=[
  ['Diversity','Parents are picked by small tournaments (3 at a time), so weaker warriors still breed; children that copy a warrior already in the population are dropped; niching keeps near-copies of one warrior from crowding out the rest (see Niching); immigrants bring new code every generation; and with sampled scores the positions change every few generations. The Diversity figure is how unlike the population is from its best warrior (0 = clones, 1 = nothing in common): when it falls near 0 the run has converged, and more immigrants, more mutations or a new seed help.'],
  ['Held-out opponents','“Hold out opponents to check for overfitting” sets a share of the opponents aside, picked by the random seed (same seed, same split). They never count for selection or for the Markov chain. Whenever the best warrior changes, it is also scored against them: the Held-out score in the stats, “held out” in the chart and the marked rows of the score per opponent. If the best score keeps rising while the held-out score stays flat or falls, the run is fitting the benchmark’s particular warriors rather than getting stronger in general: broaden the benchmark or start over from the population. Held-out warriors are usually more different from the training set than the hill’s next arrivals, so expect the held-out score to sit below the best.'],
  ['Population view','“Population and niches” shows one generation at a time: the slider steps back through the run (the page keeps a snapshot of every generation, thinning older ones on long runs). On the map, each dot is a warrior and similar code sits close together; the colour is its score, darker is lower, and ringed dots lead a niche. Below, one row per niche: how many warriors it holds, its best and mean score and its leader’s code. Click a row or a dot to see the code. The small chart shows niches and diversity over the whole run. The view only works while it is open, once per generation, and the battles run in other threads, so it does not slow the run.'],
+ ['Names and comments','Each warrior the evolver writes is named after its run and generation: <run name>-g<generation>, with -<place> added for one taken from the population view. Set the run name under Evolution; empty, it is the preset and the date and time the run started (nano-20261108-1432). The ;strategy lines, which hills show, say the run, the generation, the score and the held-out score. Plain comments below them record how the warrior was made: when and with which release of corewar.dev, how the run started, the random seed, the hill, the benchmark (opponents, held-out share, scoring) and the search settings, with any that differ from the defaults. A run that continues the last run’s population lists every run before it, with its name, generations and population, so a warrior’s history stays traceable though each run counts generations from 0. Assemblers skip all of these comments.'],
  ['Off the page’s thread','The search runs in a Web Worker, and the battles in one more worker per CPU core, so the page stays responsive. Battles run on exMARS, the engine the constant optimizer uses.'],
 ];
 const fmt=(n,d=1)=>n===null||n===undefined||!isFinite(n)?'—':Number(n).toFixed(d);
@@ -120,6 +121,8 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const processors=Math.max(1,navigator.hardwareConcurrency||2);
  const workers=num(saved.workers??Math.max(1,processors-1),{min:1,max:processors,step:1});
  const seed=el('input',{value:saved.seed??'1',maxLength:40,size:6});
+ // The run's name, which the warriors' names start with; empty: the preset and the start time.
+ const runName=el('input',{value:saved.runName??'',maxLength:40,size:16,placeholder:'preset-date-time'});
  const nicheFields=field(...labelled('evoNiche','Niche radius',niche),...labelled('evoNicheSize','Warriors per niche',nicheSize),el('span',{className:'hint',textContent:'radius 0 = no niching'}));
  const showNiche=()=>{nicheFields.hidden=survivalSelect.value!=='clearing';};survivalSelect.addEventListener('change',showNiche);showNiche();
  const params=el('div',{className:'tool-form'},
@@ -134,7 +137,8 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
     field(...labelled('evoScoring','Scoring',scoringSelect),...labelled('evoRounds','Sampled rounds per opponent',rounds)),
     field(...labelled('evoMemory','Scores on new placements',memorySelect),el('label',{},race,' Racing: drop children clearly below the weakest')),
     field(...labelled('evoSeed','Random seed',seed),el('span',{className:'hint',textContent:'same seed, same run'})))),
-  field(...labelled('evoWorkers','CPU cores',workers),el('span',{className:'hint',textContent:`of ${processors}; each runs one battle at a time`})));
+  field(...labelled('evoWorkers','CPU cores',workers),el('span',{className:'hint',textContent:`of ${processors}; each runs one battle at a time`})),
+  field(...labelled('evoRunName','Run name',runName),el('span',{className:'hint',textContent:'warriors are named <run name>-g<generation>'})));
  // Back to the defaults: this card's settings, with population, generations and rounds from the preset.
  const resetEvolution=el('button',{type:'button',className:'small',textContent:'Reset to defaults'});
  params.append(el('div',{className:'tool-actions'},resetEvolution));
@@ -219,7 +223,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  function persist(){
   saveState({preset:presetSelect.value,warriorLength:warriorLength.value,custom:Object.fromEntries(CUSTOM_FIELDS.map(([k])=>[k,Number(customInputs[k].value)])),suites:{...(saved.suites||{}),[presetSelect.value]:suiteSelect.value},
    own,useRoster:useRoster.checked,selfFight:selfFight.checked,holdOut:holdOut.checked,holdOutShare:holdOutShare.value,seedMode:seedSelect.value,seedText:seedText.value,seedShare:seedShare.value,population:population.value,generations:generations.value,mutation:mutation.value,
-   structural:structural.value,crossover:crossoverRate.value,immigrants:immigrants.value,elite:elite.value,niche:niche.value,nicheSize:nicheSize.value,scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,scoring:scoringSelect.value,rounds:rounds.value,workers:workers.value,seed:seed.value,
+   structural:structural.value,crossover:crossoverRate.value,immigrants:immigrants.value,elite:elite.value,niche:niche.value,nicheSize:nicheSize.value,scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,scoring:scoringSelect.value,rounds:rounds.value,workers:workers.value,seed:seed.value,runName:runName.value,
    helpClosed:!help.open,populationOpen:popBox.open,advancedOpen:params.querySelector('.opt-advanced').open,lastBest,lastPopulation});
   saved.suites={...(saved.suites||{}),[presetSelect.value]:suiteSelect.value};
  }
@@ -358,7 +362,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const active=state==='running'||state==='paused'||state==='pausing';
   start.disabled=state==='running'||state==='pausing';pause.disabled=state!=='running';stop.disabled=!active;
   start.textContent=state==='paused'?'▶ Continue':'▶ Start';
-  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,warriorLength,selfFight,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,schemeSelect,survivalSelect,memorySelect,race,fitnessSelect,nicheBySelect,scoringSelect,rounds,workers,seed,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
+  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,warriorLength,selfFight,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,schemeSelect,survivalSelect,memorySelect,race,fitnessSelect,nicheBySelect,scoringSelect,rounds,workers,seed,runName,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
   if(!active){holdOutShare.disabled=!holdOut.checked;race.disabled=fitnessSelect.value==='shared';}
  }
  function begin(){
@@ -370,17 +374,28 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   if(!list.length){runStatus.textContent='There are no opponents. Choose a benchmark or add warriors of your own.';return;}
   const seedSources=[],seedGenomes=[];
   if(seedSelect.value==='roster'){const w=roster()[Number(rosterSeed.value)];if(!w){runStatus.textContent='Load a warrior in the Battle tab to seed from it.';return;}seedSources.push({name:w.name,source:w.source});}
-  if(seedSelect.value==='paste'){if(!seedText.value.trim()){runStatus.textContent='Paste the seed warrior first.';return;}seedSources.push({name:'the pasted warrior',source:seedText.value});}
+  if(seedSelect.value==='paste'){if(!seedText.value.trim()){runStatus.textContent='Paste the seed warrior first.';return;}seedSources.push({name:/^\s*;\s*name\s+(.*?)\s*$/im.exec(seedText.value)?.[1]||'the pasted warrior',source:seedText.value});}
   const length=lengthFor(c);
   if(seedSelect.value==='last'){if(lastPopulation?.key!==populationKey(c,length)){runStatus.textContent='There is no earlier population for these settings.';return;}seedGenomes.push(...lastPopulation.genomes);}
-  const p=preset();
-  const job={config:{...c,warriorLength:length},opponents:list.map(({name,source})=>({name,source})),benchmarkName:suite?.name||'your warriors',name:`Evolved ${p.id==='custom'?'warrior':p.title.replace(/ hill$/,'')}`,
+  const p=preset(),now=new Date(),two=n=>String(n).padStart(2,'0');
+  const day=`${now.getFullYear()}${two(now.getMonth()+1)}${two(now.getDate())}`,time=`${two(now.getHours())}${two(now.getMinutes())}`;
+  const name=runName.value.trim().replace(/\s+/g,' ')||`${p.id}-${day}-${time}`;
+  // Continuing the last population: the runs before it, oldest first (older saves have no names).
+  const lineage=seedSelect.value==='last'?[...(lastPopulation.lineage||[]),{run:lastPopulation.run??null,generations:lastPopulation.generation??null,population:lastPopulation.genomes.length}].slice(-20):[];
+  const job={config:{...c,warriorLength:length},opponents:list.map(({name,source})=>({name,source})),benchmarkName:suite?.name||'your warriors',name,lineage,
+   before:lineage.every(x=>x.generations!=null)?lineage.reduce((t,x)=>t+x.generations,0):0,
    seed:seed.value,workers:Math.max(1,Math.min(processors,Number(workers.value)||1)),scoring:{mode:scoringSelect.value,rounds:Math.max(10,Number(rounds.value)||100)},seedSources,seedGenomes,
    markov:seedSelect.value==='markov',selfFight:selfFight.checked,holdOut:holdOut.checked?Math.min(0.5,Math.max(0.05,Number(holdOutShare.value)||0.2)):0,
    params:{population:Math.max(4,Number(population.value)||40),generations:Math.max(0,Number(generations.value)||0),mutation:Math.max(1,Number(mutation.value)||1.5),
     structural:Math.min(1,Math.max(0,Number(structural.value))),crossover:Math.min(1,Math.max(0,Number(crossoverRate.value))),immigrants:Math.min(0.5,Math.max(0,Number(immigrants.value))),
     elite:Math.max(0,Number(elite.value)|0),niche:Math.min(1,Math.max(0,Number(niche.value)||0)),nicheSize:Math.max(1,Number(nicheSize.value)|0||1),
     scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked&&fitnessSelect.value!=='shared',fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0}};
+  const held=job.holdOut&&list.length>1?Math.min(list.length-1,Math.max(1,Math.round(list.length*job.holdOut))):0;
+  const mode=scoringMode(matchConfig(c),list.map(o=>o.source),job.scoring);
+  job.notes=runNotes({when:`${now.getFullYear()}-${two(now.getMonth()+1)}-${two(now.getDate())} ${two(now.getHours())}:${two(now.getMinutes())}`,
+   release:new URL(import.meta.url).searchParams.get('v'),seed:job.seed,hill:(p.id==='custom'?'':p.title+', ')+hillText(c),length,params:job.params,selfFight:job.selfFight,lineage,
+   start:{mode:seedSources.length?'seeds':seedSelect.value==='last'?'last':job.markov?'markov':'random',seeds:seedSources.map(s=>s.name)},
+   benchmark:{name:job.benchmarkName,opponents:list.length,own:list.length-(suite?.warriors.length??0),heldOut:held,share:job.holdOut},scoring:{exact:mode.exact,rounds:mode.rounds}});
   run?.worker.terminate();
   const worker=new Worker(new URL('./evolver-worker.mjs',import.meta.url),{type:'module'});
   const r={worker,state:'running',job,opponents:list,history:[],snapshots:[],best:null,started:Date.now(),config:c,key:configKey(c),populationKey:populationKey(c,length),length};run=r;
@@ -396,7 +411,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   if(data.type==='generation'){
    r.history.push(data.stats);r.last=data;keepSnapshot(r,data);
    if(data.best&&(!r.best||data.best.score!==r.best.score||data.best.source!==r.best.source)){r.best=data.best;showBest(r);}
-   lastPopulation={key:r.populationKey,genomes:data.population};
+   lastPopulation={key:r.populationKey,genomes:data.population,run:r.job.name,generation:data.stats.generation,lineage:r.job.lineage};
    if(r.best)lastBest={source:r.best.source,score:r.best.score,key:r.key,opponents:heldRows(r.best),heldOut:r.best.heldOut?.score??null,benchmark:r.job.benchmarkName};
    showStats(r);drawChart();showPopulation(false);schedulePersist();return;
   }
@@ -542,14 +557,14 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  function select(snap,index){selected={snap,index,niche:snap.groups[index]};showPopulation(false);}
  function warriorSource(snap,index){
   const rules=genomeRules(run.config);
-  return renderGenome(snap.genomes[index],rules,{name:`Evolved, generation ${snap.generation} #${index+1}`,header:redcodeHeader(run.config),strategy:[`score ${snap.scores[index].toFixed(2)} against ${run.job.benchmarkName}`]});
+  return evolvedSource(snap.genomes[index],rules,{run:run.job.name,generation:snap.generation,before:run.job.before,index:index+1,score:snap.scores[index],benchmark:run.job.benchmarkName,header:redcodeHeader(run.config),notes:run.job.notes});
  }
  function showSelected(snap){
   if(!selected){popCode.hidden=popEdit.hidden=true;return;}
   popCode.hidden=popEdit.hidden=false;popCode.textContent=warriorSource(snap,selected.index);
  }
  popEdit.onclick=()=>{const snap=snapshotShown();if(!snap||!selected)return;const source=warriorSource(snap,selected.index);
-  try{openInEditor(source,warriorFilename(`evolved-g${snap.generation}-${selected.index+1}`),run.config);}catch(error){actionStatus.textContent=error.message;}};
+  try{openInEditor(source,warriorFilename(`${run.job.name}-g${snap.generation}-${selected.index+1}`),run.config);}catch(error){actionStatus.textContent=error.message;}};
  popSlider.addEventListener('input',()=>showPopulation(false));
  popLatest.onclick=()=>{popSlider.value=popSlider.max;showPopulation(false);};
  popBox.addEventListener('toggle',()=>showPopulation(false));

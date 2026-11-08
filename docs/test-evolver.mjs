@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {rng,genomeRules,randomGenome,mutate,mutateOnce,crossover,normalize,renderGenome,genomeKey,signed,MUTATIONS,markovModel,markovGenome,nicheGroups} from './evolver-genome.mjs';
-import {Evolution,splitHoldOut} from './evolver-run.mjs';
+import {Evolution,splitHoldOut,evolvedSource,runNotes,EVOLVER_DEFAULTS} from './evolver-run.mjs';
 import {EVOLVER_PRESETS,checkCustom,splitWarriors,suiteFits} from './evolver-presets.mjs';
 import {Evaluator,runMatch,scoringMode} from './optimizer-fitness.mjs';
 import {assemble} from './dist/exmars/fighter-client.mjs';
@@ -51,6 +51,30 @@ for(const config of [nano,tiny]){
  const g=randomGenome(r,rules,rules.maxLength),source=renderGenome(g,rules,{name:'pmars check'});
  const engine=await Engine.create({...config,warriors:1,rounds:1,assembleOnly:true,brief:true},{visual:false,log:()=>{}});
  engine.compile([source],()=>{},null,()=>{});
+}
+// Evolved warriors are named <run>-g<generation>; ;strategy has the basics, plain comments the run's
+// settings and the runs it continues; the comments change nothing in assembly (exMARS and pMARS).
+{
+ const rules=genomeRules(nano),g=randomGenome(rng('provenance'),rules,5);
+ const notes=runNotes({when:'2026-11-08 14:32',release:'abc123',seed:'7',hill:'Nano hill, core 80',length:5,params:{...EVOLVER_DEFAULTS,population:60,elite:4},
+  start:{mode:'last'},lineage:[{run:null,generations:null,population:30},{run:'nano-a',generations:200,population:40}],
+  benchmark:{name:'nanoBM',opponents:50,own:2,heldOut:10,share:0.2},scoring:{exact:true,rounds:142},selfFight:true});
+ assert(notes.every(l=>l.length<=80&&!l.includes('\n')),'short lines, one fact each');
+ for(const want of [/^When: 2026-11-08 14:32, corewar.dev release abc123$/,/^Start: the last population of run nano-a$/,/^Continues an earlier run, population 30$/,
+  /^Continues run nano-a, 200 generations, population 40$/,/^Random seed: 7$/,/^Benchmark: nanoBM, 50 opponents \(2 of them yours\)$/,/^Held out: 10 opponents \(share 0.2\)$/,
+  /^Scoring: exact, all 142 placements per opponent$/,/^Self fight: on$/,/^Population: 60$/,/^Niching: radius 0.3, 2 per niche$/,/^Other settings: elite 4$/])
+  assert(notes.some(l=>want.test(l)),'notes: '+want);
+ assert(!notes.some(l=>/^Generations before/.test(l)),'no total when an earlier run did not record its generations');
+ assert.deepEqual(runNotes({when:'x',seed:'1',length:5,params:{},start:{mode:'seeds',seeds:['Imp']},benchmark:{name:'b',opponents:1}}).filter(l=>/^(Start|Other|Scoring)/.test(l)),['Start: seed warrior Imp, 50% mutants']);
+ const source=evolvedSource(g,rules,{run:'nano-a',generation:57,before:200,score:165.2,heldOut:150.1,benchmark:'nanoBM',header:';redcode-nano',notes});
+ const lines=source.split('\n');
+ assert.equal(lines[1],';name nano-a-g57');
+ assert.deepEqual(lines.filter(l=>l.startsWith(';strategy')),[';strategy Evolved by the corewar.dev evolver: run nano-a, generation 57 (257 counting the runs it continues)',';strategy Score 165.20 against nanoBM',';strategy Held-out score 150.10']);
+ assert.equal(lines.filter(l=>/^; /.test(l)).length,notes.length);
+ assert.match(evolvedSource(g,rules,{run:'r',generation:3,index:2}),/^;name r-g3-2$/m);
+ const w=await assemble(source,hillOf(nano));assert(w.ok,w.errors);assert.deepEqual({code:w.instructions,start:w.start},g);
+ const engine=await Engine.create({...nano,warriors:1,rounds:1,assembleOnly:true,brief:true},{visual:false,log:()=>{}});
+ const [bank]=engine.compile([source]);assert.equal(bank.name,'nano-a-g57');assert.equal(bank.length,g.code.length);
 }
 // A seed with labels and EQU becomes a genome; normalize clamps anything else into the rules.
 {

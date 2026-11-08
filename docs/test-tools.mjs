@@ -120,13 +120,13 @@ try{
  await page.locator('.tools-nav-item[data-tool="evolver"]').click();await settle();
  assert.equal(await page.inputValue('#evoPreset'),'nano');
  await page.waitForFunction(()=>/50 opponents .*exact: all 142 placements.*engine exMARS/.test(document.querySelector('#evoSuite').closest('.tool-form').textContent),null,{timeout:30000});
- await page.fill('#evoPopulation','16');await page.fill('#evoGenerations','4');await page.fill('#evoWorkers','2');
+ await page.fill('#evoPopulation','16');await page.fill('#evoGenerations','4');await page.fill('#evoRunName','test run');await page.fill('#evoWorkers','2');
  await page.locator('#evoWorkers').dispatchEvent('change');
  await page.locator('.tool-view[data-tool=evolver] button.primary').click();
  assert.equal(await page.isDisabled('#evoPreset'),true);
  await page.waitForFunction(()=>/^Finished 4 generations\./.test(document.querySelector('.tool-view[data-tool=evolver] .opt-status').textContent),null,{timeout:120000});
  assert.ok(Number(await page.locator('.evo-best-score strong').textContent())>0);
- assert.match(await page.locator('.evo-code').textContent(),/^;redcode-nano\n;name Evolved Nano[\s\S]*end start/);
+ assert.match(await page.locator('.evo-code').textContent(),/^;redcode-nano\n;name test run-g\d+\n;author corewar.dev evolver\n;strategy Evolved by the corewar.dev evolver: run test run, generation \d+\n;strategy Score [\d.]+ against [^\n]+\n;assert 1\n; When: [^\n]+\n; Start: random code\n[\s\S]*; Population: 16\n[\s\S]*end start/);
  assert.equal(await page.locator('.tool-view[data-tool=evolver] .opt-stats dt',{hasText:'Generation'}).locator('xpath=following-sibling::dd[1]').textContent(),'4');
  assert.equal(await page.isDisabled('#evoPreset'),false);
  // Presets switch the benchmark; custom settings are checked.
@@ -137,9 +137,9 @@ try{
  await page.selectOption('#evoPreset','nano');
  await page.getByRole('button',{name:'Open in editor'}).click();await settle();
  assert.equal(await hash(),'#battle');assert.equal(await page.inputValue('#coreSize'),'80');
- assert.match(await page.locator('#editorViews').textContent(),/Evolved Nano/);
+ assert.match(await page.locator('#editorViews').textContent(),/test run-g\d+/);
  await page.locator('#toolsTab').click();await settle();assert.equal(await visibleTool(),'evolver');
- assert.match(await page.evaluate(()=>[...document.querySelectorAll('#evoSeedMode + select option')].map(o=>o.textContent).join('|')),/Evolved Nano/); // It can seed the next run.
+ assert.match(await page.evaluate(()=>[...document.querySelectorAll('#evoSeedMode + select option')].map(o=>o.textContent).join('|')),/test run-g\d+/); // It can seed the next run.
 
  // Phone width: no horizontal page scroll on either tool.
  await page.setViewportSize({width:390,height:844});

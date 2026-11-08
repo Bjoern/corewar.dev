@@ -33,11 +33,55 @@ export const RESULT_RADIUS=0.15;
 export const EVOLVER_DEFAULTS={...POPULATION_DEFAULTS,population:40,generations:200,scheme:'generational',survival:'clearing',elite:2,tournament:3,mateTournament:3,
  crossover:0.5,mutation:1.5,structural:0.3,immigrants:0.05,seedShare:0.5,reseedEvery:5,niche:0.3,nicheSize:2,scoreMemory:'latest',rescore:0,race:false};
 
+// Where an evolved warrior comes from. Named <run>-g<generation> (plus -<place> for one taken from
+// the population view). The ;strategy lines say the basics: run, generation (and how many came
+// before it in the runs it continues), score, held-out score. The run's settings follow as plain
+// comments (runNotes), so a hill's listing stays short.
+export function evolvedSource(g,rules,{run='Evolved',generation=0,before=0,index=null,score=null,heldOut=null,benchmark='',header=';redcode-94',notes=[]}={}){
+ const strategy=[`Evolved by the corewar.dev evolver: run ${run}, generation ${generation}${before?` (${before+generation} counting the runs it continues)`:''}${index!=null?`, number ${index} of its population`:''}`];
+ if(score!=null)strategy.push(`Score ${score.toFixed(2)}${benchmark?' against '+benchmark:''}`);
+ if(heldOut!=null)strategy.push(`Held-out score ${heldOut.toFixed(2)}`);
+ return renderGenome(g,rules,{name:`${run}-g${generation}${index!=null?'-'+index:''}`,header,strategy,comments:notes});
+}
+const ON=v=>v?'on':'off';
+// Settings that are only written when they differ from EVOLVER_DEFAULTS.
+const OTHER_SETTINGS=[['elite',v=>`elite ${v}`],['scheme',v=>v==='steady'?'one child at a time (steady state)':`breeding ${v}`],
+ ['scoreMemory',v=>v==='mean'?'scores averaged over placements':`scores ${v}`],['race',v=>`racing ${ON(v)}`],['fitness',v=>v==='shared'?'selection by shared score':`selection by ${v}`],
+ ['nicheBy',v=>v==='results'?'warriors compared by results':`warriors compared by ${v}`],['tournament',v=>`tournament ${v}`],['mateTournament',v=>`mate tournament ${v}`],
+ ['reseedEvery',v=>`new placements every ${v} generations`],['rescore',v=>`rescore ${v}`]];
+// The run's settings as short comment lines, one fact each. o: when, release (the site's build, or
+// none for a copy run from the sources), start {mode: random|markov|seeds|last, seeds: names},
+// lineage (earlier runs, oldest first: {run, generations, population}), seed, hill (text),
+// benchmark {name, opponents, own, heldOut, share}, scoring {exact, rounds}, selfFight, length, params.
+export function runNotes(o){
+ const p={...EVOLVER_DEFAULTS,...o.params},b=o.benchmark||{},s=o.start||{mode:'random'},lineage=o.lineage||[];
+ const runText=x=>x?.run?'run '+x.run:'an earlier run';
+ const lines=[`When: ${o.when}, corewar.dev ${o.release?'release '+o.release:'development copy'}`];
+ lines.push('Start: '+(s.mode==='markov'?'a Markov chain of the training opponents'
+  :s.mode==='seeds'?`seed warrior${s.seeds.length===1?'':'s'} ${s.seeds.join(', ')}, ${Math.round(100*p.seedShare)}% mutants`
+  :s.mode==='last'?`the last population of ${runText(lineage.at(-1))}`:'random code'));
+ for(const x of lineage)lines.push(`Continues ${runText(x)}${x.generations!=null?`, ${x.generations} generation${x.generations===1?'':'s'}`:''}${x.population?`, population ${x.population}`:''}`);
+ if(lineage.length&&lineage.every(x=>x.generations!=null))lines.push(`Generations before this run: ${lineage.reduce((t,x)=>t+x.generations,0)}`);
+ lines.push(`Random seed: ${o.seed}`);
+ if(o.hill)lines.push(`Hill: ${o.hill}`);
+ lines.push(`Benchmark: ${b.name}, ${b.opponents} opponent${b.opponents===1?'':'s'}${b.own?` (${b.own} of them yours)`:''}`);
+ if(b.heldOut)lines.push(`Held out: ${b.heldOut} opponent${b.heldOut===1?'':'s'} (share ${b.share})`);
+ if(o.scoring)lines.push(o.scoring.exact?`Scoring: exact, all ${o.scoring.rounds} placements per opponent`:`Scoring: sampled, ${o.scoring.rounds} rounds per opponent`);
+ if(o.selfFight)lines.push('Self fight: on');
+ lines.push(`Population: ${p.population}`,`Warrior length: ${o.length}`,`Mutations per child: ${p.mutation}`,`Structural share: ${p.structural}`,`Crossover rate: ${p.crossover}`,`Immigrants: ${p.immigrants}`);
+ lines.push('Niching: '+(p.survival==='crowding'?'crowding':p.niche>0?`radius ${p.niche}, ${p.nicheSize} per niche`:'off'));
+ const other=OTHER_SETTINGS.filter(([k])=>p[k]!==EVOLVER_DEFAULTS[k]).map(([k,f])=>f(p[k]));
+ if(other.length)lines.push(`Other settings: ${other.join(', ')}`);
+ return lines;
+}
+
 export class Evolution{
  // evaluator: an Evaluator with its mode set. seeds: genomes (or assembled warriors) to start from.
  // model: a Markov chain (markovModel) that new code is drawn from, or none for random code.
- constructor({evaluator,config,params={},seeds=[],seed='1',name='Evolved',model=null}){
-  this.evaluator=evaluator;this.config=config;this.rules=genomeRules(config);this.name=name;this.model=model;
+ // name: the run's name; notes: comment lines on its settings (runNotes); before: generations of
+ // the earlier runs it continues.
+ constructor({evaluator,config,params={},seeds=[],seed='1',name='Evolved',model=null,notes=[],before=0}){
+  this.evaluator=evaluator;this.config=config;this.rules=genomeRules(config);this.name=name;this.model=model;this.notes=notes;this.before=before;
   const rules=this.rules;
   this.ops={
    random:r=>this.model?markovGenome(r.fn(),this.model,rules):randomGenome(r.fn(),rules),
@@ -93,9 +137,9 @@ export class Evolution{
  get nicheRadius(){return this.params.survival==='clearing'&&this.params.niche>0?this.params.niche:this.params.nicheBy==='results'?RESULT_RADIUS:0.3;}
  stats(){return {...this.history.at(-1),evaluations:this.evaluations};}
  ranked(){return this.engine.ranked();}
- bestSource(benchmark=''){
+ bestSource(benchmark='',{heldOut=null}={}){
   const b=this.best;if(!b)return '';
-  return this.source(b.genome,[`evolved by the corewar.dev evolver, generation ${b.generation}`,`score ${b.score.toFixed(2)}${benchmark?' against '+benchmark:''}`]);
+  return evolvedSource(b.genome,this.rules,{run:this.name,generation:b.generation,before:this.before,score:b.score,heldOut,benchmark,header:this.header,notes:this.notes});
  }
  snapshot(){return this.engine.members.map(m=>m.genome);}
  // The population with scores, best first, for the population view.
