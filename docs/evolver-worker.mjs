@@ -5,7 +5,7 @@
 // them here, one at a time. Messages in: start, pause, resume, stop. Out: started, generation,
 // paused, done, error.
 import {Evaluator,WorkerPool,runMatch,scoringMode,matchConfig,plannedEngine,engineSummary} from './optimizer-fitness.mjs';
-import {Evolution,splitHoldOut} from './evolver-run.mjs';
+import {Evolution,splitHoldOut,runNotes} from './evolver-run.mjs';
 import {genomeRules,markovModel} from './evolver-genome.mjs';
 import {hillOf} from './exmars.mjs';
 
@@ -37,14 +37,35 @@ async function opponentModel(opponents,config){
  return markovModel(genomes,genomeRules(config));
 }
 
+// Opponents that don't assemble for these settings are left out, as the Tournaments tab does, with
+// pMARS's message: one round against a warrior that dies at once costs next to nothing.
+async function usableOpponents(list,config){
+ const usable=[],excluded=[];
+ for(const [index,o] of list.entries()){
+  const r=await runMatch({config,a:'dat 0, 0',b:o.source,rounds:1});
+  if(r.error)excluded.push({index,name:o.name,reason:[r.error,r.diagnostics].filter(Boolean).join(' — ')});else usable.push(o);
+ }
+ return {usable,excluded};
+}
+
 async function start(job){
  const config=matchConfig(job.config);
  // The evolved warriors may be shorter than the hill allows (warriorLength); matches use the hill's settings.
  const own={...config,warriorLength:Number(job.config.warriorLength)||0};
+ // The run exists from here, so Stop works while the opponents are checked.
+ const r={state:'running',pool:null,validation:null,validatedKey:null,started:Date.now(),elapsed:0,resumedAt:Date.now(),wake:null,job};
+ run=r;
+ let usable,excluded;
+ try{({usable,excluded}=await usableOpponents(job.opponents,config));}catch(error){if(r.state!=='stopped'){r.state='stopped';post({type:'error',message:error.message});}return;}
+ if(r.state==='stopped'||run!==r)return;
+ if(!usable.length){r.state='stopped';post({type:'error',message:'None of the opponents assembled for these settings.',excluded});return;}
  // Held-out opponents never take part in selection (or in the Markov chain); the best warrior is
  // scored on them in the same mode, so the two scores compare.
- const {training:opponents,heldOut}=splitHoldOut(job.opponents,job.holdOut||0,job.seed);
- const mode=scoringMode(config,job.opponents.map(o=>o.source),job.scoring);
+ const {training:opponents,heldOut}=splitHoldOut(usable,job.holdOut||0,job.seed);
+ const mode=scoringMode(config,usable.map(o=>o.source),job.scoring);
+ // The run's notes count the opponents that take part.
+ if(job.noteInput){const n=job.noteInput;job.notes=runNotes({...n,scoring:{exact:mode.exact,rounds:mode.rounds},
+  benchmark:{...n.benchmark,opponents:usable.length,own:usable.filter(o=>o.own).length,heldOut:heldOut.length}});}
  const size=Math.max(1,job.workers|0);
  const pool=typeof Worker!=='undefined'&&size>1?new WorkerPool(size,new URL('./optimizer-worker.mjs',import.meta.url)):null;
  // Self fight: every warrior also fights a copy of itself, in training and held-out scores alike.
@@ -53,8 +74,7 @@ async function start(job){
  evaluator.setMode(mode);
  const validator=heldOut.length?new Evaluator({runJob:pool?(j=>pool.run(j)):(j=>runMatch(j)),config,opponents:heldOut,options,seed:job.seed+':held-out'}):null;
  validator?.setMode(mode);
- const r={state:'running',pool,evaluator,validator,validation:null,validatedKey:null,started:Date.now(),elapsed:0,resumedAt:Date.now(),wake:null,job};
- run=r;
+ Object.assign(r,{pool,evaluator,validator});
  try{
   const seeds=[...(job.seedGenomes||[]),...await assembleSeeds(job.seedSources||[],own)];
   const model=job.markov?await opponentModel(opponents,own):null;
@@ -63,7 +83,7 @@ async function start(job){
   const engine=plannedEngine(config,mode);
   post({type:'started',why:mode.why,exact:mode.exact,rounds:mode.rounds,engine:engine.engine,engineWhy:engine.why,workers:pool?size:1,nested:!!pool||size===1,
    markov:model&&{warriors:model.warriors,instructions:model.instructions,shapes:model.shapes,skipped:opponents.length-model.warriors},
-   training:opponents.map(o=>o.name),heldOut:heldOut.map(o=>o.name)});
+   training:opponents.map(o=>o.name),heldOut:heldOut.map(o=>o.name),excluded});
   const first=await r.evolution.init();
   if(r.state==='stopped'||run!==r)return;
   await report(r,first);if(r.state==='stopped'||run!==r)return;

@@ -32,7 +32,7 @@ const TOPICS=[
  ['Breeding and survival','The evolver and the constant optimizer’s genetic algorithm share one population search, each with its own defaults. The evolver breeds whole generations (μ + λ): a child per place, then parents and children compete for the places, by score with niching (clearing). One child at a time (steady state) breeds from the latest population after every warrior instead; it adapts sooner but scores one warrior at a time, so with fewer opponents than CPU cores it leaves cores idle. Crowding (the optimizer’s default) lets a child replace the most similar weaker warrior, so each kind of warrior competes only with its own kind; the niche radius is then not used. With sampled scores, every few generations the warriors fight on new positions: “latest placements” takes the new score, “average over placements” the mean of all positions a warrior fought on, which is steadier and counts a warrior as the best only once it was scored on two sets. Racing stops scoring a child once it is clearly below the weakest warrior (sampled scores only); it saves time but also cuts short children that might have started a new niche.'],
  ['Seeding','A seed warrior is assembled for the chosen settings (labels, EQU and FOR loops are fine) and joins the first population with mutants of it; the rest is random code. “The last run” continues from the population the last run ended with, for the same settings.'],
  ['Markov chain','“A Markov chain of the opponents” assembles the benchmark’s warriors (and yours) and counts how often each instruction shape (opcode, modifier and both addressing modes) follows the one and two before it, and which shapes start and end a warrior. New warriors are drawn from those odds, each instruction with an A and B field seen on that shape. The chain mostly follows the longest context it knows and now and then forgets one, so it recombines warriors rather than copying them. It writes the first population and the immigrants of every generation.'],
- ['Benchmarks','The benchmark list has the preset’s own picks first, then every other suite of the Tournaments tab’s Benchmark mode with the same core size and a length that fits: built-in suites, and your own: imported, or made from your warriors or the library (saved with your workspace). Under “Other hills” come the suites made for other settings (ICWS ’94 only, as the evolver writes no ’88 code): picking one switches to its settings, to the preset with the same core, processes, cycles, length and distance, or to Custom with its values. When that would replace custom settings of your own, the evolver asks first. Population, generations and rounds then take the new preset’s defaults, as when you pick a preset, unless you changed them from the old preset’s defaults: values of your own are kept. Reset to defaults always sets them.'],
+ ['Benchmarks','The benchmark list has the preset’s own picks first, then every other suite of the Tournaments tab’s Benchmark mode with the same core size and a length that fits: built-in suites, and your own: imported, or made from your warriors or the library (saved with your workspace). Under “Other hills” come the suites made for other settings (ICWS ’94 only, as the evolver writes no ’88 code): picking one switches to its settings, to the preset with the same core, processes, cycles, length and distance, or to Custom with its values. When that would replace custom settings of your own, the evolver asks first. Population, generations and rounds then take the new preset’s defaults, as when you pick a preset, unless you changed them from the old preset’s defaults: values of your own are kept. Reset to defaults always sets them. An opponent that does not assemble for the hill’s settings (your own, or one checked in the Battle tab) is left out when the run starts, as in the Tournaments tab, and the Run card lists it with the assembler’s message.'],
  ['Warrior length','The longest warrior the evolver writes, at most the hill’s maximum length (empty: the hill’s). The hill’s length and distance still hold for the matches, so a benchmark of full-length warriors can be fought by short evolved ones: the best 20-instruction warrior against the LP hill, to build on later (add a q-scan by hand, say), or entries for a tournament that caps length below the hill’s. Shorter warriors also mean a much smaller search space. With a Markov chain, the chain learns from the opponents’ first instructions only, up to the warrior length.'],
  ['Diversity','Parents are picked by small tournaments (3 at a time), so weaker warriors still breed; children that copy a warrior already in the population are dropped; niching keeps near-copies of one warrior from crowding out the rest (see Niching); immigrants bring new code every generation; and with sampled scores the positions change every few generations. The Diversity figure is how unlike the population is from its best warrior (0 = clones, 1 = nothing in common): when it falls near 0 the run has converged, and more immigrants, more mutations or a new seed help.'],
  ['Held-out opponents','“Hold out opponents to check for overfitting” sets a share of the opponents aside, picked by the random seed (same seed, same split). They never count for selection or for the Markov chain. Whenever the best warrior changes, it is also scored against them: the Held-out score in the stats, “held out” in the chart and the marked rows of the score per opponent. If the best score keeps rising while the held-out score stays flat or falls, the run is fitting the benchmark’s particular warriors rather than getting stronger in general: broaden the benchmark or start over from the population. Held-out warriors are usually more different from the training set than the hill’s next arrivals, so expect the held-out score to sit below the best.'],
@@ -81,8 +81,9 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const ownList=el('ul',{className:'evo-own'});
  const ownBox=el('details',{className:'opt-advanced',open:!!own.length},el('summary',{textContent:'Your benchmark warriors'}),
   el('p',{className:'hint',textContent:'They fight alongside the benchmark, or alone when the benchmark is “Only your warriors”.'}),
-  pasteBox,el('div',{className:'tool-actions'},addPasted,addFiles,fileInput),ownList,
-  field(el('label',{},useRoster,' Also fight the warriors checked in the Battle tab')));
+  pasteBox,el('div',{className:'tool-actions'},addPasted,addFiles,fileInput),ownList);
+ // Opponents that don't assemble for the hill are left out of the run, listed here.
+ const excludedBox=el('div',{className:'tournament-exclusions',role:'alert',hidden:true});
  // ---- seed
  const seedSelect=el('select',{},new Option('Random code','random'),new Option('A warrior from the Battle tab','roster'),new Option('A pasted warrior','paste'),new Option('A Markov chain of the opponents','markov'),new Option('The last run’s population','last'));
  seedSelect.value=saved.seedMode||'random';
@@ -187,7 +188,8 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
    el('section',{className:'t-card'},el('h3',{textContent:'Settings and benchmark'}),
     el('div',{className:'tool-form'},field(...labelled('evoPreset','Preset',presetSelect)),presetNote,customBox,customCheck,
      field(...labelled('evoLength','Warrior length',warriorLength),lengthHint),
-     field(...labelled('evoSuite','Benchmark',suiteSelect)),suiteInfo,
+     field(...labelled('evoSuite','Benchmark',suiteSelect)),
+     field(el('label',{},useRoster,' Also fight the warriors checked in the Battle tab')),suiteInfo,
      field(el('label',{},holdOut,' Hold out opponents to check for overfitting'),...labelled('evoHoldOut','Share',holdOutShare)),
      field(el('label',{},selfFight,' Self fight: each warrior also fights itself, as on hills that count it (Koenigstuhl)'))),ownBox),
    el('section',{className:'t-card'},el('h3',{textContent:'Start from'}),
@@ -195,7 +197,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
      field(...labelled('evoSeedShare','Share of mutants of the seed',seedShare)),seedHint)),
    el('section',{className:'t-card'},el('h3',{textContent:'Evolution'}),params)),
   el('div',{className:'opt-main'},
-   el('section',{className:'t-card opt-run'},el('h3',{textContent:'Run'}),el('div',{className:'tool-actions'},start,pause,stop),runStatus,bestScore,stats,chart,popBox),
+   el('section',{className:'t-card opt-run'},el('h3',{textContent:'Run'}),el('div',{className:'tool-actions'},start,pause,stop),runStatus,excludedBox,bestScore,stats,chart,popBox),
    el('section',{className:'t-card'},el('h3',{textContent:'Best warrior'}),bestHead,bestCode,
     el('div',{className:'tool-actions'},copyBest,editBest,addBest,downloadBest),
     el('div',{className:'tool-actions'},debugBest,el('label',{className:'hint',textContent:'against'}),debugOpponent),actionStatus,opponentsBox,
@@ -301,8 +303,8 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   }catch(error){suiteInfo.textContent='Could not load the benchmark: '+error.message;}
  }
  function opponents(){
-  const list=[...(suite?.warriors??[]).map(w=>({name:w.name,source:w.source,file:w.file})),...own.map(w=>({name:w.name,source:w.source,file:warriorFilename(w.name)}))];
-  if(useRoster.checked)list.push(...roster().filter(w=>w.checked).map(w=>({name:w.name,source:w.source,file:warriorFilename(w.name)})));
+  const list=[...(suite?.warriors??[]).map(w=>({name:w.name,source:w.source,file:w.file})),...own.map(w=>({name:w.name,source:w.source,file:warriorFilename(w.name),own:true}))];
+  if(useRoster.checked)list.push(...roster().filter(w=>w.checked).map(w=>({name:w.name,source:w.source,file:warriorFilename(w.name),own:true})));
   return list;
  }
  function showOpponentCount(){
@@ -382,7 +384,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const name=runName.value.trim().replace(/\s+/g,' ')||`${p.id}-${day}-${time}`;
   // Continuing the last population: the runs before it, oldest first (older saves have no names).
   const lineage=seedSelect.value==='last'?[...(lastPopulation.lineage||[]),{run:lastPopulation.run??null,generations:lastPopulation.generation??null,population:lastPopulation.genomes.length}].slice(-20):[];
-  const job={config:{...c,warriorLength:length},opponents:list.map(({name,source})=>({name,source})),benchmarkName:suite?.name||'your warriors',name,lineage,
+  const job={config:{...c,warriorLength:length},opponents:list.map(({name,source,own})=>({name,source,own:!!own})),benchmarkName:suite?.name||'your warriors',name,lineage,
    before:lineage.every(x=>x.generations!=null)?lineage.reduce((t,x)=>t+x.generations,0):0,
    seed:seed.value,workers:Math.max(1,Math.min(processors,Number(workers.value)||1)),scoring:{mode:scoringSelect.value,rounds:Math.max(10,Number(rounds.value)||100)},seedSources,seedGenomes,
    markov:seedSelect.value==='markov',selfFight:selfFight.checked,holdOut:holdOut.checked?Math.min(0.5,Math.max(0.05,Number(holdOutShare.value)||0.2)):0,
@@ -392,22 +394,32 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
     scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked&&fitnessSelect.value!=='shared',fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0}};
   const held=job.holdOut&&list.length>1?Math.min(list.length-1,Math.max(1,Math.round(list.length*job.holdOut))):0;
   const mode=scoringMode(matchConfig(c),list.map(o=>o.source),job.scoring);
-  job.notes=runNotes({when:`${now.getFullYear()}-${two(now.getMonth()+1)}-${two(now.getDate())} ${two(now.getHours())}:${two(now.getMinutes())}`,
+  // The worker writes the notes once it knows which opponents assemble.
+  job.noteInput={when:`${now.getFullYear()}-${two(now.getMonth()+1)}-${two(now.getDate())} ${two(now.getHours())}:${two(now.getMinutes())}`,
    release:new URL(import.meta.url).searchParams.get('v'),seed:job.seed,hill:(p.id==='custom'?'':p.title+', ')+hillText(c),length,params:job.params,selfFight:job.selfFight,lineage,
    start:{mode:seedSources.length?'seeds':seedSelect.value==='last'?'last':job.markov?'markov':'random',seeds:seedSources.map(s=>s.name)},
-   benchmark:{name:job.benchmarkName,opponents:list.length,own:list.length-(suite?.warriors.length??0),heldOut:held,share:job.holdOut},scoring:{exact:mode.exact,rounds:mode.rounds}});
+   benchmark:{name:job.benchmarkName,opponents:list.length,own:list.length-(suite?.warriors.length??0),heldOut:held,share:job.holdOut},scoring:{exact:mode.exact,rounds:mode.rounds}};
+  job.notes=runNotes(job.noteInput);
   run?.worker.terminate();
   const worker=new Worker(new URL('./evolver-worker.mjs',import.meta.url),{type:'module'});
   const r={worker,state:'running',job,opponents:list,history:[],snapshots:[],best:null,started:Date.now(),config:c,key:configKey(c),populationKey:populationKey(c,length),length};run=r;
   worker.onmessage=({data})=>{if(run===r)message(r,data);};
   worker.onerror=event=>{if(run!==r)return;r.state='finished';setRunning('finished');runStatus.textContent='The evolver stopped: '+(event.message||'worker error');};
   worker.postMessage({type:'start',job});
-  bestScore.querySelector('strong').textContent='—';stats.replaceChildren();opponentsBox.hidden=true;
-  runStatus.textContent=`Assembling and scoring the first ${job.params.population} warriors against ${list.length} opponents…`;
+  bestScore.querySelector('strong').textContent='—';stats.replaceChildren();opponentsBox.hidden=true;showExcluded([]);
+  runStatus.textContent=`Assembling the ${list.length} opponents and scoring the first ${job.params.population} warriors against them…`;
   setRunning('running');drawChart();popSlider.max='0';popSlider.value='0';selected=null;showPopulation(true);
  }
+ function showExcluded(list){
+  excludedBox.hidden=!list.length;
+  excludedBox.replaceChildren(...(list.length?[el('strong',{textContent:`${list.length} opponent${list.length===1?'':'s'} left out: ${list.length===1?'it does':'they do'} not assemble for these settings`}),
+   el('ul',{},...list.map(e=>el('li',{textContent:`${e.name}: ${e.reason}`})))]:[]));
+ }
  function message(r,data){
-  if(data.type==='started'){r.started=data;runStatus.textContent=`Running: ${data.why}, engine ${data.engine==='exmars'?'exMARS':'pMARS (exMARS can’t run '+data.engineWhy+')'}, ${data.workers} battle worker${data.workers===1?'':'s'}${data.nested?'':' (this browser runs no workers inside workers, so battles share one)'}${data.markov?`; Markov chain of ${data.markov.instructions} instructions from ${data.markov.warriors} warriors, ${data.markov.shapes} instruction shapes${data.markov.skipped?` (${data.markov.skipped} did not assemble)`:''}`:''}${data.heldOut?.length?`; ${data.heldOut.length} opponents held out: ${data.heldOut.join(', ')}`:''}.`;return;}
+  if(data.excluded)showExcluded(data.excluded);
+  if(data.type==='started'){r.started=data;
+   // The debugger's opponents are the ones the run uses.
+   if(data.excluded?.length){const out=new Set(data.excluded.map(e=>e.index));r.opponents=r.opponents.filter((_,i)=>!out.has(i));}runStatus.textContent=`Running: ${data.why}, engine ${data.engine==='exmars'?'exMARS':'pMARS (exMARS can’t run '+data.engineWhy+')'}, ${data.workers} battle worker${data.workers===1?'':'s'}${data.nested?'':' (this browser runs no workers inside workers, so battles share one)'}${data.markov?`; Markov chain of ${data.markov.instructions} instructions from ${data.markov.warriors} warriors, ${data.markov.shapes} instruction shapes${data.markov.skipped?` (${data.markov.skipped} did not assemble)`:''}`:''}${data.heldOut?.length?`; ${data.heldOut.length} opponents held out: ${data.heldOut.join(', ')}`:''}.`;return;}
   if(data.type==='generation'){
    r.history.push(data.stats);r.last=data;keepSnapshot(r,data);
    if(data.best&&(!r.best||data.best.score!==r.best.score||data.best.source!==r.best.source)){r.best=data.best;showBest(r);}
