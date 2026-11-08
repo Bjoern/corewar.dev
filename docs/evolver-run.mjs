@@ -32,6 +32,12 @@ export function splitHoldOut(opponents,share,seed){
 export const RESULT_RADIUS=0.15;
 export const EVOLVER_DEFAULTS={...POPULATION_DEFAULTS,population:40,generations:200,scheme:'generational',survival:'clearing',elite:2,tournament:3,mateTournament:3,
  crossover:0.5,mutation:1.5,structural:0.3,immigrants:0.05,seedShare:0.5,reseedEvery:5,niche:0.3,nicheSize:2,scoreMemory:'latest',rescore:0,race:false};
+// Screened scoring (scoringMode 'screen'): every generation new placements, the leaders scored again
+// on them and their scores averaged, so a lucky few rounds do not keep a warrior on top for long
+// (corewar-rl evo.py: 8 rounds, the top 10 rescored, matched exact scoring at equal time).
+export const SCREEN_PARAMS={scoreMemory:'mean',rescore:10,reseedEvery:1,race:false};
+// The leaders whose exact score is checked each generation, with screened scoring.
+const JUDGED=3;
 
 // Where an evolved warrior comes from. Named <run>-g<generation> (plus -<place> for one taken from
 // the population view). The ;strategy lines say the basics: run, generation (and how many came
@@ -48,11 +54,12 @@ const ON=v=>v?'on':'off';
 const OTHER_SETTINGS=[['elite',v=>`elite ${v}`],['scheme',v=>v==='steady'?'one child at a time (steady state)':`breeding ${v}`],
  ['scoreMemory',v=>v==='mean'?'scores averaged over placements':`scores ${v}`],['race',v=>`racing ${ON(v)}`],['fitness',v=>v==='shared'?'selection by shared score':`selection by ${v}`],
  ['nicheBy',v=>v==='results'?'warriors compared by results':`warriors compared by ${v}`],['tournament',v=>`tournament ${v}`],['mateTournament',v=>`mate tournament ${v}`],
- ['reseedEvery',v=>`new placements every ${v} generations`],['rescore',v=>`rescore ${v}`]];
+ ['reseedEvery',v=>v===1?'new placements every generation':`new placements every ${v} generations`],['rescore',v=>`rescore ${v}`]];
 // The run's settings as short comment lines, one fact each. o: when, release (the site's build, or
 // none for a copy run from the sources), start {mode: random|markov|seeds|last, seeds: names},
 // lineage (earlier runs, oldest first: {run, generations, population}), seed, hill (text),
-// benchmark {name, opponents, own, heldOut, share}, scoring {exact, rounds}, selfFight, length, params.
+// benchmark {name, opponents, own, heldOut, share}, scoring {exact, rounds, judge: exact rounds when
+// screened}, selfFight, length, params.
 export function runNotes(o){
  const p={...EVOLVER_DEFAULTS,...o.params},b=o.benchmark||{},s=o.start||{mode:'random'},lineage=o.lineage||[];
  const runText=x=>x?.run?'run '+x.run:'an earlier run';
@@ -66,7 +73,8 @@ export function runNotes(o){
  if(o.hill)lines.push(`Hill: ${o.hill}`);
  lines.push(`Benchmark: ${b.name}, ${b.opponents} opponent${b.opponents===1?'':'s'}${b.own?` (${b.own} of them yours)`:''}`);
  if(b.heldOut)lines.push(`Held out: ${b.heldOut} opponent${b.heldOut===1?'':'s'} (share ${b.share})`);
- if(o.scoring)lines.push(o.scoring.exact?`Scoring: exact, all ${o.scoring.rounds} placements per opponent`:`Scoring: sampled, ${o.scoring.rounds} rounds per opponent`);
+ if(o.scoring)lines.push(o.scoring.judge?`Scoring: screened, ${o.scoring.rounds} random placements per opponent for selection, exact (all ${o.scoring.judge}) for the best`
+  :o.scoring.exact?`Scoring: exact, all ${o.scoring.rounds} placements per opponent`:`Scoring: sampled, ${o.scoring.rounds} rounds per opponent`);
  if(o.selfFight)lines.push('Self fight: on');
  lines.push(`Population: ${p.population}`,`Warrior length: ${o.length}`,`Mutations per child: ${p.mutation}`,`Structural share: ${p.structural}`,`Crossover rate: ${p.crossover}`,`Immigrants: ${p.immigrants}`);
  lines.push('Niching: '+(p.survival==='crowding'?'crowding':p.niche>0?`radius ${p.niche}, ${p.nicheSize} per niche`:'off'));
@@ -76,19 +84,21 @@ export function runNotes(o){
 }
 
 export class Evolution{
- // evaluator: an Evaluator with its mode set. seeds: genomes (or assembled warriors) to start from.
+ // evaluator: an Evaluator with its mode set. judge: with screened scoring, an Evaluator in exact mode
+ // that scores the leaders: the best warrior is the best exact score among them, while selection
+ // uses the evaluator's few-round scores. seeds: genomes (or assembled warriors) to start from.
  // model: a Markov chain (markovModel) that new code is drawn from, or none for random code.
  // name: the run's name; notes: comment lines on its settings (runNotes); before: generations of
  // the earlier runs it continues.
- constructor({evaluator,config,params={},seeds=[],seed='1',name='Evolved',model=null,notes=[],before=0}){
-  this.evaluator=evaluator;this.config=config;this.rules=genomeRules(config);this.name=name;this.model=model;this.notes=notes;this.before=before;
+ constructor({evaluator,judge=null,config,params={},seeds=[],seed='1',name='Evolved',model=null,notes=[],before=0}){
+  this.evaluator=evaluator;this.judge=judge;this.config=config;this.rules=genomeRules(config);this.name=name;this.model=model;this.notes=notes;this.before=before;
   const rules=this.rules;
   this.ops={
    random:r=>this.model?markovGenome(r.fn(),this.model,rules):randomGenome(r.fn(),rules),
    mutate:(g,r)=>mutate(g,r.fn(),rules,{rate:this.params.mutation,structural:this.params.structural}),
    crossover:(a,b,r)=>crossover(a,b,r.fn(),rules),
    key:genomeKey,distance,size:g=>g.code.length};
-  this.engine=new Population(this.ops,{params:{...EVOLVER_DEFAULTS,...params},seeds:seeds.map(s=>normalize(s,rules)),seed:'evolve:'+seed});
+  this.engine=new Population(this.ops,{params:{...EVOLVER_DEFAULTS,...params,...(judge?SCREEN_PARAMS:{})},seeds:seeds.map(s=>normalize(s,rules)),seed:'evolve:'+seed});
   this.best=null;this.history=[];this.evaluations=0;this.header=redcodeHeader(config);this.reseed=false;
  }
  get params(){return this.engine.params;}
@@ -105,20 +115,31 @@ export class Evolution{
  // The first population: the seeds, mutants of them, and new code (random or from the chain).
  async init(){
   while(this.engine.initializing)await this.run(this.engine.ask());
-  this.record();return this.stats();
+  await this.record();return this.stats();
  }
  survivors(list,n){return this.engine.survivors(list,n);}
  async step(){
   // Sampled scores: new placements now and then, so the population does not overfit one set.
-  if(this.reseed&&!this.evaluator.mode.exact){this.reseed=false;this.evaluator.epoch++;this.engine.invalidate();await this.run(this.engine.ask());this.best=null;}
+  if(this.reseed&&!this.evaluator.mode.exact){this.reseed=false;this.evaluator.epoch++;this.engine.invalidate();await this.run(this.engine.ask());if(!this.judge)this.best=null;}
   this.reseed=false;
   const g=this.engine.generation;
   while(this.engine.generation===g)await this.run(this.engine.ask());
-  this.record();return this.stats();
+  await this.record();return this.stats();
  }
- record(){
-  const ranked=this.engine.ranked(),top={...ranked[0],result:this.engine.result(ranked[0].key)};
-  if(!this.best||top.score>this.best.score||(top.score===this.best.score&&top.key!==this.best.key&&top.genome.code.length<this.best.genome.code.length))this.best={...top,generation:this.generation};
+ // The best of the population as a candidate for the run's best: its score and result, or with a
+ // judge the best exact score among the leaders (those scored on two placement sets first).
+ async leader(ranked){
+  const top={...ranked[0],result:this.engine.result(ranked[0].key)};
+  if(!this.judge)return top;
+  const trusted=ranked.filter(m=>m.n>=2),list=[...trusted,...ranked.filter(m=>!(m.n>=2))].slice(0,JUDGED);
+  const judged=await Promise.all(list.map(m=>this.judge.evaluate(this.source(m.genome))));
+  let best=null;
+  list.forEach((m,i)=>{const r=judged[i];if(r&&(!best||r.score>best.score))best={...m,score:r.score,se:0,result:r,sampled:m.score};});
+  return best??top;
+ }
+ async record(){
+  const ranked=this.engine.ranked(),top=ranked[0],lead=await this.leader(ranked);
+  if(!this.best||lead.score>this.best.score||(lead.score===this.best.score&&lead.key!==this.best.key&&lead.genome.code.length<this.best.genome.code.length))this.best={...lead,generation:this.generation};
   const scores=ranked.map(m=>m.score),mean=scores.reduce((a,b)=>a+b,0)/scores.length;
   const sorted=scores.slice().sort((a,b)=>a-b),median=sorted[sorted.length>>1];
   const div=ranked.reduce((s,m)=>s+distance(m.genome,top.genome),0)/ranked.length;

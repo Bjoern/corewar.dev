@@ -86,10 +86,16 @@ export function engineSummary(engines){
 const points=r=>(3*r.wins+r.ties)/Math.max(1,r.wins+r.ties+r.losses)*100;
 
 // Exact when every legal position with both orders fits in exactLimit rounds and nothing uses P-space.
+// mode 'screen' (the evolver's), where exact scoring is possible: screenRounds random placements
+// per opponent, one slice, for selection, and `judge`, the exact mode, for the best warriors.
 export function scoringMode(config,sources,options={}){
  const o={...SCORING_DEFAULTS,...options},rounds=permutationRounds(config);
  if(o.mode==='sampled')return {exact:false,rounds:o.rounds,why:'sampled (chosen)'};
  const pspace=sources.some(usesPspace);
+ if(rounds<=o.exactLimit&&!pspace&&o.mode==='screen'){
+  const k=Math.max(1,Math.min(rounds,o.screenRounds|0||8));
+  return {exact:false,rounds:k,slices:1,judge:{exact:true,rounds},why:`screened: ${k} random placements per opponent for selection, the leaders scored again each generation, exact (all ${rounds} placements) for the best`};
+ }
  if(rounds<=o.exactLimit&&!pspace)return {exact:true,rounds,why:`exact: all ${rounds} placements per opponent`};
  return {exact:false,rounds:o.rounds,why:pspace?'sampled: P-space instructions keep state between rounds':`sampled: ${rounds} placements per opponent is more than ${o.exactLimit}`};
 }
@@ -138,7 +144,7 @@ export class Evaluator{
   const per=this.perOpponent(results,list),score=per.reduce((s,r)=>s+r.score,0)/per.length;
   return {score,se:0,complete:true,slices:1,rounds:this.mode.rounds,opponents:per};
  }
- async sampled(source,race,epoch,{rounds=this.mode.rounds,slices=this.options.slices,useRace=true}={}){
+ async sampled(source,race,epoch,{rounds=this.mode.rounds,slices=this.mode.slices??this.options.slices,useRace=true}={}){
   const list=this.rivals(source),per=Math.ceil(rounds/slices),totals=list.map(()=>({wins:0,ties:0,losses:0})),sliceScores=[];
   // Queue every slice at once so no worker waits between slices; racing cancels the rest.
   const token={cancelled:false},queued=Array.from({length:slices},(_,k)=>this.batch(source,list,per,{positions:list.map((o,i)=>this.position(epoch,k,i)),token}));

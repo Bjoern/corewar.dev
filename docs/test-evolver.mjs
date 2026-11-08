@@ -127,6 +127,26 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
  for(let i=1;i<e.history.length;i++)assert(e.history[i].best>=e.history[i-1].best,'the best never drops with exact scores');
  const w=await assemble(e.bestSource('test'),hillOf(nano));assert(w.ok);
  valid(normalize({code:w.instructions,start:w.start},e.rules),e.rules);
+ // Screened scoring: 8 random placements for selection, the leaders rescored, the best scored exactly.
+ {
+  const mode=scoringMode(nano,opponents.map(o=>o.source),{mode:'screen'});
+  assert.equal(mode.rounds,8);assert.equal(mode.slices,1);assert.deepEqual(mode.judge,{exact:true,rounds:142});
+  const big=scoringMode({...nano,coreSize:8000,maxLength:100,distance:100},[],{mode:'screen'});assert(!big.judge&&!big.exact,'too many placements: plain sampled');
+  const screen=new Evaluator({config:nano,opponents,seed:'s'});screen.setMode(mode);
+  const judge=new Evaluator({config:nano,opponents});judge.setMode(mode.judge);
+  const s=new Evolution({evaluator:screen,judge,config:nano,params:{population:24},seed:'test'});
+  assert.equal(s.params.scoreMemory,'mean');assert.equal(s.params.reseedEvery,1);assert.equal(s.params.rescore,10);
+  await s.init();for(let i=0;i<6;i++)await s.step();
+  const exact=await evaluator.evaluate(s.source(s.best.genome));
+  assert.equal(s.best.score,exact.score,'the best score is exact');assert.equal(s.best.se,0);
+  assert.equal(s.best.result.opponents[0].wins+s.best.result.opponents[0].ties+s.best.result.opponents[0].losses,142);
+  for(let i=1;i<s.history.length;i++)assert(s.history[i].best>=s.history[i-1].best,'the exact best never drops');
+  assert.equal(screen.epoch,5,'new placements every generation after the first');
+  assert(judge.evaluations>0&&judge.evaluations<=3*7,'the judge scores at most the top 3 per generation');
+  const notes=runNotes({when:'w',seed:1,length:5,benchmark:{name:'b',opponents:20},params:{...s.params},scoring:{exact:false,rounds:8,judge:142}});
+  assert(notes.includes('Scoring: screened, 8 random placements per opponent for selection, exact (all 142) for the best'),notes.join('\n'));
+  assert.match(notes.at(-1),/new placements every generation/);
+ }
  // Seeding from genomes (the last population) starts from them.
  const again=new Evolution({evaluator,config:nano,params:{population:24},seeds:e.snapshot(),seed:'test2'});
  assert((await again.init()).best>=last.top-1e-9);

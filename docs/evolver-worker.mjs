@@ -5,7 +5,7 @@
 // them here, one at a time. Messages in: start, pause, resume, stop. Out: started, generation,
 // paused, done, error.
 import {Evaluator,WorkerPool,runMatch,runBatch,scoringMode,matchConfig,plannedEngine,engineSummary} from './optimizer-fitness.mjs';
-import {Evolution,splitHoldOut,runNotes} from './evolver-run.mjs';
+import {Evolution,splitHoldOut,runNotes,SCREEN_PARAMS} from './evolver-run.mjs';
 import {genomeRules,markovModel} from './evolver-genome.mjs';
 import {hillOf} from './exmars.mjs';
 
@@ -64,7 +64,9 @@ async function start(job){
  const {training:opponents,heldOut}=splitHoldOut(usable,job.holdOut||0,job.seed);
  const mode=scoringMode(config,usable.map(o=>o.source),job.scoring);
  // The run's notes count the opponents that take part.
- if(job.noteInput){const n=job.noteInput;job.notes=runNotes({...n,scoring:{exact:mode.exact,rounds:mode.rounds},
+ // Screened scoring sets how scores are kept (SCREEN_PARAMS); the notes say so.
+ if(mode.judge)job.params={...job.params,...SCREEN_PARAMS};
+ if(job.noteInput){const n=job.noteInput;job.notes=runNotes({...n,params:job.params,scoring:{exact:mode.exact,rounds:mode.rounds,...(mode.judge?{judge:mode.judge.rounds}:{})},
   benchmark:{...n.benchmark,opponents:usable.length,own:usable.filter(o=>o.own).length,heldOut:heldOut.length}});}
  const size=Math.max(1,job.workers|0);
  const pool=typeof Worker!=='undefined'&&size>1?new WorkerPool(size,new URL('./optimizer-worker.mjs',import.meta.url)):null;
@@ -72,14 +74,17 @@ async function start(job){
  const options={selfFight:!!job.selfFight};
  const evaluator=new Evaluator({runBatch:pool?((j,token)=>pool.run(j,token)):runBatch,config,opponents,options,seed:job.seed});
  evaluator.setMode(mode);
+ // Screened: the leaders' exact scores pick the best warrior, and the held-out score is exact too.
+ const judge=mode.judge?new Evaluator({runBatch:pool?((j,token)=>pool.run(j,token)):runBatch,config,opponents,options,seed:job.seed}):null;
+ judge?.setMode(mode.judge);
  const validator=heldOut.length?new Evaluator({runBatch:pool?((j,token)=>pool.run(j,token)):runBatch,config,opponents:heldOut,options,seed:job.seed+':held-out'}):null;
- validator?.setMode(mode);
- Object.assign(r,{pool,evaluator,validator});
+ validator?.setMode(mode.judge??mode);
+ Object.assign(r,{pool,evaluator,validator,judge});
  try{
   const seeds=[...(job.seedGenomes||[]),...await assembleSeeds(job.seedSources||[],own)];
   const model=job.markov?await opponentModel(opponents,own):null;
   if(model&&!model.warriors)throw new Error('None of the opponents assembled for these settings, so there is no Markov chain to draw from.');
-  r.evolution=new Evolution({evaluator,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model,notes:job.notes||[],before:job.before||0});
+  r.evolution=new Evolution({evaluator,judge,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model,notes:job.notes||[],before:job.before||0});
   const engine=plannedEngine(config,mode);
   post({type:'started',why:mode.why,exact:mode.exact,rounds:mode.rounds,engine:engine.engine,engineWhy:engine.why,workers:pool?size:1,nested:!!pool||size===1,
    markov:model&&{warriors:model.warriors,instructions:model.instructions,shapes:model.shapes,skipped:opponents.length-model.warriors},
@@ -106,7 +111,8 @@ async function report(r,stats){
  // The best warrior on the held-out opponents, scored again only when the best changes.
  if(r.validator&&b&&r.validatedKey!==b.key){r.validation=await r.validator.evaluate(e.source(b.genome));r.validatedKey=b.key;}
  if(r.validation)stats={...stats,heldOut:r.validation.score};
- post({type:'generation',stats,elapsed:elapsed(r),matches:r.evaluator.matches,engines:engineSummary(r.evaluator.engines),cached:r.evaluator.cached,invalid:r.evaluator.invalid,
+ const engines={...r.evaluator.engines};if(r.judge)for(const k in engines)engines[k]+=r.judge.engines[k];
+ post({type:'generation',stats,elapsed:elapsed(r),matches:r.evaluator.matches+(r.judge?.matches??0),engines:engineSummary(engines),cached:r.evaluator.cached,invalid:r.evaluator.invalid,
   best:b?{source:e.bestSource(r.job.benchmarkName,{heldOut:r.validation?.score??null}),score:b.score,se:b.se,generation:b.generation,length:b.genome.code.length,opponents:b.result?.opponents??[],
    heldOut:r.validation?{score:r.validation.score,se:r.validation.se,opponents:r.validation.opponents}:null}:null,
   population:e.snapshot(),scores:e.view().map(m=>m.score),ranked:e.view().map(m=>m.genome),radius:e.nicheRadius,
