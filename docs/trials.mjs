@@ -316,7 +316,7 @@ async function play({paused = false} = {}) {
   syncPause();
   const setupStates = stage.setups.map(() => ''), scores = [];
   let lastIndex = -1, tally = null;
-  $('run').textContent = '■ Stop'; $('result').hidden = true; $('next').hidden = true;
+  $('result').hidden = true; $('next').hidden = true;
   const frame = async (update, {index, setup, engine}) => {
     if (current !== stage) throw new Error('stopped');  // another stage is open: drop this run, print nothing
     debug.engine = engine; debug.update = update; debug.stage = stage;
@@ -371,10 +371,24 @@ async function play({paused = false} = {}) {
     if (error.message !== 'stopped') { showResult(false, 'Something went wrong.', error.message); console.error(error); }
   } finally {
     if (running === run) running = null;
-    $('run').textContent = '▶ Run'; syncPause();
+    syncPause();
   }
 }
-$('run').addEventListener('click', () => play());
+// Run starts a battle, stops a running one, and resumes one that is paused or being stepped.
+$('run').addEventListener('click', () => {
+  if (running?.paused) { running.paused = false; syncPause(); return; }
+  play();
+});
+// Reset battle stops the run and clears the core, the counters and the result; Run then starts afresh.
+function resetBattle() {
+  if (running) running.abort = true;
+  debug.engine = null; debug.update = null;
+  display.configure(current.settings.coreSize); showMarks(current.setups[0]);
+  $('progress').textContent = ''; $('tally').hidden = true; $('result').hidden = true;
+  renderSetups();
+  syncPause();
+}
+$('resetBattle').addEventListener('click', resetBattle);
 
 // ---- Debugger ----------------------------------------------------------------------------------
 // The panel works on the engine of the current or last run: Pause and Step drive the run, clicking a cell
@@ -406,8 +420,7 @@ function printRan(update, entries) {
   const cycleWidth = debug.stage.settings.cycles.toLocaleString('en').length;
   if (!debug.headed) {
     debug.headed = true;
-    printText(`${'cycle'.padStart(cycleWidth)}  addr  ${'instruction'.padEnd(20)}  ran by
-`, 'addr');
+    printText(`${'cycle'.padStart(cycleWidth)}  addr  ${'instruction'.padEnd(20)}  ran by\n`, 'addr');
   }
   print(entries.map(entry => {
     const who = entry.warrior === 0 ? 'you' : update.warriors[entry.warrior].name;
@@ -432,6 +445,7 @@ const printText = (text, cls = '') => print(cls ? `<span class="${cls}">${escape
 function syncPause() {
   $('pause').textContent = running?.paused ? 'Resume' : 'Pause';
   $('pause').disabled = !running;
+  $('run').textContent = running && !running.paused ? '■ Stop' : '▶ Run';
 }
 function pauseRun() { if (running && !running.paused) { running.paused = true; syncPause(); } }
 $('pause').addEventListener('click', () => {
