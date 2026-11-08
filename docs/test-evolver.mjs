@@ -4,7 +4,7 @@
 // split; and a short nano run against the nano benchmark raises the best and mean score.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {rng,genomeRules,randomGenome,mutate,mutateOnce,crossover,normalize,renderGenome,genomeKey,signed,MUTATIONS,markovModel,markovGenome,nicheGroups} from './evolver-genome.mjs';
+import {rng,genomeRules,randomGenome,mutate,mutateOnce,crossover,normalize,renderGenome,genomeKey,signed,MUTATIONS,markovModel,markovGenome,nicheGroups,structureOf,hasStructure,structureText,structuredGenome,mutateStructured,crossoverStructured} from './evolver-genome.mjs';
 import {Evolution,splitHoldOut,evolvedSource,runNotes,EVOLVER_DEFAULTS} from './evolver-run.mjs';
 import {EVOLVER_PRESETS,checkCustom,splitWarriors,suiteFits} from './evolver-presets.mjs';
 import {Evaluator,runMatch,scoringMode} from './optimizer-fitness.mjs';
@@ -146,6 +146,21 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
   const notes=runNotes({when:'w',seed:1,length:5,benchmark:{name:'b',opponents:20},params:{...s.params},scoring:{exact:false,rounds:8,judge:142}});
   assert(notes.includes('Scoring: screened, 8 random placements per opponent for selection, exact (all 142) for the best'),notes.join('\n'));
   assert.match(notes.at(-1),/new placements every generation/);
+ }
+ // Keeping the seed's structure: every warrior has the seed's length and opcodes in order.
+ {
+  const w=await assemble(opponents[3].source,hillOf(nano)),seedG={code:w.instructions,start:w.start},s=structureOf(seedG);
+  const k=new Evolution({evaluator,config:nano,params:{population:16,keepStructure:true,immigrants:0.2},seeds:[seedG],seed:'keep'});
+  assert.deepEqual(k.structure,s);
+  await k.init();for(let i=0;i<3;i++)await k.step();
+  for(const m of k.population)assert(hasStructure(m.genome,s),structureText(structureOf(m.genome))+' vs '+structureText(s));
+  assert(new Set(k.population.map(m=>genomeKey(m.genome))).size===k.population.length);
+  assert(k.population.some(m=>genomeKey(m.genome)!==genomeKey(normalize(seedG,k.rules))),'details change');
+  const r=rng('keep2'),rules=genomeRules(nano);
+  for(let i=0;i<200;i++){const g=structuredGenome(r,rules,s),c=crossoverStructured(g,mutateStructured(g,r,rules,s,{rate:3}),r);valid(c,rules);assert(hasStructure(c,s));}
+  assert.throws(()=>new Evolution({evaluator,config:nano,params:{keepStructure:true}}),/needs a seed/);
+  assert.throws(()=>new Evolution({evaluator,config:nano,params:{keepStructure:true},seeds:[seedG,{code:[[0,0,1,0,1,0]],start:0}]}),/differ/);
+  assert.match(runNotes({when:'w',seed:1,length:5,benchmark:{name:'b',opponents:1},params:{keepStructure:true},structure:structureText(s)}).join('\n'),new RegExp('Structure: the seed\'s, kept \\(length and opcodes in order fixed\\): '+structureText(s)));
  }
  // Seeding from genomes (the last population) starts from them.
  const again=new Evolution({evaluator,config:nano,params:{population:24},seeds:e.snapshot(),seed:'test2'});

@@ -118,6 +118,32 @@ export function mutate(g,r,rules,{rate=1.5,structural=0.3}={}){
  for(let k=0;k<count;k++)c=mutateOnce(c,r,rules,{structural});
  return c;
 }
+// Keeping a warrior's structure (the evolver's "keep the seed's structure", after corewar-rl's
+// evolve.mjs --skeleton): its length and its opcodes in order stay; fields, modifiers, modes and the
+// start change, and two lines with the same opcode may swap. A structure is the list of opcodes.
+export const structureOf=g=>g.code.map(i=>i[0]);
+export const hasStructure=(g,s)=>g.code.length===s.length&&g.code.every((ins,i)=>ins[0]===s[i]);
+export const structureText=s=>s.map(op=>OPCODES[op].toUpperCase()).join(' ');
+// Random code with the structure's opcodes.
+export function structuredGenome(r,rules,s){
+ const g=randomGenome(r,rules,s.length);
+ g.code.forEach((ins,i)=>{ins[0]=s[i];ins[1]=r()<0.7?defaultModifier(ins[0],ins[2],ins[4]):r.int(MODIFIERS.length);});
+ return g;
+}
+// mutate()'s geometric count of point mutations, each one drawn again until it keeps the structure.
+export function mutateStructured(g,r,rules,s,{rate=1.5,structural=0.3}={}){
+ let c=g,count=1;
+ const p=1/Math.max(1,rate);while(r()>p&&count<20)count++;
+ for(let k=0;k<count;k++)for(let t=0;t<50;t++){const m=mutateOnce(c,r,rules,{structural});if(hasStructure(m,s)){c=m;break;}}
+ return c;
+}
+// Crossover line by line (both parents have the structure): uniform per line, or lines i … k−1 from b.
+export function crossoverStructured(a,b,r){
+ const n=a.code.length;
+ if(r()<0.5)return {code:a.code.map((ins,i)=>(r()<0.5?ins:b.code[i]).slice()),start:r()<0.5?a.start:b.start};
+ const i=r.int(n),k=i+1+r.int(n-i);
+ return {code:a.code.map((ins,j)=>(j>=i&&j<k?b.code[j]:ins).slice()),start:a.start};
+}
 // Crossover: two-point on the instruction lists (lengths may differ) or uniform per instruction.
 export function crossover(a,b,r,rules){
  if(r()<0.5&&a.code.length===b.code.length){

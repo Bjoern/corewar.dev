@@ -13,7 +13,8 @@
 // (markovModel), new code is drawn from the chain instead. population.mjs lists the other choices
 // (steady state, deterministic crowding, mean scores over seed sets, racing, and results-based
 // fitness sharing and niching: fitness 'shared', nicheBy 'results').
-import {rng,genomeRules,randomGenome,markovGenome,normalize,mutate,crossover,genomeKey,renderGenome,redcodeHeader,distance,nicheGroups} from './evolver-genome.mjs';
+import {rng,genomeRules,randomGenome,markovGenome,normalize,mutate,crossover,genomeKey,renderGenome,redcodeHeader,distance,nicheGroups,
+ structureOf,hasStructure,structuredGenome,mutateStructured,crossoverStructured} from './evolver-genome.mjs';
 import {Population,POPULATION_DEFAULTS,profileDistance} from './population.mjs';
 
 // niche: the clearing radius (genome distance 0 … 1, 0 = no niching); nicheSize: warriors a niche keeps.
@@ -31,7 +32,7 @@ export function splitHoldOut(opponents,share,seed){
 // The niche radius that suits results (per-opponent points, profileDistance) rather than code.
 export const RESULT_RADIUS=0.15;
 export const EVOLVER_DEFAULTS={...POPULATION_DEFAULTS,population:40,generations:200,scheme:'generational',survival:'clearing',elite:2,tournament:3,mateTournament:3,
- crossover:0.5,mutation:1.5,structural:0.3,immigrants:0.05,seedShare:0.5,reseedEvery:5,niche:0.3,nicheSize:2,scoreMemory:'latest',rescore:0,race:false};
+ crossover:0.5,mutation:1.5,structural:0.3,immigrants:0.05,seedShare:0.5,reseedEvery:5,niche:0.3,nicheSize:2,scoreMemory:'latest',rescore:0,race:false,keepStructure:false};
 // Screened scoring (scoringMode 'screen'): every generation new placements, the leaders scored again
 // on them and their scores averaged, so a lucky few rounds do not keep a warrior on top for long
 // (corewar-rl evo.py: 8 rounds, the top 10 rescored, matched exact scoring at equal time).
@@ -59,7 +60,7 @@ const OTHER_SETTINGS=[['elite',v=>`elite ${v}`],['scheme',v=>v==='steady'?'one c
 // none for a copy run from the sources), start {mode: random|markov|seeds|last, seeds: names},
 // lineage (earlier runs, oldest first: {run, generations, population}), seed, hill (text),
 // benchmark {name, opponents, own, heldOut, share}, scoring {exact, rounds, judge: exact rounds when
-// screened}, selfFight, length, params.
+// screened}, selfFight, length, params, structure (the kept structure as text, with keepStructure).
 export function runNotes(o){
  const p={...EVOLVER_DEFAULTS,...o.params},b=o.benchmark||{},s=o.start||{mode:'random'},lineage=o.lineage||[];
  const runText=x=>x?.run?'run '+x.run:'an earlier run';
@@ -76,6 +77,7 @@ export function runNotes(o){
  if(o.scoring)lines.push(o.scoring.judge?`Scoring: screened, ${o.scoring.rounds} random placements per opponent for selection, exact (all ${o.scoring.judge}) for the best`
   :o.scoring.exact?`Scoring: exact, all ${o.scoring.rounds} placements per opponent`:`Scoring: sampled, ${o.scoring.rounds} rounds per opponent`);
  if(o.selfFight)lines.push('Self fight: on');
+ if(p.keepStructure)lines.push(`Structure: the seed's, kept (length and opcodes in order fixed)${o.structure?': '+o.structure:''}`);
  lines.push(`Population: ${p.population}`,`Warrior length: ${o.length}`,`Mutations per child: ${p.mutation}`,`Structural share: ${p.structural}`,`Crossover rate: ${p.crossover}`,`Immigrants: ${p.immigrants}`);
  lines.push('Niching: '+(p.survival==='crowding'?'crowding':p.niche>0?`radius ${p.niche}, ${p.nicheSize} per niche`:'off'));
  const other=OTHER_SETTINGS.filter(([k])=>p[k]!==EVOLVER_DEFAULTS[k]).map(([k,f])=>f(p[k]));
@@ -89,7 +91,9 @@ export class Evolution{
  // uses the evaluator's few-round scores. seeds: genomes (or assembled warriors) to start from.
  // model: a Markov chain (markovModel) that new code is drawn from, or none for random code.
  // name: the run's name; notes: comment lines on its settings (runNotes); before: generations of
- // the earlier runs it continues.
+ // the earlier runs it continues. params.keepStructure: every warrior keeps the first seed's length and
+ // opcodes in order (structureOf), for tuning a warrior without the evolver rewriting its design;
+ // new code is random code with those opcodes, crossover goes line by line, and a Markov chain is not used.
  constructor({evaluator,judge=null,config,params={},seeds=[],seed='1',name='Evolved',model=null,notes=[],before=0}){
   this.evaluator=evaluator;this.judge=judge;this.config=config;this.rules=genomeRules(config);this.name=name;this.model=model;this.notes=notes;this.before=before;
   const rules=this.rules;
@@ -98,7 +102,17 @@ export class Evolution{
    mutate:(g,r)=>mutate(g,r.fn(),rules,{rate:this.params.mutation,structural:this.params.structural}),
    crossover:(a,b,r)=>crossover(a,b,r.fn(),rules),
    key:genomeKey,distance,size:g=>g.code.length};
-  this.engine=new Population(this.ops,{params:{...EVOLVER_DEFAULTS,...params,...(judge?SCREEN_PARAMS:{})},seeds:seeds.map(s=>normalize(s,rules)),seed:'evolve:'+seed});
+  const all={...EVOLVER_DEFAULTS,...params,...(judge?SCREEN_PARAMS:{})},start=seeds.map(s=>normalize(s,rules));
+  this.structure=null;
+  if(all.keepStructure){
+   if(!start.length)throw new Error('Keeping the seed’s structure needs a seed warrior.');
+   const s=this.structure=structureOf(start[0]);
+   if(!start.every(g=>hasStructure(g,s)))throw new Error('The seed warriors differ in length or opcodes, so there is no one structure to keep.');
+   Object.assign(this.ops,{random:r=>structuredGenome(r.fn(),rules,s),
+    mutate:(g,r)=>mutateStructured(g,r.fn(),rules,s,{rate:this.params.mutation,structural:this.params.structural}),
+    crossover:(a,b,r)=>crossoverStructured(a,b,r.fn())});
+  }
+  this.engine=new Population(this.ops,{params:all,seeds:start,seed:'evolve:'+seed});
   this.best=null;this.history=[];this.evaluations=0;this.header=redcodeHeader(config);this.reseed=false;
  }
  get params(){return this.engine.params;}

@@ -33,6 +33,7 @@ const TOPICS=[
  ['Breeding and survival','The evolver and the constant optimizer’s genetic algorithm share one population search, each with its own defaults. The evolver breeds whole generations (μ + λ): a child per place, then parents and children compete for the places, by score with niching (clearing). One child at a time (steady state) breeds from the latest population after every warrior instead; it adapts sooner but scores one warrior at a time, so with fewer opponents than CPU cores it leaves cores idle. Crowding (the optimizer’s default) lets a child replace the most similar weaker warrior, so each kind of warrior competes only with its own kind; the niche radius is then not used. With sampled scores, every few generations the warriors fight on new positions: “latest placements” takes the new score, “average over placements” the mean of all positions a warrior fought on, which is steadier and counts a warrior as the best only once it was scored on two sets. Racing stops scoring a child once it is clearly below the weakest warrior (sampled scores only); it saves time but also cuts short children that might have started a new niche.'],
  ['Runs and luck','A blind run (random code, no seed) on the nano hill needs a few thousand generations before it levels off, which is why the nano preset runs 3000: about 300,000 warriors scored at population 100, a quarter of an hour to an hour depending on your CPU cores. Even then a strong warrior is a lucky run. In tests against the nano top 50, about 1 run in 10 found one of the best kinds of warrior; the others settled 10 to 25 points lower, and a larger population did not change that. So rather than one very long run, run several with different random seeds (under More settings) and keep the best; a run that has not improved for a thousand generations seldom does. Stopping at 200 generations leaves a blind nano run about 10 points below where it would end.'],
  ['Seeding','A seed warrior is assembled for the chosen settings (labels, EQU and FOR loops are fine) and joins the first population with mutants of it; the rest is random code. “The last run” continues from the population the last run ended with, for the same settings.'],
+ ['Keeping the seed’s structure','With a seed warrior, “Keep the seed’s structure” tunes the warrior you have instead of letting the evolver redesign it. Every warrior of the run keeps the seed’s length and its instructions in the same order: a seed of SPL, SPL, MOV, SPL, MOV stays SPL, SPL, MOV, SPL, MOV. What changes is everything else: the numbers in the fields, the modifiers (.I, .AB …), the addressing modes, and where the warrior starts; two lines with the same instruction may also swap places. Crossover then mixes two warriors line by line, and the random newcomers are random code with the same instructions. Use it when the design is right but the constants are not, or to see how far a known shape can go against your benchmark. In tests on the nano hill, runs started from a top warrior with a fifth to a quarter of its numbers and modes scrambled found their way back near it in about half the runs, so give such a run a few thousand generations and several random seeds too. Without it, mutations may insert, delete and change instructions, and a run started from your warrior can end up as something else entirely.'],
  ['Markov chain','“A Markov chain of the opponents” assembles the benchmark’s warriors (and yours) and counts how often each instruction shape (opcode, modifier and both addressing modes) follows the one and two before it, and which shapes start and end a warrior. New warriors are drawn from those odds, each instruction with an A and B field seen on that shape. The chain mostly follows the longest context it knows and now and then forgets one, so it recombines warriors rather than copying them. It writes the first population and the immigrants of every generation.'],
  ['Benchmarks','The benchmark list has the preset’s own picks first, then every other suite of the Tournaments tab’s Benchmark mode with the same core size and a length that fits: built-in suites, and your own: imported, or made from your warriors or the library (saved with your workspace). Under “Other hills” come the suites made for other settings (ICWS ’94 only, as the evolver writes no ’88 code): picking one switches to its settings, to the preset with the same core, processes, cycles, length and distance, or to Custom with its values. When that would replace custom settings of your own, the evolver asks first. Population, generations and rounds then take the new preset’s defaults, as when you pick a preset, unless you changed them from the old preset’s defaults: values of your own are kept. Reset to defaults always sets them. An opponent that does not assemble for the hill’s settings (your own, or one checked in the Battle tab) is left out when the run starts, as in the Tournaments tab, and the Run card lists it with the assembler’s message.'],
  ['Warrior length','The longest warrior the evolver writes, at most the hill’s maximum length (empty: the hill’s). The hill’s length and distance still hold for the matches, so a benchmark of full-length warriors can be fought by short evolved ones: the best 20-instruction warrior against the LP hill, to build on later (add a q-scan by hand, say), or entries for a tournament that caps length below the hill’s. Shorter warriors also mean a much smaller search space. With a Markov chain, the chain learns from the opponents’ first instructions only, up to the warrior length.'],
@@ -93,6 +94,9 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const seedText=el('textarea',{className:'evo-paste',spellcheck:false,value:saved.seedText||'',placeholder:';name Seed\nspl 0\nmov 0, 1'});
  const seedShare=num(saved.seedShare??EVOLVER_DEFAULTS.seedShare,{min:0,max:1,step:0.05});
  const seedHint=el('p',{className:'hint'});
+ // Keep the seed's structure: its length and opcodes in order stay, the rest is tuned.
+ const keepStructure=el('input',{type:'checkbox',checked:!!saved.keepStructure});
+ const keepField=field(el('label',{},keepStructure,' Keep the seed’s structure: same length and instructions in the same order, only their details change'));
  // ---- evolution
  const startDefaults=(EVOLVER_PRESETS.find(p=>p.id===presetSelect.value)??EVOLVER_PRESETS[0]).defaults;
  const population=num(saved.population??startDefaults.population,{min:4,max:500,step:1});
@@ -201,7 +205,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
      field(el('label',{},selfFight,' Self fight: each warrior also fights itself, as on hills that count it (Koenigstuhl)'))),ownBox),
    el('section',{className:'t-card'},el('h3',{textContent:'Start from'}),
     el('div',{className:'tool-form'},field(...labelled('evoSeedMode','Seed',seedSelect),rosterSeed),seedText,
-     field(...labelled('evoSeedShare','Share of mutants of the seed',seedShare)),seedHint)),
+     field(...labelled('evoSeedShare','Share of mutants of the seed',seedShare)),keepField,seedHint)),
    el('section',{className:'t-card'},el('h3',{textContent:'Evolution'}),params)),
   el('div',{className:'opt-main'},
    el('section',{className:'t-card opt-run'},el('h3',{textContent:'Run'}),el('div',{className:'tool-actions'},start,pause,stop),runStatus,excludedBox,bestScore,stats,chart,popBox),
@@ -231,7 +235,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  warriorLength.addEventListener('input',()=>{showLength();showSeed();});
  function persist(){
   saveState({preset:presetSelect.value,warriorLength:warriorLength.value,custom:Object.fromEntries(CUSTOM_FIELDS.map(([k])=>[k,Number(customInputs[k].value)])),suites:{...(saved.suites||{}),[presetSelect.value]:suiteSelect.value},
-   own,useRoster:useRoster.checked,selfFight:selfFight.checked,holdOut:holdOut.checked,holdOutShare:holdOutShare.value,seedMode:seedSelect.value,seedText:seedText.value,seedShare:seedShare.value,population:population.value,generations:generations.value,mutation:mutation.value,
+   own,useRoster:useRoster.checked,selfFight:selfFight.checked,holdOut:holdOut.checked,holdOutShare:holdOutShare.value,seedMode:seedSelect.value,seedText:seedText.value,seedShare:seedShare.value,keepStructure:keepStructure.checked,population:population.value,generations:generations.value,mutation:mutation.value,
    structural:structural.value,crossover:crossoverRate.value,immigrants:immigrants.value,elite:elite.value,niche:niche.value,nicheSize:nicheSize.value,scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked,fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,scoring:scoringSelect.value,rounds:rounds.value,screenRounds:screenRounds.value,workers:workers.value,seed:seed.value,runName:runName.value,
    helpClosed:!help.open,populationOpen:popBox.open,advancedOpen:params.querySelector('.opt-advanced').open,lastBest,lastPopulation});
   saved.suites={...(saved.suites||{}),[presetSelect.value]:suiteSelect.value};
@@ -350,14 +354,15 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  }
  function showSeed(){
   const m=seedSelect.value;rosterSeed.hidden=m!=='roster';seedText.hidden=m!=='paste';
-  seedShare.parentNode.hidden=m==='random'||m==='last'||m==='markov';
+  seedShare.parentNode.hidden=m==='random'||m==='last'||m==='markov';keepField.hidden=m!=='roster'&&m!=='paste';
   const c=config(),n=lengthFor(c);
   seedHint.textContent=m==='random'?`Every warrior of the first population is random code of 1 to ${n} instructions.`
    :m==='markov'?`New warriors, and the immigrants of every generation, are drawn from a Markov chain of the ${opponents().length} opponents’ instructions (1 to ${n} instructions${n<c.maxLength?'; it learns from their first '+n:''}).`
    :m==='last'?(lastPopulation?.key===populationKey(c,n)?`Continues from the ${lastPopulation.genomes.length} warriors the last run ended with.`:'No earlier run with these settings; a run with these settings saves its population here.')
+   :keepStructure.checked?`The seed must assemble with at most ${n} instructions. Every warrior keeps its length and its instructions in order (SPL, MOV, …); mutants of it fill the share above, and random code with the same instructions the rest.`
    :`The seed must assemble with at most ${n} instructions. Mutants of it fill the share above; random code fills the rest.`;
  }
- seedSelect.addEventListener('change',showSeed);
+ seedSelect.addEventListener('change',showSeed);keepStructure.addEventListener('change',showSeed);
 
  // ---- run
  resetEvolution.onclick=()=>{
@@ -371,7 +376,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const active=state==='running'||state==='paused'||state==='pausing';
   start.disabled=state==='running'||state==='pausing';pause.disabled=state!=='running';stop.disabled=!active;
   start.textContent=state==='paused'?'▶ Continue':'▶ Start';
-  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,warriorLength,selfFight,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,schemeSelect,survivalSelect,memorySelect,race,fitnessSelect,nicheBySelect,scoringSelect,rounds,screenRounds,workers,seed,runName,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
+  for(const c of [presetSelect,suiteSelect,...Object.values(customInputs),seedSelect,rosterSeed,seedText,seedShare,keepStructure,warriorLength,selfFight,population,mutation,structural,crossoverRate,immigrants,elite,niche,nicheSize,schemeSelect,survivalSelect,memorySelect,race,fitnessSelect,nicheBySelect,scoringSelect,rounds,screenRounds,workers,seed,runName,useRoster,holdOut,holdOutShare,addPasted,addFiles,resetEvolution])c.disabled=active;
   if(!active){holdOutShare.disabled=!holdOut.checked;race.disabled=fitnessSelect.value==='shared';}
  }
  function begin(){
@@ -398,7 +403,8 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
    params:{population:Math.max(4,Number(population.value)||40),generations:Math.max(0,Number(generations.value)||0),mutation:Math.max(1,Number(mutation.value)||1.5),
     structural:Math.min(1,Math.max(0,Number(structural.value))),crossover:Math.min(1,Math.max(0,Number(crossoverRate.value))),immigrants:Math.min(0.5,Math.max(0,Number(immigrants.value))),
     elite:Math.max(0,Number(elite.value)|0),niche:Math.min(1,Math.max(0,Number(niche.value)||0)),nicheSize:Math.max(1,Number(nicheSize.value)|0||1),
-    scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked&&fitnessSelect.value!=='shared',fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0}};
+    scheme:schemeSelect.value,survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked&&fitnessSelect.value!=='shared',fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0,
+    keepStructure:keepStructure.checked&&seedSources.length>0}};
   const held=job.holdOut&&list.length>1?Math.min(list.length-1,Math.max(1,Math.round(list.length*job.holdOut))):0;
   const mode=scoringMode(matchConfig(c),list.map(o=>o.source),job.scoring);
   // The worker writes the notes once it knows which opponents assemble.

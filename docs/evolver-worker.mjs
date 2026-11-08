@@ -6,7 +6,7 @@
 // paused, done, error.
 import {Evaluator,WorkerPool,runMatch,runBatch,scoringMode,matchConfig,plannedEngine,engineSummary} from './optimizer-fitness.mjs';
 import {Evolution,splitHoldOut,runNotes,SCREEN_PARAMS} from './evolver-run.mjs';
-import {genomeRules,markovModel} from './evolver-genome.mjs';
+import {genomeRules,markovModel,structureOf,structureText} from './evolver-genome.mjs';
 import {hillOf} from './exmars.mjs';
 
 let run=null;
@@ -66,8 +66,9 @@ async function start(job){
  // The run's notes count the opponents that take part.
  // Screened scoring sets how scores are kept (SCREEN_PARAMS); the notes say so.
  if(mode.judge)job.params={...job.params,...SCREEN_PARAMS};
- if(job.noteInput){const n=job.noteInput;job.notes=runNotes({...n,params:job.params,scoring:{exact:mode.exact,rounds:mode.rounds,...(mode.judge?{judge:mode.judge.rounds}:{})},
-  benchmark:{...n.benchmark,opponents:usable.length,own:usable.filter(o=>o.own).length,heldOut:heldOut.length}});}
+ const notes=extra=>{if(job.noteInput){const n=job.noteInput;job.notes=runNotes({...n,params:job.params,scoring:{exact:mode.exact,rounds:mode.rounds,...(mode.judge?{judge:mode.judge.rounds}:{})},
+  benchmark:{...n.benchmark,opponents:usable.length,own:usable.filter(o=>o.own).length,heldOut:heldOut.length},...extra});}};
+ notes({});
  const size=Math.max(1,job.workers|0);
  const pool=typeof Worker!=='undefined'&&size>1?new WorkerPool(size,new URL('./optimizer-worker.mjs',import.meta.url)):null;
  // Self fight: every warrior also fights a copy of itself, in training and held-out scores alike.
@@ -82,7 +83,9 @@ async function start(job){
  Object.assign(r,{pool,evaluator,validator,judge});
  try{
   const seeds=[...(job.seedGenomes||[]),...await assembleSeeds(job.seedSources||[],own)];
-  const model=job.markov?await opponentModel(opponents,own):null;
+  // A kept structure is the first seed's opcodes; new code then has them, so no Markov chain.
+  if(job.params.keepStructure&&seeds.length)notes({structure:structureText(structureOf(seeds[0]))});
+  const model=job.markov&&!job.params.keepStructure?await opponentModel(opponents,own):null;
   if(model&&!model.warriors)throw new Error('None of the opponents assembled for these settings, so there is no Markov chain to draw from.');
   r.evolution=new Evolution({evaluator,judge,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model,notes:job.notes||[],before:job.before||0});
   const engine=plannedEngine(config,mode);
