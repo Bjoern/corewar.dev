@@ -23,7 +23,8 @@ try{
  await page.locator('#editors .warrior').first().click();assert(await first.isVisible());assert.equal(await page.locator('#runFromEditor').textContent(),'▶ Run battle');
  await page.locator('#newWarrior').click();assert.equal(await page.locator('.source-editor:visible').count(),1);
  const download=page.waitForEvent('download');await page.locator('.save-warrior').last().click();assert.equal((await download).suggestedFilename(),'Warrior 3.red');
- const uploaded=page.waitForEvent('download');await page.locator('.save-warrior').first().click();assert.equal((await uploaded).suggestedFilename(),'Alpha.red');
+ const uploaded=page.waitForEvent('download');await page.locator('.save-warrior').first().click();assert.equal((await uploaded).suggestedFilename(),'Edited Alpha.red');
+ const unedited=page.waitForEvent('download');await page.locator('.save-warrior').nth(1).click();assert.equal((await unedited).suggestedFilename(),'Beta.red');
  await page.locator('#editors .warrior').first().click();assert.match(await first.textContent(),/Edited Alpha/);
  assert.equal(await page.locator('.widen-editor').count(),0);
  await page.locator('#toggleEditors').click();assert(await page.locator('#editorTheme').isHidden());
