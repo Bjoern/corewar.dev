@@ -91,6 +91,12 @@ select{font:inherit;background:var(--panel);color:var(--fg);border:1px solid #38
 .progress{margin:0;min-height:1.2em;flex:1 1 auto}
 .progress .who{font-weight:700}
 .click-hint{font-family:system-ui,sans-serif}
+.tally{margin:6px 0 0}
+.tally-text{margin:0 0 4px;font:12px Consolas,monospace;color:var(--muted)}
+.tally-text b{font-weight:700}.tally-text .w{color:var(--good)}.tally-text .t{color:var(--sys)}.tally-text .l{color:var(--bad)}
+.tally-strip{display:grid;grid-template-columns:repeat(var(--rounds,100),1fr);gap:1px;height:10px}
+.tally-strip span{background:var(--line);border-radius:1px}
+.tally-strip .w{background:var(--good)}.tally-strip .t{background:var(--sys)}.tally-strip .l{background:var(--bad)}
 .result{border-radius:8px;padding:12px 16px;border:1px solid var(--line);background:var(--panel2)}
 .result.pass{border-color:#3f6b37}.result.fail{border-color:#7a3c3c}
 .result strong{display:block;margin-bottom:4px}

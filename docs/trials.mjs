@@ -133,6 +133,27 @@ function renderSetups(states = [], scores = []) {
     box.append(pill);
   });
 }
+// The running score of a fight over several rounds: the totals, and a strip with one cell per round
+// in order, green for a win, yellow for a tie, red for a loss. `who` names the program it is for.
+function startTally(rounds, who) {
+  const tally = {wins: 0, ties: 0, losses: 0, played: 0, rounds, who};
+  $('tally').hidden = rounds < 2;
+  $('tallyStrip').style.setProperty('--rounds', rounds);
+  $('tallyStrip').replaceChildren(...Array.from({length: rounds}, () => document.createElement('span')));
+  renderTally(tally);
+  return tally;
+}
+function updateTally(tally, me) {
+  const cells = $('tallyStrip').children;
+  for (const [key, cls] of [['wins', 'w'], ['ties', 't'], ['losses', 'l']]) {
+    for (; tally[key] < me[key]; ++tally[key]) cells[tally.played++]?.classList.add(cls);
+  }
+  renderTally(tally);
+}
+function renderTally({wins, ties, losses, played, rounds, who}) {
+  const html = `${escapeHtml(who)}: <b class="w">${wins} won</b> · <b class="t">${ties} tied</b> · <b class="l">${losses} lost</b> · ${played} of ${rounds} rounds`;
+  if ($('tallyText').innerHTML !== html) $('tallyText').innerHTML = html;
+}
 // The answers of a predict stage, as radio buttons in place of the editor.
 function renderChoices(stage) {
   const box = $('choices');
@@ -180,7 +201,7 @@ function open(stage) {
   updateHintButton();
   $('next').hidden = !saved.cleared || !nextStage();
   updateSkipButton();
-  $('result').hidden = true; $('progress').textContent = '';
+  $('result').hidden = true; $('progress').textContent = ''; $('tally').hidden = true;
   $('wingName').textContent = wings.find(w => w.id === stage.wing)?.title ?? '';
     display.configure(stage.settings.coreSize);
   showMarks(stage.setups[0]);
@@ -266,7 +287,7 @@ async function play({paused = false} = {}) {
   const run = running = {started: performance.now(), paused, steps: 0};
   syncPause();
   const setupStates = stage.setups.map(() => ''), scores = [];
-  let lastIndex = -1;
+  let lastIndex = -1, tally = null;
   $('run').textContent = '■ Stop'; $('result').hidden = true; $('next').hidden = true;
   const frame = async (update, {index, setup, engine}) => {
     if (current !== stage) throw new Error('stopped');  // another stage is open: drop this run, print nothing
@@ -276,6 +297,7 @@ async function play({paused = false} = {}) {
       lastIndex = index; setupStates[index] = 'busy'; renderSetups(setupStates, scores);
       display.configure(stage.settings.coreSize); showMarks(setup);
       run.started = performance.now(); run.last = undefined;
+      tally = startTally(stage.settings.rounds ?? 1, (setup.warriors ? update.warriors[0].name : 'You') + (setup.series != null ? ` (${setup.label})` : ''));
       if (stage.setups.length > 1 && $('debug').open) printText(`— Setup ${index + 1}${setup.label ? `: ${opponentName(setup)} at ${setup.label}` : ''} —\n`, 'addr');
     }
     // With the debugger open (or while paused) the engine records each instruction it runs, so the log can say who ran what.
@@ -297,6 +319,7 @@ async function play({paused = false} = {}) {
     $('progress').innerHTML = [rounds > 1 ? `Round ${Math.min(Math.max(update.round, 1), rounds)} of ${rounds}` : '',
       `cycle ${update.cycle.toLocaleString('en')} of ${stage.settings.cycles.toLocaleString('en')}`, processes,
       stage.setups.length > 1 ? `setup ${index + 1} of ${stage.setups.length}` : ''].filter(Boolean).join(' · ');
+    if (tally.rounds > 1) updateTally(tally, update.warriors[0]);
     if (update.done) { const me = update.warriors[0]; scores[index] = {wins: me.wins, ties: me.ties, losses: me.losses}; }
     if (run.stepped) {
       run.stepped = false;
