@@ -355,8 +355,8 @@ async function play({paused = false} = {}) {
     if (run.stepped) {
       run.stepped = false;
       printRan(update, update.trace);
-      if (!update.done) listAt(update.warriors[0].pc >= 0 ? update.warriors[0].pc - 2 : 0, 5);
-      else printText(`Over at cycle ${update.cycle.toLocaleString('en')}: ${update.warriors[0].wins ? 'you won' : update.warriors[0].losses ? 'you lost' : 'a tie'}.\n`);
+      if (!update.done) printNext(update);
+      if (update.done) printText(`Over at cycle ${update.cycle.toLocaleString('en')}: ${update.warriors[0].wins ? 'you won' : update.warriors[0].losses ? 'you lost' : 'a tie'}.\n`);
     }
     return update.done ? 0 : pace(run);
   };
@@ -392,6 +392,7 @@ function switchTerminal(from, to) {
 const TERM_LIMIT = 64 * 1024;
 function print(html) {
   const term = $('term');
+  term.querySelector('.next-up')?.remove();
   term.insertAdjacentHTML('beforeend', html);
   if (term.innerHTML.length > TERM_LIMIT) term.innerHTML = term.innerHTML.slice(-TERM_LIMIT / 2).replace(/^[^\n]*\n/, '');
   term.scrollTop = term.scrollHeight;
@@ -413,6 +414,19 @@ function printRan(update, entries) {
     const cycle = update.cycle.toLocaleString('en').padStart(cycleWidth);
     return `<span class="addr">${cycle}  ${String(entry.address).padStart(4, '0')}</span>  ${escapeHtml(compact(entry.instruction).padEnd(20))}  <span style="color:${battleColor(entry.warrior)}">${escapeHtml(who)}</span>\n`;
   }).join(''));
+}
+// After a step, the instruction the next step runs, in the same columns. Only the latest one stays in the
+// log: the next step replaces it with the line it ran. Programs take turns, so the next one to run is the
+// first program after the one that just ran that still has processes.
+function printNext(update) {
+  const {engine, stage} = debug, n = update.warriors.length, last = update.trace.at(-1)?.warrior ?? n - 1;
+  let w = (last + 1) % n;
+  while (!update.warriors[w].tasks && w !== last) w = (w + 1) % n;
+  const pc = update.warriors[w].pc;
+  if (!update.warriors[w].tasks || pc < 0) return;
+  const who = w === 0 ? 'you' : update.warriors[w].name;
+  const cycleWidth = stage.settings.cycles.toLocaleString('en').length;
+  print(`<span class="next-up"><span class="addr">${'next'.padStart(cycleWidth)}  ${String(pc).padStart(4, '0')}</span>  ${escapeHtml(compact(engine.inspect(pc)).padEnd(20))}  <span style="color:${battleColor(w)}">${escapeHtml(who)}</span>\n</span>`);
 }
 const printText = (text, cls = '') => print(cls ? `<span class="${cls}">${escapeHtml(text)}</span>` : escapeHtml(text));
 function syncPause() {
