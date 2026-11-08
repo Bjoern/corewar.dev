@@ -400,7 +400,7 @@ another seed could give a few more or fewer").
 | 3.2 | Taking turns | Predict | With 2 processes, which instruction runs on cycle 5? | – | The process queue |
 | 3.3 | Split personality | Run | Alone: exactly 8 processes, held for 1,000 cycles | ≤ 5 lines · ★ ≤ 4 lines | Doubling with `spl 1` |
 | ◇ 3.c | Odd one out | Run | Alone: exactly 3 processes, held for 1,000 cycles | ≤ 6 lines · ★ ≤ 4 lines | `spl 1` only doubles; uneven splits |
-| 3.d | Captured code | Repair | Kettle has a copy of a Janitor patrol's code: the Dwarf. Change it so it loses at most 5 of 100 rounds against the original, and wins at least 30 | ≤ 2 changes · ★ 1 change, ★ 0 losses | Reading enemy code; one hit need not be fatal |
+| 3.d | Captured code | Repair | Kettle has a copy of a Janitor patrol's code: the Dwarf. Make it survive a hit, so it loses at most 5 of 100 rounds against the original, and wins at least 30 | ≤ 2 changes · ★ 1 change, ★ 0 losses | Reading enemy code; one hit need not be fatal |
 | 3.e | Leftovers | Challenge | All 100 rounds against the Short Dummy (3 cells of `JMP` in a loop) | ≤ 6 lines · ★ 2 lines | The bombing gap; core clears; **reveal: a clear is the Janitor** |
 | 3.f | Clean sweep | Challenge | At least 45 wins of 100 against the Dwarf, at most 5 ties | ≤ 8 lines · ★ 50 wins | Bomb first, clear after |
 | 3.4 | Imp train | Run | Alone: at least 3 processes, all still running after 80,000 cycles | ≤ 3 lines | Several processes on one Imp |
