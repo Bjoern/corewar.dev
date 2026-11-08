@@ -23,7 +23,8 @@ export const usesPspace=source=>PSPACE_RE.test(source);
 // the opponents loaded; otherwise, and for assembly errors (pMARS's messages), a fresh pMARS engine.
 let exmars=null;
 const jobSettings=job=>({...job.config,warriors:2,rounds:job.rounds,permutate:!!job.permutate,fixedPosition:job.position||'',brief:true,verbose:false,sort:false,fixedSeries:false,assembleOnly:false});
-export async function runMatch(job,{useExmars=true}={}){
+export async function runMatch(job,options){
+ const useExmars=options?.useExmars!==false;
  let diagnostics='',fallback=null;
  if(useExmars){
   exmars??=new ExmarsRunner();
@@ -44,6 +45,32 @@ export async function runMatch(job,{useExmars=true}={}){
   return {wins:w.wins,ties:w.ties,losses:w.losses,engine:'pmars',fallback};
  }catch(error){return {error:error.message,diagnostics:diagnostics.trim(),warrior:error.warriorIndex};}
 }
+// One candidate against several opponents, one match each: job {config, a, opponents: [source],
+// rounds, permutate, positions: [placement seed per opponent] (optional)}. Returns an array with
+// runMatch's result per opponent, in order; it stops after the first error. exMARS checks the
+// settings and sets up the fighter once for all of them (ExmarsRunner.pairs); a pair it can't run
+// goes to pMARS on its own, as runMatch would.
+export async function runBatch(job,options){
+ const useExmars=options?.useExmars!==false;
+ const n=job.opponents.length,out=[];
+ let pairs=null,why=null;
+ if(useExmars){
+  exmars??=new ExmarsRunner();
+  const r=await exmars.pairs(jobSettings({...job,position:''}),job.a,job.opponents,{positions:job.positions||null});
+  if(Array.isArray(r))pairs=r;else why=r.fallback;
+ }
+ for(let i=0;i<n;i++){
+  const p=pairs?.[i];
+  if(p&&!p.fallback){out.push(p);continue;}
+  const r=await runMatch({config:job.config,a:job.a,b:job.opponents[i],rounds:job.rounds,permutate:job.permutate,position:job.positions?.[i]},{useExmars:false});
+  if(!r.error&&useExmars)r.fallback=p?.fallback??why;
+  out.push(r);if(r.error)break;
+ }
+ return out;
+}
+// The same through a function that runs one match (runMatch's job), for callers that only have one.
+export const batchOf=runJob=>(job,token)=>Promise.all(job.opponents.map((b,i)=>runJob({config:job.config,a:job.a,b,rounds:job.rounds,permutate:job.permutate,
+ ...(job.positions?{position:job.positions[i]}:{})},token)));
 // The engine the optimizer will use for these settings, and why not exMARS when it can't.
 export function plannedEngine(config,mode){
  const blocker=exmarsBlocker(settings({...matchConfig(config),warriors:2,rounds:mode.rounds,permutate:!!mode.exact}));
@@ -67,10 +94,13 @@ export function scoringMode(config,sources,options={}){
  return {exact:false,rounds:o.rounds,why:pspace?'sampled: P-space instructions keep state between rounds':`sampled: ${rounds} placements per opponent is more than ${o.exactLimit}`};
 }
 
-// runJob(job) -> Promise<{wins,ties,losses}|{error}>; a worker pool in the browser, runMatch in Node.
+// runBatch(job, token) -> Promise<[{wins,ties,losses}|{error}]>: one candidate against a list of
+// opponents (runBatch above), the fast way: a worker pool's run() in the browser, runBatch in Node.
+// runJob(job, token) -> Promise<{wins,ties,losses}|{error}>, one match per call, is still taken in
+// its place (each opponent a job of its own); runMatch itself is run as runBatch.
 export class Evaluator{
- constructor({runJob,config,opponents,options={},seed='1'}){
-  this.runJob=runJob;this.config=matchConfig(config);this.opponents=opponents;this.options={...SCORING_DEFAULTS,...options};this.seed=String(seed);
+ constructor({runJob=null,runBatch:batch=null,config,opponents,options={},seed='1'}){
+  this.runBatch=batch??(runJob===runMatch||!runJob?runBatch:batchOf(runJob));this.config=matchConfig(config);this.opponents=opponents;this.options={...SCORING_DEFAULTS,...options};this.seed=String(seed);
   this.cache=new Map();this.epoch=0;this.evaluations=0;this.cached=0;this.raced=0;this.invalid=0;this.matches=0;
   this.engines={exmars:0,pmars:0};this.fallback=null;
  }
@@ -87,9 +117,11 @@ export class Evaluator{
   if(this.cache.size>20000)this.cache.delete(this.cache.keys().next().value);
   return result;
  }
- async jobs(list,token){
+ // One job: this candidate against these opponents (positions: a placement seed for each, or none).
+ batch(source,list,rounds,{permutate=false,positions=null,token=null}={}){
   this.matches+=list.length;
-  return this.check(await Promise.all(list.map(job=>this.runJob(job,token))));
+  return this.runBatch({config:this.config,a:source,opponents:list.map(o=>o.source),rounds,permutate,...(positions?{positions}:{})},token)
+   .then(r=>Array.isArray(r)?r:[r]);
  }
  check(results){
   for(const r of results)if(r.engine){this.engines[r.engine]++;if(r.fallback)this.fallback=r.fallback;}
@@ -101,7 +133,7 @@ export class Evaluator{
  rivals(source){return this.options.selfFight?[...this.opponents,{name:'itself (self fight)',source,self:true}]:this.opponents;}
  perOpponent(totals,list){return totals.map((t,i)=>({name:list[i].name,...(list[i].self?{self:true}:{}),...t,score:points(t)}));}
  async exact(source){
-  const list=this.rivals(source),results=await this.jobs(list.map(o=>({config:this.config,a:source,b:o.source,rounds:this.mode.rounds,permutate:true})));
+  const list=this.rivals(source),results=this.check(await this.batch(source,list,this.mode.rounds,{permutate:true}));
   if(!results)return null;
   const per=this.perOpponent(results,list),score=per.reduce((s,r)=>s+r.score,0)/per.length;
   return {score,se:0,complete:true,slices:1,rounds:this.mode.rounds,opponents:per};
@@ -109,8 +141,7 @@ export class Evaluator{
  async sampled(source,race,epoch,{rounds=this.mode.rounds,slices=this.options.slices,useRace=true}={}){
   const list=this.rivals(source),per=Math.ceil(rounds/slices),totals=list.map(()=>({wins:0,ties:0,losses:0})),sliceScores=[];
   // Queue every slice at once so no worker waits between slices; racing cancels the rest.
-  const token={cancelled:false},queued=Array.from({length:slices},(_,k)=>Promise.all(list.map((o,i)=>this.runJob({config:this.config,a:source,b:o.source,rounds:per,position:this.position(epoch,k,i)},token))));
-  this.matches+=slices*list.length;
+  const token={cancelled:false},queued=Array.from({length:slices},(_,k)=>this.batch(source,list,per,{positions:list.map((o,i)=>this.position(epoch,k,i)),token}));
   for(let k=0;k<slices;k++){
    const results=this.check(await queued[k]);
    if(!results){token.cancelled=true;return null;}
@@ -135,14 +166,38 @@ export function meanSe(values){
  return {mean,se:Math.sqrt(v/n)};
 }
 
-// Browser pool: one Web Worker per slot, jobs handed out as workers become free.
+// Browser pool: one Web Worker per slot, jobs handed out as workers become free. A job is one match
+// (runMatch's) or one candidate against a list of opponents (runBatch's, with `opponents`), one
+// message either way. When there are fewer batches waiting than idle workers (one candidate at a
+// time, or many cores), a batch's opponents are split over the idle workers.
 export class WorkerPool{
  constructor(size,url){
-  this.size=size;this.url=url;this.idle=[];this.queue=[];this.all=[];this.serial=0;this.pending=new Map();
+  this.size=size;this.url=url;this.idle=[];this.queue=[];this.all=[];this.serial=0;this.pending=new Map();this.scheduled=false;
   for(let i=0;i<size;i++){const w=new Worker(url,{type:'module'});w.onmessage=({data})=>this.done(w,data);w.onerror=e=>this.failed(w,e);this.all.push(w);this.idle.push(w);}
  }
- run(job,token=null){return new Promise((resolve,reject)=>{this.queue.push({job,token,resolve,reject});this.pump();});}
+ // Handing out waits for the end of the current task, so that jobs queued together are seen together.
+ run(job,token=null){return new Promise(resolve=>{this.queue.push({job,token,resolve});if(!this.scheduled){this.scheduled=true;queueMicrotask(()=>{this.scheduled=false;this.pump();});}});}
+ // Splits the waiting batches into parts while that leaves no more parts than idle workers.
+ split(){
+  const idle=this.idle.length,q=this.queue.length;
+  if(!q||idle<=q)return;
+  const per=Math.floor(idle/q);if(per<2)return;
+  this.queue=this.queue.flatMap(task=>{
+   const n=task.job.opponents?.length??0,parts=Math.min(per,n);
+   if(parts<2||task.token?.cancelled)return [task];
+   const size=Math.ceil(n/parts),results=[];let left=Math.ceil(n/size);
+   const finish=()=>{const bad=results.find(r=>!Array.isArray(r));task.resolve(bad??results.flat());};
+   const out=[];
+   for(let s=0,k=0;s<n;s+=size,k++){
+    const job={...task.job,opponents:task.job.opponents.slice(s,s+size)};
+    if(task.job.positions)job.positions=task.job.positions.slice(s,s+size);
+    out.push({job,token:task.token,resolve:r=>{results[k]=r;if(--left===0)finish();}});
+   }
+   return out;
+  });
+ }
  pump(){
+  this.split();
   while(this.idle.length&&this.queue.length){
    const task=this.queue.shift();
    if(task.token?.cancelled){task.resolve({error:'cancelled'});continue;}

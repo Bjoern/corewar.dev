@@ -4,7 +4,7 @@
 // (optimizer-worker.mjs), one per CPU core asked for; a browser without nested workers runs
 // them here, one at a time. Messages in: start, pause, resume, stop. Out: started, generation,
 // paused, done, error.
-import {Evaluator,WorkerPool,runMatch,scoringMode,matchConfig,plannedEngine,engineSummary} from './optimizer-fitness.mjs';
+import {Evaluator,WorkerPool,runMatch,runBatch,scoringMode,matchConfig,plannedEngine,engineSummary} from './optimizer-fitness.mjs';
 import {Evolution,splitHoldOut,runNotes} from './evolver-run.mjs';
 import {genomeRules,markovModel} from './evolver-genome.mjs';
 import {hillOf} from './exmars.mjs';
@@ -70,9 +70,9 @@ async function start(job){
  const pool=typeof Worker!=='undefined'&&size>1?new WorkerPool(size,new URL('./optimizer-worker.mjs',import.meta.url)):null;
  // Self fight: every warrior also fights a copy of itself, in training and held-out scores alike.
  const options={selfFight:!!job.selfFight};
- const evaluator=new Evaluator({runJob:pool?(j=>pool.run(j)):(j=>runMatch(j)),config,opponents,options,seed:job.seed});
+ const evaluator=new Evaluator({runBatch:pool?((j,token)=>pool.run(j,token)):runBatch,config,opponents,options,seed:job.seed});
  evaluator.setMode(mode);
- const validator=heldOut.length?new Evaluator({runJob:pool?(j=>pool.run(j)):(j=>runMatch(j)),config,opponents:heldOut,options,seed:job.seed+':held-out'}):null;
+ const validator=heldOut.length?new Evaluator({runBatch:pool?((j,token)=>pool.run(j,token)):runBatch,config,opponents:heldOut,options,seed:job.seed+':held-out'}):null;
  validator?.setMode(mode);
  Object.assign(r,{pool,evaluator,validator});
  try{

@@ -32,16 +32,21 @@ export function exmarsBlocker(config){
  if(!c.noPspace&&pmarsPspace(c)!==Math.floor(c.coreSize/16))return 'a P-space size other than core size / 16';
  if(c.fixedSeries)return 'a fixed series';
  if(c.rounds<1)return 'no rounds';
- if(c.fixedPosition!==''&&c.fixedPosition!=null){
-  const p=Number(c.fixedPosition);
-  // Two warriors: the second one's offset. A melee: any seed pMARS takes, up to 2^30.
-  const max=c.warriors>2?2**30:c.coreSize-separationOf(c);
-  if(!/^\d+$/.test(String(c.fixedPosition).trim())||p<separationOf(c)||p>max)return 'a placement seed exMARS does not read';
- }
+ const position=positionBlocker(c,c.fixedPosition);if(position)return position;
  if(c.permutate&&c.rounds!==permutationRoundsOf(c))return 'a permutation of fewer rounds than positions';
  return null;
 }
+// Why exMARS can't read this placement seed (for settings c), or null.
+function positionBlocker(c,position){
+ if(position===''||position==null)return null;
+ const p=Number(position);
+ // Two warriors: the second one's offset. A melee: any seed pMARS takes, up to 2^30.
+ const max=c.warriors>2?2**30:c.coreSize-separationOf(c);
+ return !/^\d+$/.test(String(position).trim())||p<separationOf(c)||p>max?'a placement seed exMARS does not read':null;
+}
 export const hillOf=c=>({coreSize:c.coreSize,cycles:c.cycles,processes:c.tasks,maxLength:c.maxLength,minDistance:separationOf(c)});
+// The fighter's settings as a short id, to tell when they change.
+const hillId=h=>`${h.coreSize}/${h.cycles}/${h.processes}/${h.maxLength}/${h.minDistance}`;
 const usesPspace=w=>w.pin!==null||w.instructions.some(i=>i[0]===LDP||i[0]===STP);
 
 // One per worker. run() returns pMARS-shaped results, or {fallback: reason} when pMARS must run
@@ -50,13 +55,14 @@ export class ExmarsRunner{
  constructor({maxWarriors=2000,moduleUrl=new URL('./dist/exmars/fighter-client.mjs',import.meta.url).href}={}){this.maxWarriors=maxWarriors;this.moduleUrl=moduleUrl;this.client=null;this.fighter=null;this.hillKey='';this.loaded=new Map();}
  async #load(){this.client??=await import(this.moduleUrl);return this.client;}
  async #fighterFor(hill){
-  const key=JSON.stringify(hill),{createFighter}=await this.#load();
+  const key=hillId(hill),{createFighter}=await this.#load();
   // Other settings, or a full cache, start over: configure() drops every loaded warrior.
   if(!this.fighter){this.fighter=await createFighter(hill);this.loaded.clear();}
   else if(key!==this.hillKey||this.loaded.size>=this.maxWarriors){this.fighter.configure(hill);this.loaded.clear();}
   this.hillKey=key;return this.fighter;
  }
  // The ROUNDS constant takes the match's round count, as in pMARS.
+ #cached(source,rounds){return this.loaded.get(rounds+'\0'+source);}
  async #warrior(source,hill,rounds){
   const key=rounds+'\0'+source;
   if(this.loaded.has(key))return this.loaded.get(key);
@@ -89,11 +95,43 @@ export class ExmarsRunner{
    // As the site's pMARS reports: a win is a round survived alone, a tie one survived with others.
    return {engine:'exmars',completed:c.rounds,warriors:list.map((w,i)=>{const h=histograms[i];
     return {name:w.name,wins:h[1],ties:h.slice(2).reduce((a,b)=>a+b,0),losses:h[0],score:scoreFrom(h,table)};})};
-  }catch(error){
-   // A refused input or a fighter error: start a fresh fighter next time and let pMARS run this one.
-   try{this.fighter?.dispose();}catch{}
-   this.fighter=null;this.hillKey='';this.loaded.clear();
-   return {fallback:'exMARS error: '+error.message};
-  }
+  }catch(error){return this.#failed(error);}
+ }
+ // A refused input or a fighter error: start a fresh fighter next time and let pMARS run this one.
+ #failed(error){
+  try{this.fighter?.dispose();}catch{}
+  this.fighter=null;this.hillKey='';this.loaded.clear();
+  return {fallback:'exMARS error: '+error.message};
+ }
+ // One warrior against each of `others`, one on one, as run() would score each pair, with the
+ // settings checked and the fighter set up once for all of them. positions: one placement seed per
+ // opponent (else the settings' fixedPosition). Returns one entry per opponent, {wins, ties, losses,
+ // engine} or {fallback} for a pair pMARS must run, or one {fallback} when pMARS must run them all.
+ async pairs(config,source,others,{positions=null}={}){
+  const c={...defaults,...config,warriors:2,fixedPosition:''},blocker=exmarsBlocker(c);
+  if(blocker)return {fallback:blocker};
+  if([source,...others].some(s=>typeof s!=='string'))return {fallback:'a warrior count other than the settings'};
+  const otherSize=c.noPspace&&pmarsPspace(c)!==Math.floor(c.coreSize/16);
+  if(otherSize&&/PSPACESIZE/i.test(source))return {fallback:'PSPACESIZE with another P-space size'};
+  const base=config.fixedPosition,hill=hillOf(c);
+  try{
+   await this.#fighterFor(hill);
+   const a=await this.#warrior(source,hill,c.rounds);
+   if(!a.ok)return {fallback:'assembly'};
+   if(c.noPspace&&a.pspace)return {fallback:'P-space on a no-P-space hill'};
+   const out=new Array(others.length);
+   for(let i=0;i<others.length;i++){
+    const p=positions?positions[i]:base,why=positionBlocker(c,p);
+    if(why){out[i]={fallback:why};continue;}
+    if(otherSize&&/PSPACESIZE/i.test(others[i])){out[i]={fallback:'PSPACESIZE with another P-space size'};continue;}
+    const b=this.#cached(others[i],c.rounds)??await this.#warrior(others[i],hill,c.rounds);
+    if(!b.ok){out[i]={fallback:'assembly'};continue;}
+    if(c.noPspace&&b.pspace){out[i]={fallback:'P-space on a no-P-space hill'};continue;}
+    const position=p?Number(p):0;
+    const r=c.permutate?this.fighter.exact(a.handle,b.handle,{position}):this.fighter.fight(a.handle,b.handle,{rounds:c.rounds,position});
+    out[i]={wins:r.wins,ties:r.ties,losses:r.losses,engine:'exmars'};
+   }
+   return out;
+  }catch(error){return this.#failed(error);}
  }
 }

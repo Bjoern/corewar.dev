@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import {parseTemplate,TemplateError,signed,templateConstants,fromMetcalf} from './optimizer-template.mjs';
 import {Annealing,Genetic,Exhaustive,restoreMethod} from './optimizer-search.mjs';
-import {Evaluator,runMatch,scoringMode} from './optimizer-fitness.mjs';
+import {Evaluator,WorkerPool,runMatch,runBatch,batchOf,scoringMode,matchConfig} from './optimizer-fitness.mjs';
 import {examples} from './optimizer-examples.mjs';
 const NANO=templateConstants({coreSize:80,maxLength:5,distance:5,tasks:80,cycles:800,pspace:5});
 const STD=templateConstants({coreSize:8000,maxLength:100,distance:100,tasks:8000,cycles:80000,pspace:500});
@@ -84,6 +84,25 @@ assert.deepEqual(s1,s2);assert.equal(s1.rounds,50);
  assert(Math.abs(r.score-(start.score*2+me.score)/3)<1e-9,'one more opponent in the average');
  const sampledSelf=new Evaluator({runJob:runMatch,config:nano,opponents:[imp],options:{selfFight:true,slices:2}});sampledSelf.setMode({exact:false,rounds:20});
  const s=await sampledSelf.evaluate(t.render(t.startIndices()));assert.equal(s.opponents.length,2);assert.equal(s.opponents[1].wins+s.opponents[1].ties+s.opponents[1].losses,20);
+}
+// A job per candidate (runBatch, exMARS's pairs) scores exactly as a match per opponent did, inline,
+// on pMARS, and through a worker pool that splits one candidate's opponents over idle workers.
+{
+ const src=t.render(t.startIndices()),list=[imp,dwarf,{name:'Paper',source:';redcode\nspl 0, 0\nmov.i -1, 3\njmp -2\n'},{name:'Bad',source:'mov 0, junk\n'}].slice(0,3);
+ const score=async(extra,m)=>{const e=new Evaluator({config:nano,opponents:list,options:{slices:3},...extra});e.setMode(m);return [await e.evaluate(src),await e.evaluate('mov 0, junk\n')];};
+ const perMatch={runBatch:batchOf(runMatch)};
+ for(const m of [mode,{exact:false,rounds:30}]){
+  const want=await score(perMatch,m);
+  assert.deepEqual(await score({runBatch},m),want,'runBatch: '+JSON.stringify(m));
+  const plain=rs=>JSON.parse(JSON.stringify(rs,(k,v)=>k==='engine'||k==='fallback'?undefined:v));
+  assert.deepEqual(plain(await score({runBatch:j=>runBatch(j,{useExmars:false})},m)),plain(want),'runBatch on pMARS');
+  if(typeof Worker!=='undefined'){
+   const pool=new WorkerPool(3,new URL('./optimizer-worker.mjs',import.meta.url));
+   try{assert.deepEqual(await score({runBatch:(j,token)=>pool.run(j,token)},m),want,'worker pool, split');}finally{pool.terminate();}
+  }
+ }
+ const r=await runBatch({config:matchConfig(nano),a:src,opponents:[imp.source,'mov 0, junk\n',dwarf.source],rounds:10,positions:['7','8','9']});
+ assert.equal(r.length,2);assert.equal(r[1].warrior,1,'stops at an opponent that does not assemble');
 }
 // Every example parses for its benchmark's core.
 for(const e of examples){const c=e.id==='alcoholism'?nano:{coreSize:8000,maxLength:100,distance:100,tasks:8000,cycles:80000,pspace:500};assert(parseTemplate(e.source,templateConstants(c)).variables.length>0,e.id);}

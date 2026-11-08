@@ -43,7 +43,8 @@ exact on nano). The population itself is `docs/population.mjs`, shared with the 
 it sees genomes only through operators (random, mutate, crossover, key, distance) and its methodology is configurable
 (steady state or generational breeding, crowding or clearing, mean or latest scores over seed sets, racing), with the
 evolver defaulting to generational clearing and the optimizer to genetic2.rb's steady-state crowding. `docs/evolver-worker.mjs` runs it in a Web Worker that hands matches to a pool of
-`optimizer-worker.mjs` workers. Presets (nano, tiny, standard '94, LP, custom) and their benchmarks from
+`optimizer-worker.mjs` workers, one message per candidate with all its opponents (`runBatch`), split over the workers only when
+some would otherwise sit idle. Presets (nano, tiny, standard '94, LP, custom) and their benchmarks from
 `warriors_public/` are in `docs/evolver-presets.mjs`; the benchmark list also offers every fitting suite of the Tournaments
 tab's Benchmark mode (imported or session-made ones too), and under "Other hills" the '94 suites of other settings: picking one
 switches to its preset, or to Custom with its values (asking before it replaces custom settings). A warrior length below the
@@ -57,6 +58,7 @@ An optional held-out share of the opponents (`splitHoldOut` in `docs/evolver-run
 counts for selection; the best warrior is scored on it as well, to show overfitting to the benchmark.
 `node docs/test-evolver.mjs` checks validity, niching, the chain, and that a nano run improves;
 `node docs/test-population.mjs` checks the shared population search on its own.
+`node docs/bench-evaluator.mjs` times the `Evaluator` against exMARS's fighter alone (exact nano scoring, one warrior vs 50).
 
 ## Trials
 

@@ -302,7 +302,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
   const config=matchConfig(suite.config),template=parsed;
   const mode=scoringMode(config,[template.render(template.startIndices().map(v=>v??0)),...suite.warriors.map(w=>w.source)],{mode:scoringSelect.value,rounds:Math.max(10,Number(rounds.value)||250)});
   const pool=new WorkerPool(Math.max(1,Math.min(processors,Number(workers.value)||1)),new URL('./optimizer-worker.mjs',import.meta.url));
-  const evaluator=new Evaluator({runJob:job=>pool.run(job),config,opponents:suite.warriors,options:{selfFight:selfFight.checked},seed:seed.value});
+  const evaluator=new Evaluator({runBatch:(job,token)=>pool.run(job,token),config,opponents:suite.warriors,options:{selfFight:selfFight.checked},seed:seed.value});
   evaluator.setMode(mode);
   const startX=template.startIndices(),numericSeed=hashSeed(seed.value);
   // Continuing from an earlier best of the same template seeds the GA with it.
@@ -469,7 +469,7 @@ export function mount(root,{roster,addWarrior,readConfig,loadState,saveState,ben
   const r=run;if(!r?.best||r.state==='running')return;
   validate.disabled=true;
   const pool=r.finished?new WorkerPool(Math.max(1,Math.min(processors,Number(workers.value)||1)),new URL('./optimizer-worker.mjs',import.meta.url)):null;
-  const ev=pool?new Evaluator({runJob:job=>pool.run(job),config:r.config,opponents:r.evaluator.opponents,options:{selfFight:r.evaluator.options.selfFight},seed:r.evaluator.seed}):r.evaluator;
+  const ev=pool?new Evaluator({runBatch:(job,token)=>pool.run(job,token),config:r.config,opponents:r.evaluator.opponents,options:{selfFight:r.evaluator.options.selfFight},seed:r.evaluator.seed}):r.evaluator;
   ev.setMode(r.mode);
   validation.textContent=r.mode.exact?'Scoring exactly…':`Fighting ${SCORING_DEFAULTS.validateRounds} new rounds per opponent…`;
   try{
