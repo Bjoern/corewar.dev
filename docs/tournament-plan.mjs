@@ -29,7 +29,6 @@ export function planTournament({mode,entrants,opponents=[],challenger,rounds,see
  if(!entrants.length)throw new Error('Select at least one warrior in the roster.');
  if(!Number.isInteger(rounds)||rounds<1||rounds>2147483647)throw new Error('Rounds must be a positive integer.');
  if(typeof seed!=='string'||!seed.trim()||seed.length>120)throw new Error('Enter a seed of 1–120 characters.');
- if(config.assembleOnly)throw new Error('Turn off Assemble only in match settings.');
  const pairs=[],kinds=[];
  if(mode==='melee')pairs.push(entrants);
  else if(mode==='round-robin'){

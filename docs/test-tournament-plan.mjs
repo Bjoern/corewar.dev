@@ -40,4 +40,6 @@ import('./tournament-plan.mjs').then(({numericPosition})=>{
  assert.match(numericPosition('x',{}),/^\d+$/);
 });
 assert(plan('round-robin').jobs.every(j=>/^\d+$/.test(j.config.fixedPosition)));
+// -A Assemble only is a battle setting: a tournament ignores it and fights every matchup.
+for(const extra of [{},{opponents:hill,pushoff:true,hill:true}])assert(plan(extra.opponents?'benchmark':'round-robin',{...extra,config:{assembleOnly:true}}).jobs.every(j=>j.config.assembleOnly===false&&j.config.rounds>0));
 console.log('PASS: tournament schedules, self fights, settings validation and reproducible seeds.');
