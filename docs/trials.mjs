@@ -288,9 +288,15 @@ async function play({paused = false} = {}) {
       if (skipped > 0) printText(`… ${skipped.toLocaleString('en')} more instruction${skipped === 1 ? '' : 's'}\n`, 'addr');
       printRan(update, shown);
     }
+    // Cycle and process counters, as in the Battle tab: each program's live processes in its own colour.
     const rounds = stage.settings.rounds ?? 1;
-    $('progress').textContent = [rounds > 1 ? `Round ${Math.min(update.round + 1, rounds)} of ${rounds}` : '',
-      `cycle ${update.cycle.toLocaleString('en')}`, stage.setups.length > 1 ? `setup ${index + 1} of ${stage.setups.length}` : ''].filter(Boolean).join(' · ');
+    const processes = update.warriors.map((w, i) => {
+      const who = i === 0 && !setup.warriors ? 'you' : w.name;
+      return `<span class="who" style="color:${battleColor(i)}">${escapeHtml(who)}</span> ${w.tasks.toLocaleString('en')} process${w.tasks === 1 ? '' : 'es'}`;
+    }).join(', ');
+    $('progress').innerHTML = [rounds > 1 ? `Round ${Math.min(Math.max(update.round, 1), rounds)} of ${rounds}` : '',
+      `cycle ${update.cycle.toLocaleString('en')} of ${stage.settings.cycles.toLocaleString('en')}`, processes,
+      stage.setups.length > 1 ? `setup ${index + 1} of ${stage.setups.length}` : ''].filter(Boolean).join(' · ');
     if (update.done) { const me = update.warriors[0]; scores[index] = {wins: me.wins, ties: me.ties, losses: me.losses}; }
     if (run.stepped) {
       run.stepped = false;

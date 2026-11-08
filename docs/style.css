@@ -316,6 +316,8 @@ body:not([data-warriors="0"]) .new-warrior-btn{padding:6px 10px;font-size:12px}
 .edit-link{color:var(--accent);font-size:12px}
 .foot-spacer{flex:1}
 #hoverAddress{min-width:0}
+.core-click-hint{font-size:12px;color:var(--muted);order:2}
+@media(max-width:650px){.core-click-hint{display:none}}
 .match-settings{background:var(--raised);padding:8px 12px;margin:0}
 #matchSettings:has(#settingsDetails[hidden]){display:none}
 #activeSettings{margin:0;font-size:11px}#activeSettings:empty{display:none}
