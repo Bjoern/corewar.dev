@@ -312,6 +312,7 @@ async function play({paused = false} = {}) {
   const choice = state.stages[stage.id]?.choice ?? null;
   if (stage.kind === 'predict' && choice === null) { say(['Pick an answer first. Guessing counts. Not guessing does not.']); return; }
   const run = running = {started: performance.now(), paused, steps: 0};
+  debug.headed = false;  // the log's column header comes again with the first instruction of each run
   syncPause();
   const setupStates = stage.setups.map(() => ''), scores = [];
   let lastIndex = -1, tally = null;
@@ -398,10 +399,19 @@ function print(html) {
 const RAN_PER_FRAME = 8;
 // pMARS pads operands into columns (MOV.I  $     0, $     1); the log is narrow, so close the gaps.
 const compact = text => text.trim().replace(/([#$@*<>{}])\s+/g, '$1').replace(/\s+/g, ' ');
+// One instruction per line, in columns: cycle, address (4 digits), instruction, and who ran it last,
+// since names differ in length.
 function printRan(update, entries) {
+  const cycleWidth = debug.stage.settings.cycles.toLocaleString('en').length;
+  if (!debug.headed) {
+    debug.headed = true;
+    printText(`${'cycle'.padStart(cycleWidth)}  addr  ${'instruction'.padEnd(20)}  ran by
+`, 'addr');
+  }
   print(entries.map(entry => {
     const who = entry.warrior === 0 ? 'you' : update.warriors[entry.warrior].name;
-    return `<span class="addr">cycle ${update.cycle.toLocaleString('en')} ·</span> <span style="color:${battleColor(entry.warrior)}">${escapeHtml(who)}</span> ran ${String(entry.address).padStart(3, '0')}: ${escapeHtml(compact(entry.instruction))}\n`;
+    const cycle = update.cycle.toLocaleString('en').padStart(cycleWidth);
+    return `<span class="addr">${cycle}  ${String(entry.address).padStart(4, '0')}</span>  ${escapeHtml(compact(entry.instruction).padEnd(20))}  <span style="color:${battleColor(entry.warrior)}">${escapeHtml(who)}</span>\n`;
   }).join(''));
 }
 const printText = (text, cls = '') => print(cls ? `<span class="${cls}">${escapeHtml(text)}</span>` : escapeHtml(text));
