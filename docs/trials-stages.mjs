@@ -351,7 +351,7 @@ export const stages = [
       'I pulled something out of a swept corner of the core. One of the Janitor\'s patrols. Still running.',
       'I have its code. It does not know I have its code. It is in your editor.',
       'You know it: the Dwarf. Run the copy against the original first. It is a coin toss: whoever lands the first bomb wins.',
-      'Here is what I learned from reading it. It bombs every 4th cell, so it can only ever hit one of your 4 lines. One hit, and you are dead.',
+      'Here is what I learned from reading it. It bombs every 4th cell, so it can only ever hit one of your 4 lines. If that line is your `bomb`, nothing happens: a `DAT` lands on a `DAT`. If it is one of the other three, you are dead.',
       'So do not out-aim it. Out-last it: change the copy so that it survives a hit. At most 5 losses in 100 rounds, and at least 30 wins.',
     ],
     hints: [

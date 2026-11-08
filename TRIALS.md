@@ -431,8 +431,9 @@ goes 38 / 25 / 37 per 100 (see 2.b). A single 100-round run of the calibration s
   Dwarfs, still running. "I have its code. It does not know I have its code." The editor opens with
   the captured Dwarf, labelled as enemy code, and the player's job is to make a better one.
 - **Analysis first.** Kettle walks through it line by line and the player watches it alone in the
-  core: it throws a `DAT` at every 4th cell, so it hits exactly one of your 4 lines, never more,
-  and it is killed by one hit itself. Changing the step is the obvious idea and Kettle lets the
+  core: it throws a `DAT` at every 4th cell, so it hits exactly one of your 4 lines, never more.
+  A hit on your `bomb` does nothing (a `DAT` on a `DAT`); a hit on any of the other three is fatal,
+  and the same goes for the Dwarf itself. Changing the step is the obvious idea and Kettle lets the
   player try it: the score stays a coin toss, which is worth seeing (2.c's lesson on luck helps
   here).
 - **The fix.** One hit is all the Dwarf will ever land. With `spl 0` in front, a hit on the loop
