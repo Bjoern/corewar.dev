@@ -146,6 +146,11 @@ function log(text,channel='stderr',index=null) {
 function draftName(source, i) {
   return source.match(/^\s*;name\s+([^\r\n]*)/im)?.[1].trim() || `Warrior ${i + 1}`;
 }
+// The loaded file's name until the warrior's ;name is edited, then a name made from the new ;name.
+function warriorFile(i) {
+  const name=draftName(sources[i],i);
+  return sourceFiles[i] && originals[i]!==undefined && draftName(originals[i],i)===name ? sourceFiles[i] : warriorFilename(name);
+}
 function markDirty() {
  tournaments?.refresh();
  compileIssues=[];refreshDiagnostics();
@@ -298,7 +303,7 @@ function renderCenterTabs(){
   const tab=document.createElement('span');tab.className='tab warrior-tab';tab.style.color=warriorColor(i);tab.dataset.tab=String(i);tab.setAttribute('role','presentation');
   const open=document.createElement('button');open.type='button';open.setAttribute('role','tab');open.setAttribute('aria-selected',String(i===active));
   const swatch=document.createElement('span');swatch.className='warrior-swatch';
-  const name=document.createElement('span');name.className='tab-name';name.textContent=(sourceFiles[i]||warriorFilename(draftName(sources[i],i)));
+  const name=document.createElement('span');name.className='tab-name';name.textContent=(warriorFile(i));
   open.append(swatch,' ',name);
   if(originals[i]!==undefined && originals[i]!==sources[i]){const dot=document.createElement('span');dot.className='tab-dot';dot.title='Edited';dot.textContent=' ●';open.append(dot);}
   open.onclick=()=>openWarrior(i);
@@ -899,7 +904,7 @@ function sampleScores(update){
 }
 function saveWarrior(i){
  const a=document.createElement('a'),url=URL.createObjectURL(new Blob([sources[i]],{type:'text/plain;charset=utf-8'}));
- a.href=url;a.download=sourceFiles[i]||warriorFilename(draftName(sources[i],i));
+ a.href=url;a.download=warriorFile(i);
  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 async function importFiles(files){
@@ -1234,7 +1239,7 @@ tools=setupTools({
  loadBenchmark:id=>tournaments.loadBenchmark(id)
 });
 tournaments=setupTournaments({
- roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:sourceFiles[i]||warriorFilename(draftName(sources[i],i)),source:sources[i]})),
+ roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:warriorFile(i),source:sources[i]})),
  readConfig:()=>readSettings({warriors:2}),
  // A benchmark suite's settings become the match settings (as custom settings); warriors revalidate.
  applyConfig:values=>{applySettingsSnapshot({preset:'custom',values});markDirty();},
