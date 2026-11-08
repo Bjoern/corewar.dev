@@ -37,6 +37,13 @@
 //   nicheBy      'code': niching and crowding compare genomes (ops.distance); 'results': they compare
 //                what members score against each opponent (profileDistance), so niches are kinds of
 //                result, however the code looks. Results need per-opponent rows ({opponents}) in the results.
+//   novelty      weight of a novelty bonus, 0 = off (after corewar-rl train.py): a member's novelty is
+//                how unlike its results profile is from those of its NOVELTY_K nearest neighbours among
+//                the population and an archive of profiles seen before (the RMS difference in points per
+//                opponent, so on the score's scale), and selection adds novelty × weight to the value it
+//                uses (the plain or shared score). Each new member joins the archive with chance
+//                ARCHIVE_ADD / population, so it remembers kinds that died out. Like sharing, it only
+//                steers selection: the score and the best stay plain, and racing is off with it.
 
 // sfc32: small, fast, and its four words are the whole state. A string seed is hashed.
 export class Rng{
@@ -61,13 +68,21 @@ export class Rng{
 const clone=o=>JSON.parse(JSON.stringify(o));
 
 export const POPULATION_DEFAULTS={population:50,scheme:'steady',survival:'crowding',niche:0.3,nicheSize:2,elite:2,tournament:3,mateTournament:1,
- crossover:0.75,immigrants:0.05,seedShare:0.5,reseedEvery:1,scoreMemory:'mean',rescore:6,race:true,fitness:'plain',nicheBy:'code'};
+ crossover:0.75,immigrants:0.05,seedShare:0.5,reseedEvery:1,scoreMemory:'mean',rescore:6,race:true,fitness:'plain',nicheBy:'code',novelty:0};
 export const SCHEMES=['steady','generational'],SURVIVALS=['crowding','clearing'],SCORE_MEMORIES=['mean','latest'],FITNESSES=['plain','shared'],NICHE_BY=['code','results'];
 const RETRIES=20,INVALID_LIMIT=1000;
 // Points against one opponent run 0 … 300 ((3W + T) / rounds × 100). SHARE_FLOOR keeps an opponent
 // the whole population scores nothing against from weighing without bound: 20 points is a tie in a
 // fifth of the rounds.
 const MAX_POINTS=300,SHARE_FLOOR=20;
+// Novelty: neighbours counted, profiles added to the archive per population's worth of new members, and its size.
+const NOVELTY_K=15,ARCHIVE_ADD=4,ARCHIVE_SIZE=500;
+// The RMS difference in points per opponent between two profiles.
+export function profileRms(a,b){
+ const n=Math.min(a.length,b.length);if(!n)return 0;
+ let d=0;for(let i=0;i<n;i++)d+=(a[i]-b[i])**2;
+ return Math.sqrt(d/n);
+}
 
 // A result's points against each opponent, the self fight apart (it is a different warrior for each
 // member, so it is never shared or compared): {vec, own} or null without per-opponent rows.
@@ -91,7 +106,7 @@ export class Population{
  // seeds: genomes the first population starts from (all valid for the operators).
  constructor(operators,{params={},seeds=[],seed=1}={}){
   this.ops=operators;this.rng=new Rng(seed);this.results=new Map();
-  this.s={params:{...POPULATION_DEFAULTS,...params},seeds:seeds.map(clone),pop:[],reeval:[],born:0,children:0,generation:0,immigrants:0,discarded:0,invalid:0,rescored:0,rng:null};
+  this.s={params:{...POPULATION_DEFAULTS,...params},seeds:seeds.map(clone),pop:[],reeval:[],born:0,children:0,generation:0,immigrants:0,discarded:0,invalid:0,rescored:0,archive:[],rng:null};
  }
  static fromState(operators,state){const self=Object.create(Population.prototype);self.ops=operators;self.s=clone(state);self.rng=new Rng(state.rng);self.results=new Map();return self;}
  state(){this.s.rng=[...this.rng.s];return clone(this.s);}
@@ -131,7 +146,7 @@ export class Population{
    known.add(key);return {genome:g,key};
   };
   // A child below the weakest score may still be worth keeping for its shared value, so no racing then.
-  const race=p.race&&p.fitness!=='shared'&&s.pop.length>=n?Math.min(...s.pop.map(m=>m.score)):null;
+  const race=p.race&&p.fitness!=='shared'&&!(p.novelty>0)&&s.pop.length>=n?Math.min(...s.pop.map(m=>m.score)):null;
   if(this.initializing){
    // Seeds first, then mutants of them (seedShare), then new genomes; all at once, so they score in parallel.
    const count=s.born<n?n-s.born:Math.max(1,Math.min(10,n)-s.pop.length),seeds=s.seeds,mutants=seeds.length?Math.floor(n*p.seedShare):0;
@@ -186,6 +201,8 @@ export class Population{
    if(!r.complete||s.pop.some(m=>m.key===c.key)){s.discarded++;return;}
    const m={genome:c.genome,key:c.key,sum:r.score,n:1,score:r.score,se:r.se},pr=profile(r);
    if(pr){m.vec=pr.vec;m.own=pr.own;}
+   // The novelty archive: profiles of new members, a few per population's worth.
+   if(p.novelty>0&&pr?.vec.length&&this.rng.random()<ARCHIVE_ADD/this.size){s.archive??=[];if(s.archive.length<ARCHIVE_SIZE)s.archive.push(pr.vec.slice());else s.archive[this.rng.below(ARCHIVE_SIZE)]=pr.vec.slice();}
    this.results.set(c.key,r);joined=true;
    if(p.survival==='crowding')this.crowd(m);else s.pop.push(m);
   });
@@ -245,7 +262,32 @@ export class Population{
  // opponent is equally hard the shared value is the score. With fitness 'plain' it is the score.
  share(list){
   for(const m of list)m.fit=m.score;
-  if(this.s.params.fitness!=='shared')return;
+  if(this.s.params.fitness==='shared')this.shareResults(list);
+  if(this.s.params.novelty>0)this.addNovelty(list);
+ }
+ // The novelty bonus (see novelty above): each member's mean RMS distance to its nearest neighbours.
+ addNovelty(list){
+  const k=list.find(m=>m.vec?.length)?.vec.length;if(!k)return;
+  const same=list.filter(m=>m.vec?.length===k),pool=[...same.map(m=>m.vec),...(this.s.archive||[]).filter(v=>v.length===k)];
+  // The K smallest squared distances, kept sorted in a small array; the root of the mean square only at the end.
+  const near=new Float64Array(NOVELTY_K);
+  for(const m of same){
+   const a=m.vec;let count=0;
+   for(const v of pool){
+    if(v===a)continue;
+    const limit=count<NOVELTY_K?Infinity:near[NOVELTY_K-1];let d=0;
+    for(let j=0;j<k&&d<limit;j++){const x=a[j]-v[j];d+=x*x;}
+    if(d>=limit)continue;
+    let i=count<NOVELTY_K?count++:NOVELTY_K-1;
+    while(i>0&&near[i-1]>d){near[i]=near[i-1];i--;}
+    near[i]=d;
+   }
+   if(!count)continue;
+   let t=0;for(let i=0;i<count;i++)t+=Math.sqrt(near[i]/k);
+   m.novelty=t/count;m.fit+=this.s.params.novelty*m.novelty;
+  }
+ }
+ shareResults(list){
   const k=list.find(m=>m.vec?.length)?.vec.length;if(!k)return;
   const same=list.filter(m=>m.vec?.length===k),mean=new Array(k).fill(0);
   for(const m of same)for(let j=0;j<k;j++)mean[j]+=m.vec[j]/same.length;

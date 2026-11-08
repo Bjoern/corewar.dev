@@ -57,6 +57,9 @@ Survivors are chosen with clearing (`niche` radius on the genome distance, `nich
 near-copies of the leader give way to the best of other kinds.
 An optional held-out share of the opponents (`splitHoldOut` in `docs/evolver-run.mjs`, picked by the run's seed) never
 counts for selection; the best warrior is scored on it as well, to show overfitting to the benchmark.
+Two diversity options are off by default: leaving out new warriors that copy a known one (`avoidKnown`, with
+`docs/evolver-similar.mjs`'s alignment, before they are scored) and a novelty bonus for unusual per-opponent results
+(`novelty` in `docs/population.mjs`, against the population and an archive of results seen before).
 `node docs/test-evolver.mjs` checks validity, niching, the chain, and that a nano run improves;
 `node docs/test-population.mjs` checks the shared population search on its own.
 `node docs/bench-evaluator.mjs` times the `Evaluator` against exMARS's fighter alone (exact nano scoring, one warrior vs 50).

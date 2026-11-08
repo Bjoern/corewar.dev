@@ -3,7 +3,7 @@
 // rule improves, seeded runs repeat and a saved state continues exactly, crowding and clearing keep
 // the right members, mean scores and re-scoring on new seeds, generation events and racing.
 import assert from 'node:assert/strict';
-import {Population,Rng,POPULATION_DEFAULTS} from './population.mjs';
+import {Population,Rng,POPULATION_DEFAULTS,profileRms} from './population.mjs';
 
 // Genomes: vectors of 6 values 0 … 49; score: closeness to a target.
 const N=6,K=50,target=[7,41,23,3,30,16];
@@ -98,6 +98,23 @@ for(const scoreMemory of ['mean','latest']){
  const b=p.ask();assert.equal(b[0].race,worst);
  p.tell(b,[{score:0,se:1,complete:false}]);assert(!p.members.some(m=>m.key===b[0].key));assert.equal(p.summary().discarded,1);
  assert.equal(run(new Population(ops,{params:{population:10,race:false},seed:1}),1).ask()[0].race,null);
+}
+// Novelty: selection adds weight × the mean RMS distance of a member's profile to its nearest
+// neighbours (population and archive); the score stays plain, racing is off, the archive is saved.
+{
+ assert.equal(profileRms([0,0,0,0],[30,30,30,30]),30);assert.equal(profileRms([10,20],[10,20]),0);
+ const p=new Population(ops,{params:{population:4,novelty:0.5},seed:1}),m=(vec,score)=>({genome:[score],score,vec});
+ const list=[m([0,0],100),m([0,0],90),m([0,0],80),m([300,300],10)];
+ p.share(list);
+ assert.equal(list[3].novelty,300,'the odd one out is far from all three');
+ assert.equal(list[0].novelty,100,'the others: 0, 0 and 300 away');
+ assert.deepEqual(list.map(x=>x.fit),[150,140,130,160]);assert.deepEqual(list.map(x=>x.score),[100,90,80,10]);
+ p.s.archive=[[300,300],[300,300]];p.share(list);assert.equal(list[3].novelty,900/5,'the archive counts as neighbours: two at 0');
+ const q=new Population(ops,{params:{population:12,novelty:1,race:true},seed:3});
+ for(let i=0;i<4;i++){const b=q.ask();q.tell(b,b.map(c=>({...result(c.genome),opponents:c.genome.map(v=>({score:6*v}))})));}
+ assert(q.s.archive.length>0,'new members join the archive now and then');assert.equal(q.ask()[0].race,null,'no racing with novelty');
+ assert.deepEqual(Population.fromState(ops,q.state()).s.archive,q.s.archive);
+ assert(q.members.every(x=>x.fit>=x.score));
 }
 assert.equal(POPULATION_DEFAULTS.scheme,'steady');
 console.log('PASS: population search: schemes, survival, seeding, invalid members, crowding, clearing, score memory, generations, racing, resume.');

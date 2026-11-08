@@ -90,12 +90,19 @@ async function start(job){
   if(job.params.keepStructure&&seeds.length)notes({structure:structureText(structureOf(seeds[0]))});
   const model=job.markov&&!job.params.keepStructure?await opponentModel(opponents,own):null;
   if(model&&!model.warriors)throw new Error('None of the opponents assembled for these settings, so there is no Markov chain to draw from.');
-  const setup={evaluator,judge,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model,notes:job.notes||[],before:job.before||0};
+  // Known warriors that new ones may not copy, assembled for these settings.
+  let known=[];
+  if(job.known?.length&&job.params.avoidKnown&&job.params.avoidKnown!=='off'){
+   const {assembleKnown}=await import('./evolver-similar.mjs');
+   ({known}=await assembleKnown(job.known.map(w=>({...w,hill:{...config,...(w.hill||{})}}))));
+   if(r.state==='stopped'||run!==r)return;
+  }
+  const setup={evaluator,judge,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model,notes:job.notes||[],before:job.before||0,known};
   r.evolution=soup?new SoupEvolution({...setup,duel:duels(pool,config)}):new Evolution(setup);
   const engine=plannedEngine(config,mode);
   post({type:'started',why:mode.why,exact:mode.exact,rounds:mode.rounds,engine:engine.engine,engineWhy:engine.why,workers:pool?size:1,nested:!!pool||size===1,
    markov:model&&{warriors:model.warriors,instructions:model.instructions,shapes:model.shapes,skipped:opponents.length-model.warriors},
-   training:opponents.map(o=>o.name),heldOut:heldOut.map(o=>o.name),excluded});
+   training:opponents.map(o=>o.name),heldOut:heldOut.map(o=>o.name),excluded,known:known.length});
   const first=await r.evolution.init();
   if(r.state==='stopped'||run!==r)return;
   await report(r,first);if(r.state==='stopped'||run!==r)return;

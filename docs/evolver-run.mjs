@@ -16,6 +16,7 @@
 import {rng,genomeRules,randomGenome,markovGenome,normalize,mutate,crossover,genomeKey,renderGenome,redcodeHeader,distance,nicheGroups,
  structureOf,hasStructure,structuredGenome,mutateStructured,crossoverStructured} from './evolver-genome.mjs';
 import {Population,POPULATION_DEFAULTS,profileDistance} from './population.mjs';
+import {prepare,align,verdict} from './evolver-similar.mjs';
 
 // niche: the clearing radius (genome distance 0 … 1, 0 = no niching); nicheSize: warriors a niche keeps.
 // Held-out opponents: a share of the opponents (at least one, and one left to train on) set aside
@@ -34,7 +35,14 @@ export const RESULT_RADIUS=0.15;
 export const EVOLVER_DEFAULTS={...POPULATION_DEFAULTS,population:40,generations:200,scheme:'generational',survival:'clearing',elite:2,tournament:3,mateTournament:3,
  crossover:0.5,mutation:1.5,structural:0.3,immigrants:0.05,seedShare:0.5,reseedEvery:5,niche:0.3,nicheSize:2,scoreMemory:'latest',rescore:0,race:false,keepStructure:false,
  // Soup mode (scheme 'soup', evolver-soup.mjs): the grid and the rounds of a duel between neighbours.
- soupWidth:20,soupHeight:12,duelRounds:100};
+ soupWidth:20,soupHeight:12,duelRounds:100,
+ // Known warriors (Evolution's `known`) a new warrior may not copy: 'off', 'copies' (80% or more of
+ // its code identical to one) or 'designs' (also 80% or more the same design with other constants).
+ avoidKnown:'off'};
+// Instruction shapes (opcode, modifier, modes) of prepared code, counted: a quick bound on how much
+// of one warrior's code can match another's before aligning them.
+const shapeCounts=code=>{const m=new Map();for(const i of code){const k=i[0]+'.'+i[1]+'.'+i[2]+'.'+i[4];m.set(k,(m.get(k)||0)+1);}return m;};
+const overlap=(a,b)=>{let n=0;for(const [k,c] of a)n+=Math.min(c,b.get(k)||0);return n;};
 // Screened scoring (scoringMode 'screen'): every generation new placements, the leaders scored again
 // on them and their scores averaged, so a lucky few rounds do not keep a warrior on top for long
 // (corewar-rl evo.py: 8 rounds, the top 10 rescored, matched exact scoring at equal time).
@@ -57,7 +65,8 @@ const ON=v=>v?'on':'off';
 const OTHER_SETTINGS=[['elite',v=>`elite ${v}`],['scheme',v=>v==='steady'?'one child at a time (steady state)':`breeding ${v}`],
  ['scoreMemory',v=>v==='mean'?'scores averaged over placements':`scores ${v}`],['race',v=>`racing ${ON(v)}`],['fitness',v=>v==='shared'?'selection by shared score':`selection by ${v}`],
  ['nicheBy',v=>v==='results'?'warriors compared by results':`warriors compared by ${v}`],['tournament',v=>`tournament ${v}`],['mateTournament',v=>`mate tournament ${v}`],
- ['reseedEvery',v=>v===1?'new placements every generation':`new placements every ${v} generations`],['rescore',v=>`rescore ${v}`]];
+ ['reseedEvery',v=>v===1?'new placements every generation':`new placements every ${v} generations`],['rescore',v=>`rescore ${v}`],
+ ['avoidKnown',v=>v==='designs'?'copies and designs of known warriors left out':v==='copies'?'copies of known warriors left out':`known warriors ${v}`],['novelty',v=>`novelty bonus ${v}`]];
 // The run's settings as short comment lines, one fact each. o: when, release (the site's build, or
 // none for a copy run from the sources), start {mode: random|markov|seeds|last, seeds: names},
 // lineage (earlier runs, oldest first: {run, generations, population}), seed, hill (text),
@@ -101,7 +110,9 @@ export class Evolution{
  // the earlier runs it continues. params.keepStructure: every warrior keeps the first seed's length and
  // opcodes in order (structureOf), for tuning a warrior without the evolver rewriting its design;
  // new code is random code with those opcodes, crossover goes line by line, and a Markov chain is not used.
- constructor({evaluator,judge=null,config,params={},seeds=[],seed='1',name='Evolved',model=null,notes=[],before=0}){
+ // known: warriors ({name, genome}) that new warriors may not copy, with params.avoidKnown; the seeds
+ // themselves are let through.
+ constructor({evaluator,judge=null,config,params={},seeds=[],seed='1',name='Evolved',model=null,notes=[],before=0,known=[]}){
   this.evaluator=evaluator;this.judge=judge;this.config=config;this.rules=genomeRules(config);this.name=name;this.model=model;this.notes=notes;this.before=before;
   const rules=this.rules;
   this.ops={
@@ -120,6 +131,9 @@ export class Evolution{
     crossover:(a,b,r)=>crossoverStructured(a,b,r.fn())});
   }
   this.engine=new Population(this.ops,{params:all,seeds:start,seed:'evolve:'+seed});
+  // Known warriors to leave out: their code prepared for comparing once (evolver-similar.mjs).
+  this.known=known.map(k=>{const prepared=prepare(k.genome,config.coreSize,{near:config.maxLength});return {name:k.name,prepared,shapes:shapeCounts(prepared.code)};}).filter(k=>k.prepared.length>=3);
+  this.seedKeys=new Set(start.map(genomeKey));this.knownCache=new Map();this.leftOut=0;
   this.best=null;this.history=[];this.evaluations=0;this.header=redcodeHeader(config);this.reseed=false;
  }
  get params(){return this.engine.params;}
@@ -129,9 +143,28 @@ export class Evolution{
  source(g,extra=[]){return renderGenome(g,this.rules,{name:this.name,header:this.header,strategy:extra});}
  // Score one batch in parallel and hand it to the population.
  async run(batch){
-  const results=await Promise.all(batch.map(c=>this.evaluator.evaluate(this.source(c.genome),{race:c.race})));
+  // A copy of a known warrior is not scored; the population counts it as invalid.
+  const results=await Promise.all(batch.map(c=>c.kind!=='reeval'&&this.knownMatch(c.genome)?(this.leftOut++,null):this.evaluator.evaluate(this.source(c.genome),{race:c.race})));
   this.evaluations+=batch.length;
   for(const e of this.engine.tell(batch,results))if(e.type==='generation'&&e.reseed)this.reseed=true;
+ }
+ // The known warrior that g copies (params.avoidKnown), or null. As the evolver's "Compare with known
+ // warriors", but on the whole code (no solo run to find what executes), and cached by genome.
+ knownMatch(g){
+  const mode=this.params.avoidKnown;if(!this.known.length||mode!=='copies'&&mode!=='designs')return null;
+  const key=genomeKey(g);if(this.seedKeys.has(key))return null;
+  if(this.knownCache.has(key))return this.knownCache.get(key);
+  const yours=prepare(g,this.config.coreSize,{near:this.config.maxLength});let hit=null;
+  if(yours.length>=3){
+   const need=Math.ceil(0.8*yours.length),mine=shapeCounts(yours.code);
+   for(const k of this.known){
+    if(overlap(mine,k.shapes)<need)continue;
+    const v=verdict(align(yours,k.prepared),yours.length);
+    if(v==='copy'||mode==='designs'&&v==='known'){hit=k.name;break;}
+   }
+  }
+  if(this.knownCache.size>=20000)this.knownCache.delete(this.knownCache.keys().next().value);
+  this.knownCache.set(key,hit);return hit;
  }
  // The first population: the seeds, mutants of them, and new code (random or from the chain).
  async init(){
@@ -177,7 +210,7 @@ export class Evolution{
   return k&&list.every(m=>m.vec?.length===k)?list.map(m=>m.vec):null;
  }
  get nicheRadius(){return this.params.survival==='clearing'&&this.params.niche>0?this.params.niche:this.params.nicheBy==='results'?RESULT_RADIUS:0.3;}
- stats(){return {...this.history.at(-1),evaluations:this.evaluations};}
+ stats(){return {...this.history.at(-1),evaluations:this.evaluations,...(this.leftOut?{leftOut:this.leftOut}:{})};}
  ranked(){return this.engine.ranked();}
  bestSource(benchmark='',{heldOut=null}={}){
   const b=this.best;if(!b)return '';

@@ -188,6 +188,26 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
   const k=new SoupEvolution({evaluator,config:nano,params:{scheme:'soup',soupWidth:5,soupHeight:4,duelRounds:10,keepStructure:true,seedShare:0.5},seeds:[seedG],seed:'k',duel});
   await k.init();await k.step();for(const g of k.snapshot())assert(hasStructure(g,structureOf(seedG)));
  }
+ // Known warriors: copies (and with 'designs' the same designs) are not scored and never join.
+ {
+  const known=[];for(const o of opponents){const w=await assemble(o.source,hillOf(nano));if(w.ok)known.push({name:o.name,genome:{code:w.instructions,start:w.start}});}
+  const big=known.find(k=>k.genome.code.length>=4),rules=genomeRules(nano);
+  const e=new Evolution({evaluator,config:nano,params:{population:20,avoidKnown:'copies'},known,seed:'known'});
+  assert.equal(e.knownMatch(normalize(big.genome,rules)),big.name,'an exact copy');
+  const tweaked=normalize(big.genome,rules);tweaked.code[0][5]=(tweaked.code[0][5]+1)%80;
+  assert.equal(e.knownMatch(tweaked),big.name,'one field changed is still a copy');
+  const wired=normalize(big.genome,rules);for(const ins of wired.code){ins[3]=(ins[3]+17)%80;ins[5]=(ins[5]+23)%80;}
+  assert.equal(e.knownMatch(wired),null,'other constants throughout: not a copy');
+  const d=new Evolution({evaluator,config:nano,params:{avoidKnown:'designs'},known,seed:'known'});assert.equal(d.knownMatch(wired),big.name,'but the same design');
+  assert.equal(new Evolution({evaluator,config:nano,params:{avoidKnown:'off'},known}).knownMatch(tweaked),null,'off');
+  assert.equal(new Evolution({evaluator,config:nano,params:{avoidKnown:'copies'},known,seeds:[big.genome]}).knownMatch(normalize(big.genome,rules)),null,'a seed is let through');
+  // A run from a Markov chain of the opponents leaves out the copies it draws.
+  const m=new Evolution({evaluator,config:nano,params:{population:30,avoidKnown:'copies'},known,model:markovModel(known.map(k=>k.genome),rules),seed:'known'});
+  await m.init();for(let i=0;i<3;i++)await m.step();
+  for(const x of m.population)assert.equal(m.knownMatch(x.genome),null);
+  assert(m.leftOut>0,'some drawn warriors were copies');assert.equal(m.stats().leftOut,m.leftOut);
+  assert.match(runNotes({when:'w',seed:1,length:5,benchmark:{name:'b',opponents:1},params:{avoidKnown:'copies',novelty:0.3}}).at(-1),/copies of known warriors left out, novelty bonus 0.3/);
+ }
  // Seeding from genomes (the last population) starts from them.
  const again=new Evolution({evaluator,config:nano,params:{population:24},seeds:e.snapshot(),seed:'test2'});
  assert((await again.init()).best>=last.top-1e-9);
