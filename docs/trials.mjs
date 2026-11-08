@@ -25,9 +25,11 @@ let state = load();
 
 const record = id => (state.stages[id] ??= {});
 // A stage opens once the one before it is cleared or skipped (skipping is for trying later stages early).
+// For testing, trials.html?unlock opens every stage for this visit without changing the saved progress.
+const unlockAll = new URLSearchParams(location.search).has('unlock');
 const unlocked = stage => {
   const i = stages.indexOf(stage), before = state.stages[stages[i - 1]?.id];
-  return i === 0 || !!before?.cleared || !!before?.skipped;
+  return unlockAll || i === 0 || !!before?.cleared || !!before?.skipped;
 };
 const kindLabel = stage => ({challenge: 'Challenge', demo: 'Prologue', predict: 'Question'})[stage.kind] ?? 'Drill';
 
