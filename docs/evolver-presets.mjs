@@ -5,7 +5,7 @@ const COMMON={rules88:false,noPspace:false,formula:'(W*W-1)/S'};
 export const EVOLVER_PRESETS=[
  {id:'nano',title:'Nano hill',note:'core 80 · 80 processes · 800 cycles · length 5 · distance 5',
   config:{...COMMON,coreSize:80,cycles:800,tasks:80,maxLength:5,distance:5,pspace:5},
-  benchmarks:['public-nanobm07/suite.benchmark.json'],defaults:{population:100,generations:200,rounds:142}},
+  benchmarks:['public-nanobm07/suite.benchmark.json'],defaults:{population:100,generations:3000,rounds:142}},
  {id:'tiny',title:'Tiny hill',note:'core 800 · 800 processes · 8,000 cycles · length 20 · distance 20',
   config:{...COMMON,coreSize:800,cycles:8000,tasks:800,maxLength:20,distance:20,pspace:50},
   benchmarks:['public-tinybm04/suite.benchmark.json','public-tinybm02/suite.benchmark.json','public-tinyfran/suite.benchmark.json'],defaults:{population:80,generations:150,rounds:100}},
