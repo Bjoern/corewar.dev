@@ -99,10 +99,16 @@ function checkWarrior(index,automatic=false) {
  compileIssues=compileIssues.filter(issue=>issue.index!==index);refreshDiagnostics();
  if(!automatic)cancelAutoValidation();
  cancelCompileCheck();if(!automatic)showConsole();
- let config;
- // Permutation only decides starting positions and needs exactly two warriors, so it does not
- // stop a check of one warrior's assembly while more are loaded (benchmark suites often use it).
- try {config={...readSettings({warriors:sources.length},{permutate:false}),brief:automatic,assembleOnly:true};}
+ let config,list=[...sources],only=index;
+ // A check only assembles, so the settings that only shape a run (rounds, -P, -f/-F, the score
+ // formula) are left out: -P needs exactly two warriors, and benchmark suites often turn it on.
+ // The warrior is assembled with the whole roster (WARRIORS is the roster size) when the core has
+ // room for it, and alone otherwise: a small-core suite such as nano cannot hold a long roster.
+ const read=count=>({...readSettings({warriors:count},{rounds:1,permutate:false,fixedSeries:false,fixedPosition:'',formula:'(W*W-1)/S'}),brief:automatic,assembleOnly:true});
+ try {
+  try {config=read(list.length);}
+  catch(error){if(!/Core is too small/.test(error.message))throw error;config=read(1);list=[sources[index]];only=0;}
+ }
  catch(error){compileStates[index]='failed';refreshCompileButtons();log(error.message);if(automatic)nextValidation();return;}
  const ticket=revision;
  if(!automatic)log('Compiling '+draftName(sources[index],index)+'…','stdout');
@@ -120,11 +126,11 @@ function checkWarrior(index,automatic=false) {
  w.onerror=e=>finish(false,e.message || 'Compiler worker failed.');
  w.onmessage=({data})=>{
   if(compileWorker!==w || ticket!==revision)return;
-  if(data.type==='log')log(data.text,data.channel,data.index);
+  if(data.type==='log')log(data.text,data.channel,data.index===null?null:index);
   else if(data.type==='error')finish(false,'Compilation failed: '+data.message);
   else if(data.type==='compiled')finish(true,'Compilation succeeded: '+draftName(sources[index],index));
  };
- w.postMessage({type:'check',index,settings:config,sources:[...sources]});
+ w.postMessage({type:'check',index:only,settings:config,sources:list});
 }
 const processChart=new HistoryChart($('processChart'),'');
 const scoreChart=new HistoryChart($('scoreChart'),'');
@@ -390,7 +396,9 @@ function clearBattle() {
   $('battleTotals').textContent='Warriors · 0 battles this run';
   status('No warriors loaded. Add a warrior, upload files, or try Demo.');
 }
-function options() { return readSettings({warriors:selectedIndices().length}); }
+// -P needs exactly two warriors. It often comes from a benchmark suite's settings, so a battle of
+// any other count runs without it instead of failing.
+function options() { const n=selectedIndices().length;return readSettings({warriors:n},n===2?{}:{permutate:false}); }
 function work(type, config) {
  const indices=selectedIndices();
  compileIssues=[];refreshDiagnostics();
