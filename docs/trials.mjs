@@ -262,7 +262,12 @@ new ResizeObserver(() => requestAnimationFrame(placeMarks)).observe($('viewport'
 // ---- Running a stage ---------------------------------------------------------------------------
 const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
 // Normal speed starts slow enough to follow the first instructions and speeds up as the round goes on.
+// Fast and Instant keep advancing for up to 12 ms of each frame, as the Battle tab's Fast does: the engine
+// stops at the end of every round, so one advance per frame would play at most 60 rounds a second.
+const FRAME_SLICE = 12;
+const unthrottled = () => $('speed').value === 'fast' || $('speed').value === 'instant';
 async function pace(run) {
+  if (unthrottled() && !run.paused && !run.abort && performance.now() - (run.slice ?? -Infinity) < FRAME_SLICE) return 100000;
   for (;;) {
     if (run.abort) throw new Error('stopped');
     const now = await nextFrame(), speed = $('speed').value;
@@ -271,7 +276,7 @@ async function pace(run) {
       if (run.steps > 0) { const n = run.steps; run.steps = 0; run.stepped = true; return n; }
       continue;
     }
-    if (speed === 'fast') return 100000;
+    if (speed === 'fast' || speed === 'instant') { run.slice = performance.now(); return 100000; }
     const elapsed = (now - run.started) / 1000, dt = Math.min(0.1, (now - (run.last ?? now)) / 1000);
     run.last = now;
     const rate = speed === 'slow' ? 6 : Math.min(200000, 12 * Math.pow(1.9, elapsed));
@@ -301,10 +306,13 @@ async function play({paused = false} = {}) {
       if (stage.setups.length > 1 && $('debug').open) printText(`— Setup ${index + 1}${setup.label ? `: ${opponentName(setup)} at ${setup.label}` : ''} —\n`, 'addr');
     }
     // With the debugger open (or while paused) the engine records each instruction it runs, so the log can say who ran what.
-    const tracing = !!run.paused || $('debug').open;
+    // Instant draws nothing and records nothing: only the counters and the tally move. Fast draws the core
+    // but leaves the log alone, which would otherwise cost it three quarters of its speed.
+    const instant = $('speed').value === 'instant' && !run.paused;
+    const tracing = !!run.paused || ($('debug').open && !unthrottled());
     if (engine.traced !== tracing) { engine.setTrace(tracing); engine.traced = tracing; }
-    if (update.events.length) display.apply(update.events);
-    // While running, the log shows the last few instructions of each frame; at Fast speed it only counts them.
+    if (update.events.length && !instant) display.apply(update.events);
+    // While running at Slow or Normal, the log shows the last few instructions of each frame and counts the rest.
     if (!run.stepped && tracing && update.trace.length) {
       const shown = update.trace.slice(-RAN_PER_FRAME), skipped = update.executed - shown.length;
       if (skipped > 0) printText(`… ${skipped.toLocaleString('en')} more instruction${skipped === 1 ? '' : 's'}\n`, 'addr');
