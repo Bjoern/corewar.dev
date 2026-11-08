@@ -1115,7 +1115,8 @@ const PAGES={reference:{file:'redcode.html',title:'Redcode reference',link:'refe
 let referenceFromHash=false;
 // The Trials game is its own page (trials.html, also played standalone on itch.io), shown in a frame below the header and loaded on first use.
 // The release from app.mjs?v=… keeps the frame from showing a cached trials.html after a deploy.
-function showTrials(){placeReference();const frame=$('trialsFrame'),release=new URL(import.meta.url).searchParams.get('v');if(!frame.src)frame.src='trials.html?embed'+(release?'&v='+release:'');}
+// ?unlock on the site's own address (/?unlock#trials) is passed on, opening every stage for testing.
+function showTrials(){placeReference();const frame=$('trialsFrame'),release=new URL(import.meta.url).searchParams.get('v');if(!frame.src)frame.src='trials.html?embed'+(release?'&v='+release:'')+(new URLSearchParams(location.search).has('unlock')?'&unlock':'');}
 function placeReference(){document.body.style.setProperty('--reference-top',document.querySelector('.topbar').getBoundingClientRect().bottom+'px');}
 function showReference(){
  const match=location.hash.match(/^#(reference|about)(?:\/([\w-]+))?$/), open=!!match, page=open&&PAGES[match[1]];

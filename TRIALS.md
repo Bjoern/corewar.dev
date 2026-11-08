@@ -278,7 +278,8 @@ the Stone, which the Dwarf wins 51, 51, 56, 51 and 42 times), and the Dormitory 
 out, 3.d Captured code, 3.e Leftovers and 3.f Clean sweep. The rest of those wings is not built, so
 their briefings introduce what the missing stages would have taught (`ADD`, `@`, `SPL`). A
 "Skip for now" button opens the next stage without clearing the current one, marked ⤼ on the map,
-and `trials.html?unlock` opens every stage for that visit without changing the saved progress.
+and `trials.html?unlock` (or `/?unlock#trials` in the site's Trials tab) opens every stage for that
+visit without changing the saved progress.
 A collapsible Debugger under the core view pauses and steps the run (saying which program ran which
 instruction), lists the core from any clicked cell, and passes other commands to pMARS's cdb
 (`list`, `step`, `continue`, `help`, …).
