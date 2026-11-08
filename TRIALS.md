@@ -271,6 +271,13 @@ differ a little from the tables below). Stages are data in `docs/trials-stages.m
 `docs/trials-check.mjs`; `node docs/test-trials.mjs` makes sure every stage's solution passes and a
 known wrong answer fails. Drills use an 800-cell core so each cell is big enough to follow; the
 challenge uses the standard 8,000 cells. Progress is saved in the browser.
+
+For testing, the page also has two more wings: the Firing range with 2.b Better aim and 2.c Luck of
+the draw (a Predict stage: the player picks an answer, then watches five series of the Dwarf against
+the Stone, which the Dwarf wins 51, 51, 56, 51 and 42 times), and the Dormitory with 3.c Odd one
+out, 3.d Captured code, 3.e Leftovers and 3.f Clean sweep. The rest of those wings is not built, so
+their briefings introduce what the missing stages would have taught (`ADD`, `@`, `SPL`). A
+"Skip for now" button opens the next stage without clearing the current one, marked ⤼ on the map.
 A collapsible Debugger under the core view pauses and steps the run (saying which program ran which
 instruction), lists the core from any clicked cell, and passes other commands to pMARS's cdb
 (`list`, `step`, `continue`, `help`, …).
@@ -347,11 +354,41 @@ Chapter 0 doubles as the "how to play" half of a tutorial; the site tour can sta
 | 2.7 | Broom | Build | `DAT` in each of the 200 cells from +10 to +209 | ≤ 4 lines · ★ fewest cycles | Postincrement `>`, sweeping; **reveal: this is the Janitor** |
 | 2.8 | **Range day** | Challenge | At least 15 wins against the Imp and 15 against the Sitting Duck | ≤ 6 lines, no `SPL` · ★ ≤ 4 lines | Choosing a bomber |
 | ◇ 2.a | Leave no cell unturned | Challenge | 100 wins of 100 against the Sitting Duck | ≤ 6 lines · ★ ≤ 4 lines | A sweep never misses |
+| ◇ 2.b | Better aim | Repair | The Dwarf bombs every 4th cell in order. Change its step so it kills the Long Dummy (20 lines, random place) in at least 90 of 100 rounds within 1,500 cycles | 1 change · ★ 100 of 100 | Spreading bombs; why bombers use steps like 3044 |
+| ◇ 2.c | Luck of the draw | Predict | The Dwarf just beat the Imp 24 times in 100. Run another 100 rounds with new starting positions: how many wins now? | – | Random positions; a score over 100 rounds is an estimate |
 
 2.6 is where a step calculator in the Tools tab plugs in: Kettle can say "there is a step table in
 the Tools tab now". 2.8 ✓ measured: the 4-line Dwarf wins 20–28 against the Imp and 24–25 against
 the Sitting Duck; the 4-line sweeper (2.a) wins 100 of 100 against the Duck but ties every round
 against the Imp, which is why it is not the answer to 2.8.
+
+2.b ✓ measured (200 rounds, 1,500 cycles, so the Dwarf has thrown about 500 bombs): step 4 kills the
+Long Dummy in 50 of 200 rounds, step 12 in 156, steps 3044 and 2364 in 195–196, step 3364 in all 200.
+Step 4 only reaches the dummy in time if it happens to sit in the next 2,000 cells; a long step
+scatters the bombs, so some land near the dummy early wherever it is. Given enough time (6,000
+cycles) every one of these steps gets it in 200 of 200, so the stage is about *speed*, and Kettle
+can say so. The Long Dummy is 19 × `jmp 1` and a `jmp -19`: one process walking a 20-cell loop,
+killed by a bomb anywhere in it. Against the small opponents the step barely matters: steps 4, 3044
+and 3364 all win 95–101 of 200 against the Stone.
+
+Against another Dwarf the step does not help either, which rules out the obvious "out-aim the enemy"
+version of this stage. Over 400 rounds in each starting order, every step that is a multiple of 4
+(4, 12, 2364, 3044, 3364) gives about 38 wins, 25 ties and 37 losses per 100: a Dwarf always hits
+exactly one cell of a 4-line warrior, so the duel is a race to the first hit. In a quarter of the
+rounds both Dwarfs bomb the cells that line up with each other's `bomb`, which does no harm, and
+the round is a tie. Steps that are not multiples of 4 lose the ties and gain nothing (step 3: about
+52 / 2 / 46), and longer, faster bombers lose more, because they give the Dwarf more to hit (a
+6-line double bomber: about 44 / 0 / 56). The way to beat a captured Dwarf is in 3.d.
+
+2.c is the place to say out loud what every challenge relies on: starting positions are random, so
+even a strong warrior loses some rounds to bad luck, and two runs of 100 rounds give different
+scores (the Dwarf won 20, then 28, against the Imp; an imp train lost 17, 19, 23 and 28 of 100 to
+the Dwarf in four runs). After the answer, the stage runs five seeds side by side and opens one
+lost round in the Battle tab. The same idea explains why challenge goals sit about 10 rounds below
+the reference solution, and why the steps 4 and 3044, which cover exactly the same cells, killed the
+Sitting Duck in 52 and 36 of 200 rounds. In the first release, where Predict stages are left out,
+it belongs in 2.8's briefing and in the "On failure" message of every challenge ("won 61, lost 31;
+another seed could give a few more or fewer").
 
 ### Chapter 3 — Paper trail (Dormitory)
 
@@ -360,6 +397,10 @@ against the Imp, which is why it is not the answer to 2.8.
 | 3.1 | Two at once | Run | Alone: exactly 2 processes alive after 100 cycles | ≤ 3 lines · ★ 2 lines | `SPL` |
 | 3.2 | Taking turns | Predict | With 2 processes, which instruction runs on cycle 5? | – | The process queue |
 | 3.3 | Split personality | Run | Alone: exactly 8 processes, held for 1,000 cycles | ≤ 5 lines · ★ ≤ 4 lines | Doubling with `spl 1` |
+| ◇ 3.c | Odd one out | Run | Alone: exactly 3 processes, held for 1,000 cycles | ≤ 6 lines · ★ ≤ 4 lines | `spl 1` only doubles; uneven splits |
+| 3.d | Captured code | Repair | Kettle has a copy of a Janitor patrol's code: the Dwarf. Change it so it loses at most 5 of 100 rounds against the original, and wins at least 30 | ≤ 2 changes · ★ 1 change, ★ 0 losses | Reading enemy code; one hit need not be fatal |
+| 3.e | Leftovers | Challenge | All 100 rounds against the Short Dummy (3 cells of `JMP` in a loop) | ≤ 6 lines · ★ 2 lines | The bombing gap; core clears; **reveal: a clear is the Janitor** |
+| 3.f | Clean sweep | Challenge | At least 45 wins of 100 against the Dwarf, at most 5 ties | ≤ 8 lines · ★ 50 wins | Bomb first, clear after |
 | 3.4 | Imp train | Run | Alone: at least 3 processes, all still running after 80,000 cycles | ≤ 3 lines | Several processes on one Imp |
 | 3.5 | Copy machine | Build | A copy of your own code at +2000, with a process running in it | ≤ 8 lines · ★ fewest cycles | Copy loops |
 | 3.6 | Paper | Run | Alone: at least 10 copies of your code in the core after 10,000 cycles | ≤ 8 lines · ★ ≤ 5 lines | Self-copying warriors (Silk-style) |
@@ -371,6 +412,52 @@ against the Imp, which is why it is not the answer to 2.8.
 3.8 ✓ measured: the 5-line Silk wins 57–62 against the Stone. 3.a ✓ measured: a 3-line imp train
 loses 17–28 to the Dwarf. 3.b reuses the player's own warrior as the opponent; Silk alone loses
 84–86 of 100 to the 4-line sweeper, so it needs a better paper.
+
+3.c ✓ measured: `spl 2` / `jmp 0` / `spl -1` / `jmp 0` holds exactly 3 processes: the first
+split leaves one process on the first `jmp 0` and sends the other to `spl -1`, which splits once
+more and parks one process on each `jmp 0`. After 3.3 the player
+expects `spl 1` to do everything, and it only ever gives powers of two. Kettle brings it back in 5.2:
+a 3-point imp ring needs exactly 3 processes, one per point, so 3.c is worth promoting to a main
+stage if 5.2 turns out too steep.
+
+3.d ✓ measured (400 rounds in each starting order): the Dwarf with `spl 0` added as its first line
+wins 204–209, ties 188–196 and loses 0–3 against the original Dwarf, where the unchanged Dwarf
+goes 38 / 25 / 37 per 100 (see 2.b). A single 100-round run of the calibration script gave only
+38 / 62 / 0, so the goal asks for 30 wins, not 40. The stage is a small detective story:
+
+- **Story.** Kettle pulled a patrol program out of a swept corner of the core: one of the Janitor's
+  Dwarfs, still running. "I have its code. It does not know I have its code." The editor opens with
+  the captured Dwarf, labelled as enemy code, and the player's job is to make a better one.
+- **Analysis first.** Kettle walks through it line by line and the player watches it alone in the
+  core: it throws a `DAT` at every 4th cell, so it hits exactly one of your 4 lines, never more,
+  and it is killed by one hit itself. Changing the step is the obvious idea and Kettle lets the
+  player try it: the score stays a coin toss, which is worth seeing (2.c's lesson on luck helps
+  here).
+- **The fix.** One hit is all the Dwarf will ever land. With `spl 0` in front, a hit on the loop
+  leaves the `spl 0` making new processes, so you are never killed (a tie at worst), and a hit on
+  the `spl 0` leaves the loop bombing. Either way the enemy loses its only chance.
+- **Debrief.** "Know your enemy" is the name of chapter 6; this is the first taste. Kettle files the
+  patched Dwarf as the Academy's own, and the Janitor's patrols start avoiding the Dormitory.
+
+It needs `SPL` from 3.1, which is why it sits in chapter 3 rather than next to the step stages. It is
+not a side stage: it is the most direct version of the game's premise (take the enemy's code and
+turn it against it), and it could replace 3.7 Hold the line in the first release, or follow it.
+
+3.e and 3.f follow from 3.d's ties. ✓ measured (100 rounds, the game's fixed series):
+
+- **3.e Leftovers.** A step-4 bomber hits every 4th cell, so a 3-cell dummy sits wholly in the gap
+  between two bombs in one placement of 4 and survives forever. The Dwarf beats the Short Dummy 86
+  times and ties 14; the 4-line sweeper from 2.a and the 2-line clear `mov.i 2, >1` / `jmp -1, 2`
+  win all 100. A dummy rather than the Dwarf, so the clear wins every round and the lesson is not
+  muddied by the enemy shooting back. Kettle recognises the pattern: this is how the Janitor swept
+  the Academy (the reveal TRIALS gives to 2.7 Broom, which is not built yet).
+- **3.f Clean sweep.** Back to the Dwarf: a quarter of the rounds are ties because each Dwarf only
+  ever bombs the other's `bomb` cell. A Dwarf that counts its 1,999 bombs with `djn` and then falls
+  into a clear (`mov.i bomb, <bomb` / `jmp`) wins 53, ties 0 and loses 47; the plain Dwarf goes
+  32 / 22 / 46 and the `spl 0` Dwarf from 3.d 55 / 45 / 0. Kettle's debrief says the obvious next
+  step, a warrior that never loses *and* never ties, needs both ideas at once and belongs in the
+  Workshop (chapter 6). Combining them naively (`spl 0`, bombing, then switching the step to -1)
+  only reached 60 / 40 / 0, because a hit on the loop still leaves the bomber stuck in `spl 0`.
 
 ### Chapter 4 — Eyes in the dark (Observatory)
 
@@ -435,7 +522,7 @@ pointer to the real hills for submitting warriors.
 
 | | Training | Predict | Challenge / boss | Side ◇ | Total |
 |---|---|---|---|---|---|
-| Chapters 0–7 | 34 | 3 | 13 | 6 | 56 |
+| Chapters 0–7 | 35 | 3 | 15 | 9 | 62 |
 | First release | 14 | 0 | 6 | 0 | 20 |
 
 ## Expansions
@@ -483,6 +570,14 @@ real engine (standard core, 100 rounds). Two runs, as ranges:
 | 2.a Leave no cell unturned | Sweeper | 4 | Sitting Duck | 100 / 0 / 0 |
 | 2.a | Sweeper | 4 | Imp | 0 / 100 / 0 |
 | 2.a | Sweeper | 4 | Silk | 79–86 / 0–1 / 14–20 |
+| 2.b Better aim (1,500 cycles) | Dwarf, step 4 as given | 4 | Long Dummy | 21 / 79 / 0 |
+| 2.b (1,500 cycles) | Dwarf, step 3364 | 4 | Long Dummy | 100 / 0 / 0 |
+| 3.c Odd one out | Three | 4 | (alone) | 3 processes, held |
+| 3.d Captured code (400 rounds × 2 orders) | Dwarf, unchanged | 4 | Dwarf | 152–164 / 98–99 / 138–149 |
+| 3.d (400 rounds × 2 orders) | Dwarf with `spl 0` | 5 | Dwarf | 204–209 / 188–196 / 0–3 |
+| 3.e Leftovers | Dwarf | 4 | Short Dummy | 86 / 14 / 0 |
+| 3.e | Clear | 2 | Short Dummy | 100 / 0 / 0 |
+| 3.f Clean sweep | Dwarf, then clear | 6 | Dwarf | 53 / 0 / 47 |
 | 3.8 Paper beats stone | Silk | 5 | Stone | 60–62 / 0 / 38–40 |
 | 3.8 | Silk | 5 | Dwarf | 5–9 / 45–46 / 45–50 |
 | 3.a Strength in numbers | Imp Train | 3 | Dwarf | 0 / 77–83 / 17–23 |

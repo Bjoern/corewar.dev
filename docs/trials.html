@@ -48,11 +48,13 @@
         <details id="manual" class="manual"><summary>Field manual</summary><dl id="manualList"></dl></details>
       </div>
       <div id="editorBox" class="editor-box"></div>
+      <fieldset id="choices" class="choices" hidden><legend id="question"></legend><div id="choiceList"></div></fieldset>
       <div class="controls">
         <button id="run" type="button" class="primary">▶ Run</button>
         <label>Speed <select id="speed"><option value="slow">Slow</option><option value="normal" selected>Normal</option><option value="fast">Fast</option></select></label>
         <button id="hint" type="button">Hint</button>
         <button id="resetCode" type="button" class="small">Reset code</button>
+        <button id="skip" type="button" class="small" title="Open the next stage without clearing this one">Skip for now</button>
         <span class="spacer"></span>
         <button id="next" type="button" class="primary" hidden>Next →</button>
       </div>

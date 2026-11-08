@@ -75,6 +75,10 @@ select{font:inherit;background:var(--panel);color:var(--fg);border:1px solid #38
 .manual dt{font-family:Consolas,monospace;color:var(--accent)}
 .manual dd{margin:0;color:#b5c7d4}
 .editor-box{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.choices{border:1px solid var(--line);border-radius:8px;padding:10px 14px 12px;margin:0;background:var(--panel)}
+.choices legend{padding:0 6px;color:var(--fg);font-size:15px;line-height:1.45}
+.choices label{display:flex;gap:10px;align-items:flex-start;padding:6px 4px;cursor:pointer;line-height:1.4}
+.choices input{margin-top:3px;accent-color:var(--accent)}
 .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .controls label{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center}
 .arena{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px}

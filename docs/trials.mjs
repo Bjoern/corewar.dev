@@ -24,8 +24,12 @@ const fresh = () => ({current: stages[0].id, stages: {}, chat: []});
 let state = load();
 
 const record = id => (state.stages[id] ??= {});
-const unlocked = stage => { const i = stages.indexOf(stage); return i === 0 || !!state.stages[stages[i - 1].id]?.cleared; };
-const kindLabel = stage => stage.kind === 'challenge' ? 'Challenge' : stage.kind === 'demo' ? 'Prologue' : 'Drill';
+// A stage opens once the one before it is cleared or skipped (skipping is for trying later stages early).
+const unlocked = stage => {
+  const i = stages.indexOf(stage), before = state.stages[stages[i - 1]?.id];
+  return i === 0 || !!before?.cleared || !!before?.skipped;
+};
+const kindLabel = stage => ({challenge: 'Challenge', demo: 'Prologue', predict: 'Question'})[stage.kind] ?? 'Drill';
 
 // ---- Kettle's chat ----------------------------------------------------------------------------
 const escapeHtml = text => text.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
@@ -91,8 +95,10 @@ function renderMap() {
       if (stage.kind === 'challenge') button.classList.add('challenge');
       button.setAttribute('aria-current', String(stage.id === state.current));
       const marks = badge(stage);
-      button.innerHTML = `<span class="num">${stage.id}</span><span class="label">${escapeHtml(stage.title)}</span><span class="state stars">${marks.cleared ? marks.html : button.disabled ? '🔒' : ''}</span>`;
+      const skipped = !marks.cleared && saved.skipped;
+      button.innerHTML = `<span class="num">${stage.id}</span><span class="label">${escapeHtml(stage.title)}</span><span class="state stars">${marks.cleared ? marks.html : skipped ? '⤼' : button.disabled ? '🔒' : ''}</span>`;
       if (marks.cleared) button.title = marks.title;
+      else if (skipped) button.title = 'Skipped for now';
       button.addEventListener('click', () => { open(stage); $('map').classList.remove('open'); });
       item.append(button); list.append(item);
     }
@@ -112,15 +118,33 @@ function renderStars(stage) {
   $('stageStars').innerHTML = marks.html;
   $('stageStars').title = marks.title;
 }
-function renderSetups(states = []) {
+// `scores` are the finished setups' results; a series setup (2.c) shows its own score instead of ✓.
+function renderSetups(states = [], scores = []) {
   const box = $('stageSetups'); box.replaceChildren();
   if (current.setups.length < 2) return;
   current.setups.forEach((setup, i) => {
     const pill = document.createElement('span');
     pill.className = states[i] ?? '';
-    pill.textContent = `Setup ${i + 1}: ${opponentName(setup)} at ${setup.label ?? '?'}${states[i] === 'pass' ? ' ✓' : states[i] === 'fail' ? ' ✗' : ''}`;
+    const score = scores[i] ? `: ${scores[i].wins}–${scores[i].losses}${scores[i].ties ? ` (${scores[i].ties} ties)` : ''}` : '';
+    pill.textContent = setup.series != null ? `${setup.label}${score}` :
+      `Setup ${i + 1}: ${opponentName(setup)} at ${setup.label ?? '?'}${states[i] === 'pass' ? ' ✓' : states[i] === 'fail' ? ' ✗' : ''}`;
     box.append(pill);
   });
+}
+// The answers of a predict stage, as radio buttons in place of the editor.
+function renderChoices(stage) {
+  const box = $('choices');
+  box.hidden = stage.kind !== 'predict';
+  if (box.hidden) return;
+  $('question').textContent = stage.question;
+  const saved = record(stage.id);
+  $('choiceList').replaceChildren(...stage.choices.map((text, i) => {
+    const label = document.createElement('label'), input = document.createElement('input');
+    input.type = 'radio'; input.name = 'choice'; input.value = String(i); input.checked = saved.choice === i;
+    input.addEventListener('change', () => { record(stage.id).choice = i; save(); });
+    label.append(input, document.createTextNode(text));
+    return label;
+  }));
 }
 function open(stage) {
   if (running) running.abort = true;
@@ -143,13 +167,17 @@ function open(stage) {
   $('manual').hidden = !known.length;
   $('manualList').innerHTML = known.map(key => `<dt>${escapeHtml(manual[key][0])}</dt><dd>${format(manual[key][1])}</dd>`).join('');
   editor?.destroy(); editor = null;
-  $('editorBox').hidden = $('resetCode').hidden = $('hint').hidden = stage.kind === 'demo';
-  if (stage.kind !== 'demo') {
+  const noCode = stage.kind === 'demo' || stage.kind === 'predict';
+  $('editorBox').hidden = $('resetCode').hidden = noCode;
+  $('hint').hidden = !stage.hints?.length;
+  renderChoices(stage);
+  if (!noCode) {
     editor = createEditor($('editorBox'), {value: saved.source ?? stage.start ?? '', label: `${stage.title} source`, theme: 'dark',
       onChange: value => { record(stage.id).source = value; save(); }});
   }
   updateHintButton();
   $('next').hidden = !saved.cleared || !nextStage();
+  updateSkipButton();
   $('result').hidden = true; $('progress').textContent = '';
   $('wingName').textContent = wings.find(w => w.id === stage.wing)?.title ?? '';
     display.configure(stage.settings.coreSize);
@@ -179,6 +207,15 @@ $('resetCode').addEventListener('click', () => {
   delete record(current.id).source; save(); open(current);
 });
 $('next').addEventListener('click', () => { const next = nextStage(); if (next) open(next); });
+function updateSkipButton() {
+  $('skip').hidden = !nextStage() || !!state.stages[current.id]?.cleared;
+}
+$('skip').addEventListener('click', () => {
+  const next = nextStage();
+  if (!next) return;
+  record(current.id).skipped = true; save();
+  open(next);
+});
 
 // ---- Core view ---------------------------------------------------------------------------------
 // Pulsing frames on the cells a drill is about: the target cells and where the dummy stands.
@@ -222,9 +259,11 @@ async function pace(run) {
 async function play({paused = false} = {}) {
   if (running) { running.abort = true; return; }
   const stage = current, source = editor ? editor.view.state.doc.toString() : '';
+  const choice = state.stages[stage.id]?.choice ?? null;
+  if (stage.kind === 'predict' && choice === null) { say(['Pick an answer first. Guessing counts. Not guessing does not.']); return; }
   const run = running = {started: performance.now(), paused, steps: 0};
   syncPause();
-  const setupStates = stage.setups.map(() => '');
+  const setupStates = stage.setups.map(() => ''), scores = [];
   let lastIndex = -1;
   $('run').textContent = '■ Stop'; $('result').hidden = true; $('next').hidden = true;
   const frame = async (update, {index, setup, engine}) => {
@@ -232,7 +271,7 @@ async function play({paused = false} = {}) {
     debug.engine = engine; debug.update = update; debug.stage = stage;
     if (index !== lastIndex) {
       if (lastIndex >= 0) setupStates[lastIndex] = 'pass';
-      lastIndex = index; setupStates[index] = 'busy'; renderSetups(setupStates);
+      lastIndex = index; setupStates[index] = 'busy'; renderSetups(setupStates, scores);
       display.configure(stage.settings.coreSize); showMarks(setup);
       run.started = performance.now(); run.last = undefined;
       if (stage.setups.length > 1 && $('debug').open) printText(`— Setup ${index + 1}${setup.label ? `: ${opponentName(setup)} at ${setup.label}` : ''} —\n`, 'addr');
@@ -250,6 +289,7 @@ async function play({paused = false} = {}) {
     const rounds = stage.settings.rounds ?? 1;
     $('progress').textContent = [rounds > 1 ? `Round ${Math.min(update.round + 1, rounds)} of ${rounds}` : '',
       `cycle ${update.cycle.toLocaleString('en')}`, stage.setups.length > 1 ? `setup ${index + 1} of ${stage.setups.length}` : ''].filter(Boolean).join(' · ');
+    if (update.done) { const me = update.warriors[0]; scores[index] = {wins: me.wins, ties: me.ties, losses: me.losses}; }
     if (run.stepped) {
       run.stepped = false;
       printRan(update, update.trace);
@@ -259,11 +299,11 @@ async function play({paused = false} = {}) {
     return update.done ? 0 : pace(run);
   };
   try {
-    const result = await runStage(stage, source, {frame});
+    const result = await runStage(stage, source, {frame, choice});
     if (current !== stage) return;
     if (result.passed) setupStates.fill('pass');
     else if (result.reason === 'goal' && lastIndex >= 0) setupStates[lastIndex] = 'fail';
-    renderSetups(setupStates);
+    renderSetups(setupStates, result.series);
     finish(stage, result);
   } catch (error) {
     if (error.message !== 'stopped') { showResult(false, 'Something went wrong.', error.message); console.error(error); }
@@ -384,7 +424,9 @@ function showResult(passed, title, detail = '', pre = '') {
 const retorts = ['Not quite.', 'Data, not failure.', 'Again.', 'Close. Probably.', 'Hm.'];
 function finish(stage, result) {
   const saved = record(stage.id);
-  const score = (stage.settings.rounds ?? 1) > 1 ? ` ${result.wins} wins, ${result.ties} ties, ${result.losses} losses.` : '';
+  const seriesWins = result.series.map(s => s.wins).join(', ');
+  const score = stage.kind === 'predict' ? ` Wins per series: ${seriesWins}.` :
+    (stage.settings.rounds ?? 1) > 1 ? ` ${result.wins} wins, ${result.ties} ties, ${result.losses} losses.` : '';
   if (!result.passed) {
     saved.fails = (saved.fails ?? 0) + 1; save();
     if (result.reason === 'assembly') {
@@ -403,12 +445,13 @@ function finish(stage, result) {
   saved.stars = (result.stars ?? []).map((star, i) => star || !!saved.stars?.[i]);
   save();
   const earned = result.stars?.filter(Boolean).length ?? 0, possible = stage.stars?.length ?? 0;
+  const size = stage.kind === 'predict' ? '' : `${result.length} instruction${result.length === 1 ? '' : 's'}.`;
   showResult(true, stage.kind === 'demo' ? 'Handshake complete.' : 'Cleared!',
-    stage.kind === 'demo' ? '' : `${result.length} instruction${result.length === 1 ? '' : 's'}.${score}${possible ? ' ' + (stage.stars.map((star, i) => `${result.stars[i] ? '★' : '☆'} ${star.text}${result.stars[i] ? '' : ' (not yet)'}`).join(' · ')) : ''}`);
+    stage.kind === 'demo' ? '' : `${size}${score}${possible ? ' ' + (stage.stars.map((star, i) => `${result.stars[i] ? '★' : '☆'} ${star.text}${result.stars[i] ? '' : ' (not yet)'}`).join(' · ')) : ''}`.trim());
   renderStars(stage); renderMap();
-  $('next').hidden = !nextStage();
+  $('next').hidden = !nextStage(); updateSkipButton();
   const missed = (stage.stars ?? []).flatMap((star, i) => !result.stars?.[i] && star.missed ? [star.missed] : []);
-  if (first) say([...(stage.debrief ?? []), ...missed], result, 'happy').then(() => { if (!nextStage()) say(['▒ END OF THE DRAFT · MORE WINGS SOON ▒']); });
+  if (first) say([...(stage.debrief ?? []), ...missed], {...result, seriesWins}, 'happy').then(() => { if (!nextStage()) say(['▒ END OF THE DRAFT · MORE WINGS SOON ▒']); });
   else say([earned === possible ? 'Cleared again. The logs are getting long.' : 'Cleared again.'], {}, 'happy');
 }
 

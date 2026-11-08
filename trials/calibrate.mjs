@@ -2,6 +2,7 @@
 // Calibration for the Trials design (TRIALS.md): plays each challenge's reference solution against its
 // opponents with the real engine and prints the results, so challenge thresholds rest on measured numbers.
 // Usage: node trials/calibrate.mjs [rounds]
+import {pathToFileURL} from 'node:url';
 import {Engine} from '../docs/engine.mjs';
 
 const rounds = Number(process.argv[2]) || 100;
@@ -16,6 +17,7 @@ export const opponents = {
   sittingDuck: red('Sitting Duck', 'jmp 0'),
   stone: red('Stone', 'add.ab #3044, 2\nmov.i 2, @1\njmp -2, 0\ndat 0, 0'),
   silk: red('Silk', '     spl 1\n     spl 1\n     spl 1\nsilk spl @0, 1800\n     mov.i }-1, >-1'),
+  longDummy: red('Long Dummy', 'jmp 1\n'.repeat(19) + 'jmp -19'),
 };
 
 // Reference solutions: proof that a challenge can be met, not the best answer.
@@ -26,6 +28,10 @@ export const references = [
   {trial: '2.8 Range day (the Dwarf)', settings: STANDARD, warrior: opponents.dwarf, against: ['imp', 'sittingDuck']},
   {trial: '2.a Leave no cell unturned', settings: STANDARD, warrior: red('Sweeper', 'loop mov.i bomb, >ptr\n     jmp loop\nptr  dat 0, 2\nbomb dat 0, 0'), against: ['sittingDuck', 'imp', 'silk']},
   {trial: '6.5 A sweeper with a gate', settings: STANDARD, warrior: red('Gated Sweeper', 'loop mov.i bomb, >ptr\n     djn.f loop, <ptr-5\nptr  dat 0, 2\nbomb dat 0, 0'), against: ['sittingDuck', 'imp', 'dwarf', 'silk']},
+  {trial: '2.b Better aim (step 4, as given)', settings: {...STANDARD, cycles: 1500}, warrior: opponents.dwarf, against: ['longDummy']},
+  {trial: '2.b Better aim', settings: {...STANDARD, cycles: 1500}, warrior: red('Dwarf 3364', 'add.ab #3364, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat 0, 0'), against: ['longDummy']},
+  {trial: '3.c Odd one out', settings: STANDARD, warrior: red('Three', 'spl 2\njmp 0\nspl -1\njmp 0'), against: []},
+  {trial: '3.d Captured code', settings: STANDARD, warrior: red('Patched Dwarf', 'spl 0\nadd.ab #4, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat 0, 0'), against: ['dwarf']},
   {trial: '3.8 Paper beats stone', settings: STANDARD, warrior: opponents.silk, against: ['stone', 'dwarf', 'imp']},
   {trial: "5.5 Kettle's champion", settings: STANDARD,
    warrior: red('Spiral', 'step equ 2667\n     spl 1\n     spl 1\nvec  jmp @ptr, >ptr\nptr  dat 0, 1\nt0   jmp imp\nt1   jmp imp+step\nt2   jmp imp+2*step\nt3   jmp imp+3*step\nimp  mov.i 0, step'),
@@ -44,7 +50,7 @@ async function play(sources, settings) {
   return {length: banks[0].length, peak, ...update.warriors[0]};
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   console.log(`| Trial | Reference | Lines | Opponent | Wins / ties / losses (${rounds} rounds) |`);
   console.log('|---|---|---|---|---|');
   for (const r of references) {

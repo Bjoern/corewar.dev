@@ -13,6 +13,14 @@ for (const stage of stages) {
     assert((await runStage(stage, '')).passed, `${stage.id}: demo does not finish`);
     continue;
   }
+  if (stage.kind === 'predict') {
+    assert(stage.choices?.[stage.answer], `${stage.id}: answer is not one of the choices`);
+    const right = await runStage(stage, '', {choice: stage.answer}), wrong = await runStage(stage, '', {choice: (stage.answer + 1) % stage.choices.length});
+    assert(right.passed && right.stars.every(Boolean), `${stage.id}: the right answer does not earn every star`);
+    assert(!wrong.stars.some(Boolean), `${stage.id}: a wrong answer earns a star`);
+    console.log(`${stage.id} ${stage.title}: ok; series wins ${right.series.map(s => s.wins).join(', ')}; losses ${right.series.map(s => s.losses).join(', ')}`);
+    continue;
+  }
   // Every solution passes, and each star is earned by at least one of them.
   const results = [];
   for (const solution of [stage.solution, ...(stage.solutions ?? [])]) {
