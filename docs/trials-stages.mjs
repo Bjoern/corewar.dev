@@ -40,6 +40,7 @@ export const manual = {
   spl: ['SPL a', 'Split: you go on at the next cell, and a new process starts at a. Your processes take turns, one instruction each. A process that runs a DAT dies; you die when the last one does.'],
   postincrement: ['>', 'Like @, but adds one to the B-number after using it. `mov.i bomb, >ptr` hits the next cell every time.'],
   clear: ['Core clear', 'A loop that bombs every cell, one after the other. Slow, but nothing it passes survives.'],
+  start: ['end start', 'A program starts at its first line. To start somewhere else, put a label such as `start` on that line and end the program with `end start`. Handy when the data comes first.'],
 };
 
 export const wings = [
@@ -375,18 +376,19 @@ export const stages = [
     settings: {...STANDARD, rounds: 100},
     setups: [{opponent: 'shortDummy'}],
     check: {type: 'wins', wins: 100},
-    manual: ['postincrement', 'clear'],
-    start: '; Challenge: Leftovers\n\n' + DWARF,
+    manual: ['postincrement', 'clear', 'start'],
+    start: '; Challenge: Leftovers\n; The Dwarf, for comparison. Run it once,\n; then replace it with your own program.\n\n' + DWARF,
     briefing: [
       'Those ties. Let me show you with something simpler.',
       'The Short Dummy: 3 cells of `JMP` walking in a circle. It never attacks.',
       'The Dwarf is in your editor. Run it and count the ties.',
-      'Then make something that leaves nobody standing. 100 of 100.',
+      'Then throw it away. The Dwarf skips 3 cells of every 4 on purpose, and no step fixes that for good. Write something new that leaves nobody standing. 100 of 100.',
     ],
     hints: [
       'The dummy covers 3 cells in a row. The Dwarf hits every 4th cell. Draw it on paper, with the dummy in each of the 4 possible places.',
       'In one place of 4, the dummy sits exactly in the gap between the bombs, forever. Do not skip cells: bomb every one, one after the other.',
-      '`mov.i bomb, >ptr` copies the bomb to where ptr points and moves ptr on by one. Loop it.',
+      '`mov.i bomb, >ptr` copies the bomb to where ptr points and moves ptr on by one. Loop it, and keep `ptr` and `bomb` as plain `DAT` lines of your program.',
+      'If you put `ptr` and `bomb` above the loop, the core would start by running a `DAT`. Label the loop\'s first line `start` and end the program with `end start`. And point `ptr` past your own code.',
     ],
     debrief: [
       'Nobody left standing.',
@@ -395,7 +397,7 @@ export const stages = [
       'So that is how it works. Then it can be beaten.',
     ],
     solution: 'loop mov.i bomb, >ptr\n     jmp loop\nptr  dat 0, 2\nbomb dat 0, 0',
-    solutions: ['mov.i 2, >1\njmp -1, 2'],
+    solutions: ['mov.i 2, >1\njmp -1, 2', 'ptr   dat 0, 4\nbomb  dat 0, 0\nstart mov.i bomb, >ptr\n      jmp start\n      end start'],
     wrong: DWARF,
   },
   {
