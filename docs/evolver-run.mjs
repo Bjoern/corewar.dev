@@ -51,11 +51,11 @@ export const SCREEN_PARAMS={scoreMemory:'mean',rescore:10,reseedEvery:1,race:fal
 const JUDGED=3;
 
 // Where an evolved warrior comes from. Named <run>-g<generation> (plus -<place> for one taken from
-// the population view). The ;strategy lines say the basics: run, generation (and how many came
-// before it in the runs it continues), score, held-out score. The run's settings follow as plain
+// the population view); the generation counts on from the runs it continues (before of them came
+// before this run). The ;strategy lines say the basics: run, generation, score, held-out score. The run's settings follow as plain
 // comments (runNotes), so a hill's listing stays short.
 export function evolvedSource(g,rules,{run='Evolved',generation=0,before=0,index=null,score=null,heldOut=null,benchmark='',header=';redcode-94',notes=[]}={}){
- const strategy=[`Evolved by the corewar.dev evolver: run ${run}, generation ${generation}${before?` (${before+generation} counting the runs it continues)`:''}${index!=null?`, number ${index} of its population`:''}`];
+ const strategy=[`Evolved by the corewar.dev evolver: run ${run}, generation ${generation}${before?` (the run continues ${before} generations of earlier runs)`:''}${index!=null?`, number ${index} of its population`:''}`];
  if(score!=null)strategy.push(`Score ${score.toFixed(2)}${benchmark?' against '+benchmark:''}`);
  if(heldOut!=null)strategy.push(`Held-out score ${heldOut.toFixed(2)}`);
  return renderGenome(g,rules,{name:`${run}-g${generation}${index!=null?'-'+index:''}`,header,strategy,comments:notes});
@@ -137,7 +137,8 @@ export class Evolution{
   this.best=null;this.history=[];this.evaluations=0;this.header=redcodeHeader(config);this.reseed=false;
  }
  get params(){return this.engine.params;}
- get generation(){return this.engine.generation;}
+ // Counted on from the runs this one continues (before); the population counts its own from 0.
+ get generation(){return this.before+this.engine.generation;}
  // The population best first.
  get population(){return this.engine.ranked();}
  source(g,extra=[]){return renderGenome(g,this.rules,{name:this.name,header:this.header,strategy:extra});}

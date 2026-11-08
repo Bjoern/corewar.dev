@@ -67,15 +67,15 @@ for(const config of [nano,tiny]){
   assert(notes.some(l=>want.test(l)),'notes: '+want);
  assert(!notes.some(l=>/^Generations before/.test(l)),'no total when an earlier run did not record its generations');
  assert.deepEqual(runNotes({when:'x',seed:'1',length:5,params:{},start:{mode:'seeds',seeds:['Imp']},benchmark:{name:'b',opponents:1}}).filter(l=>/^(Start|Other|Scoring)/.test(l)),['Start: seed warrior Imp, 50% mutants']);
- const source=evolvedSource(g,rules,{run:'nano-a',generation:57,before:200,score:165.2,heldOut:150.1,benchmark:'nanoBM',header:';redcode-nano',notes});
+ const source=evolvedSource(g,rules,{run:'nano-a',generation:257,before:200,score:165.2,heldOut:150.1,benchmark:'nanoBM',header:';redcode-nano',notes});
  const lines=source.split('\n');
- assert.equal(lines[1],';name nano-a-g57');
- assert.deepEqual(lines.filter(l=>l.startsWith(';strategy')),[';strategy Evolved by the corewar.dev evolver: run nano-a, generation 57 (257 counting the runs it continues)',';strategy Score 165.20 against nanoBM',';strategy Held-out score 150.10']);
+ assert.equal(lines[1],';name nano-a-g257');
+ assert.deepEqual(lines.filter(l=>l.startsWith(';strategy')),[';strategy Evolved by the corewar.dev evolver: run nano-a, generation 257 (the run continues 200 generations of earlier runs)',';strategy Score 165.20 against nanoBM',';strategy Held-out score 150.10']);
  assert.equal(lines.filter(l=>/^; /.test(l)).length,notes.length);
  assert.match(evolvedSource(g,rules,{run:'r',generation:3,index:2}),/^;name r-g3-2$/m);
  const w=await assemble(source,hillOf(nano));assert(w.ok,w.errors);assert.deepEqual({code:w.instructions,start:w.start},g);
  const engine=await Engine.create({...nano,warriors:1,rounds:1,assembleOnly:true,brief:true},{visual:false,log:()=>{}});
- const [bank]=engine.compile([source]);assert.equal(bank.name,'nano-a-g57');assert.equal(bank.length,g.code.length);
+ const [bank]=engine.compile([source]);assert.equal(bank.name,'nano-a-g257');assert.equal(bank.length,g.code.length);
 }
 // A seed with labels and EQU becomes a genome; normalize clamps anything else into the rules.
 {
@@ -187,6 +187,12 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
   const w=await assemble(opponents[3].source,hillOf(nano)),seedG={code:w.instructions,start:w.start};
   const k=new SoupEvolution({evaluator,config:nano,params:{scheme:'soup',soupWidth:5,soupHeight:4,duelRounds:10,keepStructure:true,seedShare:0.5},seeds:[seedG],seed:'k',duel});
   await k.init();await k.step();for(const g of k.snapshot())assert(hasStructure(g,structureOf(seedG)));
+  // Continuing a soup: on a grid of the same size every warrior keeps its cell; generations count on.
+  const cells=a.snapshot(),cont=w=>new SoupEvolution({evaluator,config:nano,params:{scheme:'soup',soupWidth:w,soupHeight:6,duelRounds:20},seeds:cells,seed:'c',duel,layout:{width:8,height:6},before:a.generation});
+  const same=cont(8);assert.deepEqual(same.snapshot().map(genomeKey),cells.map(genomeKey),'same grid: same places');
+  const other=cont(9);assert.notDeepEqual(other.snapshot().slice(0,48).map(genomeKey),cells.map(genomeKey),'another size: scattered');
+  assert.equal(same.generation,4);await same.init();await same.step();assert.equal(same.generation,5);assert.equal(same.history.at(-1).generation,5);
+  assert.match(same.bestSource('b'),/^;name Evolved-g[45]$/m);
  }
  // Known warriors: copies (and with 'designs' the same designs) are not scored and never join.
  {
@@ -211,6 +217,7 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
  // Seeding from genomes (the last population) starts from them.
  const again=new Evolution({evaluator,config:nano,params:{population:24},seeds:e.snapshot(),seed:'test2'});
  assert((await again.init()).best>=last.top-1e-9);
+ {const on=new Evolution({evaluator,config:nano,params:{population:24},seeds:e.snapshot(),seed:'on',before:10});assert.equal((await on.init()).generation,10);assert.equal((await on.step()).generation,11,'generations count on from the runs continued');}
  // "Mutations per child" reaches the operators (more mutations, children further from their parents).
  const far=new Evolution({evaluator:null,config:nano,params:{mutation:8,structural:0}}),near=new Evolution({evaluator:null,config:nano,params:{mutation:1,structural:0}});
  const r=rng('rate'),parent=randomGenome(r,e.rules,5),{distance}=await import('./evolver-genome.mjs');

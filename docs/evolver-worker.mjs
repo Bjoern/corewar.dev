@@ -98,7 +98,7 @@ async function start(job){
    if(r.state==='stopped'||run!==r)return;
   }
   const setup={evaluator,judge,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model,notes:job.notes||[],before:job.before||0,known};
-  r.evolution=soup?new SoupEvolution({...setup,duel:duels(pool,config)}):new Evolution(setup);
+  r.evolution=soup?new SoupEvolution({...setup,duel:duels(pool,config),layout:job.seedLayout||null}):new Evolution(setup);
   const engine=plannedEngine(config,mode);
   post({type:'started',why:mode.why,exact:mode.exact,rounds:mode.rounds,engine:engine.engine,engineWhy:engine.why,workers:pool?size:1,nested:!!pool||size===1,
    markov:model&&{warriors:model.warriors,instructions:model.instructions,shapes:model.shapes,skipped:opponents.length-model.warriors},
@@ -109,7 +109,8 @@ async function start(job){
   const limit=job.params.generations>0?job.params.generations:Infinity;
   while(run===r&&r.state!=='stopped'){
    if(r.state==='paused'){post({type:'paused',generation:r.evolution.generation,elapsed:r.elapsed});await new Promise(resolve=>{r.wake=resolve;});continue;}
-   if(r.evolution.generation>=limit){finish(r,`Finished ${limit} generations.`);return;}
+   // Generations: how many this run adds to where it started.
+   if(r.evolution.generation-r.evolution.before>=limit){finish(r,`Finished ${limit} generations${r.evolution.before?`, up to generation ${r.evolution.generation}`:''}.`);return;}
    const stats=await r.evolution.step();
    if(r.state==='stopped'||run!==r)return;
    await report(r,stats);

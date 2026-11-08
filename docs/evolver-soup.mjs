@@ -71,7 +71,9 @@ export function soupMutate(g,r,rules,{mate=null,locked=false}={}){
 }
 
 // duel(pairs, rounds) → Promise of one result per pair [a, b]: {wins, ties, losses} of a, or {error}.
-// evaluator: scores the harvested warriors against the benchmark (exact on nano).
+// evaluator: scores the harvested warriors against the benchmark (exact on nano). layout: the seeds
+// are a soup's cells in order, for a grid of this size (continuing the last run's soup): they keep
+// their places instead of being scattered.
 export class SoupEvolution extends Evolution{
  constructor(options){
   super(options);
@@ -85,17 +87,19 @@ export class SoupEvolution extends Evolution{
   this.mutant=(g,mate)=>soupMutate(g,r,rules,{mate,locked});
   // Seeds: the seeds themselves and seedShare of the grid as mutants of them, scattered.
   const mutants=seeds.length?Math.max(seeds.length,Math.floor(n*p.seedShare)):0,order=Array.from({length:n},(_,i)=>i);
-  for(let i=n-1;i>0;i--){const j=r.int(i+1);[order[i],order[j]]=[order[j],order[i]];}
+  const layout=options.layout&&options.layout.width===this.width&&options.layout.height===this.height&&seeds.length===n;
+  if(!layout)for(let i=n-1;i>0;i--){const j=r.int(i+1);[order[i],order[j]]=[order[j],order[i]];}
   this.cells=new Array(n);
   order.forEach((c,k)=>{this.cells[c]=k<seeds.length?seeds[k]:k<mutants?this.ops.mutate(seeds[k%seeds.length],this.rand):fresh();});
-  this.born=new Array(n).fill(0);this.sources=this.cells.map(g=>this.source(g));
+  this.born=new Array(n).fill(this.before);this.sources=this.cells.map(g=>this.source(g));
   this.battles=0;this.duels=0;this.hall=[];this.scored=new Map();this.harvested=[];
   // One harvest per 250 duels, at least one per generation.
   this.harvestEvery=Math.max(1,Math.min(n,250));
   this.batch=Math.max(1,Math.min(256,Math.floor(n/4)));
  }
  get grid(){return {width:this.width,height:this.height};}
- get generation(){return Math.floor(this.battles/this.cells.length);}
+ // Counted on from the runs this one continues (before).
+ get generation(){return this.before+Math.floor(this.battles/this.cells.length);}
  neighbour(c){const w=this.width,h=this.height,x=c%w,y=(c-x)/w,[dx,dy]=this.rand.choice(NEIGHBOURS);return mod(y+dy,h)*w+mod(x+dx,w);}
  // Up to `count` duels between neighbours, no cell in two of them.
  pairs(count){
