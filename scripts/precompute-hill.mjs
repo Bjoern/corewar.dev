@@ -71,6 +71,15 @@ async function exmarsMismatch(file){
  }finally{await rm(scratch,{recursive:true,force:true});}
  return null;
 }
+// exMARS since 643943e takes -8 (pMARS -8's assembly rules); older builds reject the option.
+async function exmarsTakes88(file){
+ const scratch=await mkdtemp(path.join(tmpdir(),'exmars-88-'));
+ try{
+  const p=path.join(scratch,'imp.red');await writeFile(p,';redcode\n;assert 1\nmov 0, 1\nend\n');
+  return await new Promise(resolve=>execFile(file,['-8','-r','1','-c','10','-F','4000',p,p],{windowsHide:true},(error,stdout)=>resolve(!error&&stdout.trim().split(/\r?\n/).length>=2)));
+ }finally{await rm(scratch,{recursive:true,force:true});}
+}
+let exmars88=false;
 let exmars=option('--exmars'),engine='pmars-wasm '+(JSON.parse(await readFile(new URL('../engine-lock.json',import.meta.url),'utf8')).commit||'');
 let exmarsJobs=[],builtinJobs=jobs;
 if(exmars){
@@ -79,7 +88,10 @@ if(exmars){
  if((await stat(exmars)).isDirectory())exmars=path.join(exmars,'bin',config.coreSize===8000&&config.tasks===8000?'standard':'generic','exmars-fast.exe');
  const mismatch=await exmarsMismatch(exmars);
  if(mismatch){console.error(`${exmars} differs from pMARS (${mismatch} check). Use an exMARS build with the pMARS compatibility fixes.`);process.exit(2);}
- if(config.rules88)console.warn('Note: exMARS has no ICWS ’88 mode; the warriors are assembled with ’94 defaults, which give ’88 behaviour.');
+ if(config.rules88){
+  exmars88=await exmarsTakes88(exmars);
+  if(!exmars88)console.warn('Note: this exMARS build has no -8 (ICWS ’88 rules); the warriors are assembled with ’94 defaults, which give ’88 behaviour.');
+ }
  exmarsJobs=jobs;builtinJobs=[];
  engine='exmars '+createHash('sha256').update(await readFile(exmars)).digest('hex').slice(0,16);
 }
@@ -98,7 +110,7 @@ async function runExmars(list,onResult){
   const paths=await Promise.all(suite.warriors.map(async(w,i)=>{const file=path.join(scratch,i+'.red');await writeFile(file,w.source);return file;}));
   const run=job=>new Promise((resolve,reject)=>{
    // The job's numeric -F: exMARS places warriors exactly like pMARS for the same value.
-   const argv=['-s',config.coreSize,'-c',config.cycles,'-p',config.tasks,'-l',config.maxLength,'-d',config.distance||config.maxLength,'-r',rounds,'-F',job.config.fixedPosition,paths[job.i],paths[job.j]].map(String);
+   const argv=[...(exmars88?['-8']:[]),'-s',config.coreSize,'-c',config.cycles,'-p',config.tasks,'-l',config.maxLength,'-d',config.distance||config.maxLength,'-r',rounds,'-F',job.config.fixedPosition,paths[job.i],paths[job.j]].map(String);
    execFile(exmars,argv,{windowsHide:true},(error,stdout,stderr)=>{
     const rows=stdout.trim().split(/\r?\n/).map(line=>line.trim().split(/\s+/).map(Number));
     if(error||rows.length<2||rows.some(r=>r.length<2||r.some(Number.isNaN)))return reject(new Error(`${job.warriors.map(w=>w.file).join(' vs ')}: ${stderr||stdout||error?.message}`));

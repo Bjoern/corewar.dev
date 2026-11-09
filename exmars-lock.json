@@ -1,15 +1,15 @@
 {
   "repository": "https://github.com/Bjoern/exMARS",
   "branch": "master",
-  "commit": "e4cc43f38ed888c788405dff3a9935b5981fb5f9",
+  "commit": "982d83574b75209b34cc4dc753dd2e6bd7322ed2",
   "note": "Persistent exMARS fighter and shared assembler (wasm/release/ at that commit). Runs headless matches of 2 to 36 warriors in Tournaments and Tools when the result equals pMARS's (docs/exmars.mjs); pMARS (engine-lock.json) runs everything else.",
   "files": {
-    "docs/dist/exmars/assembler.mjs": "454c2b37b1e7b590ae49f6b83b93c6b463da92f9c3e8e8caf8dd33bd01fb4db8",
-    "docs/dist/exmars/assembler.wasm": "662540c9121ad7d8b979eeebf01a86fd2e0f9eb5f64ef85c0cb67e0236230380",
-    "docs/dist/exmars/exmars-fighter-src.zip": "c1036f9d9f3b6f75704db6b63c1012a47f7cf277ebc3dc1b3a87b63bd3809486",
-    "docs/dist/exmars/fighter-client.mjs": "8066b9f4a2916419efb7fed4a4b7ee6552605fd2b707e26876c2d65b004f1fa0",
+    "docs/dist/exmars/assembler.mjs": "ca5d02953daf61fa329f928c61d01192a4f4d2629e30ce40c7edfd687ba33c01",
+    "docs/dist/exmars/assembler.wasm": "b66391297cb64f67b6592dc75f0999cbf9cfb354e4e3d0085c4f565b00304a54",
+    "docs/dist/exmars/exmars-fighter-src.zip": "059dd4d96b1a401b2c2c0d9c56f9cba34ec4c52cedba333138d48fa34c50a9ea",
+    "docs/dist/exmars/fighter-client.mjs": "7971e9ef26853f7a1c97606f5962cbcb5f105e3fcdfc51c0adc90a46bc6f4615",
     "docs/dist/exmars/fighter.mjs": "874769fc835a80276b17cb318832b5afc4a3750b6d53f2afd4cf3b95b23bcc86",
     "docs/dist/exmars/fighter.wasm": "d254ea790f28e124e828a67f9148a309866d248d2b45fd8834135bed5d4d7e25",
-    "docs/dist/exmars/manifest.json": "48084af085e4b208266c2a3a4cd3a1cb24ee2944f5e45e2e6da429fbdf0420eb"
+    "docs/dist/exmars/manifest.json": "299f6dd8037c05ec8f686450c0a03f02135707d2538d580b3a95637adf8b8590"
   }
 }

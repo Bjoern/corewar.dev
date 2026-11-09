@@ -39,6 +39,7 @@ const hills=[
  ['94nop (P-space size 1)',{...suite('94top50'),pspace:1},collection('94top50','HILL32'),5,i=>String(150+i*997)],
  ['standard with P-space',suite('psptop50'),collection('psptop50','HILL32'),5,i=>String(4000+i*13)],
  ['lp',suite('lp_koenigstuhl'),collection('lp_koenigstuhl','HILL32'),3,i=>String(300+i*1009)],
+ ["'88 (pMARS -8)",suite('88top50'),collection('88top50','HILL32'),6,i=>String(200+i*1103)],
 ];
 for(const [label,config,warriors,count,position] of hills){
  for(let i=0;i<count;i++){const a=pick(warriors),b=i===0?a:pick(warriors);await same(label,{...config,fixedPosition:position(i)},a,b);}
@@ -54,6 +55,7 @@ const melees=[
  ['94nop',{...suite('94top50'),pspace:1,rounds:30},collection('94top50','HILL32'),[3,6]],
  ['standard with P-space',{...suite('psptop50'),rounds:30},collection('psptop50','HILL32'),[3,5]],
  ['lp',{...suite('lp_koenigstuhl'),rounds:30},collection('lp_koenigstuhl','HILL32'),[3]],
+ ["'88",{...suite('88top50'),rounds:30},collection('88top50','HILL32'),[4]],
 ];
 for(const [label,config,warriors,sizes] of melees)for(const [k,n] of sizes.entries()){
  const list=Array.from({length:n},()=>pick(warriors));
@@ -72,7 +74,7 @@ const melee=compared-pairs;
 
 // Settings exMARS must leave to pMARS.
 const base=settings({...suite('tinybm04'),warriors:2});
-for(const [change,reason] of [[{rules88:true},/’88/],[{formula:'X*2'},/formula/],[{formula:'S=2'},/formula/],[{formula:'W/(S-1)'},/formula/],[{warriors:1},/single/],[{fixedPosition:'k1'},/seed/],
+for(const [change,reason] of [[{formula:'X*2'},/formula/],[{formula:'S=2'},/formula/],[{formula:'W/(S-1)'},/formula/],[{warriors:1},/single/],[{fixedPosition:'k1'},/seed/],
  [{permutate:true,rounds:100},/permutation/],[{pspace:7},/P-space size/],[{coreSize:65536,distance:100,maxLength:100},/65535/],[{distance:10},/distance/]])
  assert.match(exmarsBlocker({...base,...change})??'',reason,JSON.stringify(change));
 assert.equal(exmarsBlocker(base),null);
@@ -86,6 +88,12 @@ const tinyPspace=';redcode\n;name reader\nldp.ab #0, #1\nspl 0\njmp -1\nend\n';
 const pspaceWarrior=collection('psptop50','HILL32').find(w=>/^[^;]*\b(ldp|stp)\b/im.test(w.source));
 assert.match((await runner.run(settings({...suite('94top50'),warriors:2}),[pspaceWarrior.source,pspaceWarrior.source])).fallback,/no-P-space/);
 assert.equal((await runner.run(base,['mov 0, 1\nbogus 1, 2\n','mov 0, 1\n'])).fallback,'assembly');
+// '88 rules: exMARS runs them; a source '88 doesn't allow goes to pMARS for its messages. The same
+// source still assembles under '94 rules (the cache keeps the two apart).
+assert.equal(exmarsBlocker({...base,rules88:true}),null);
+const postinc='mov 0, >1\njmp -1\n',legal88='dat #0, #0\n';
+assert.equal((await runner.run({...base,rules88:true},[postinc,legal88])).fallback,'assembly');
+assert.equal((await runner.run(base,[postinc,legal88])).engine,'exmars');
 // After all that the same runner still agrees with pMARS.
 const tiny=collection('tinybm04');await same('tiny after fallbacks',{...suite('tinybm04'),fixedPosition:'321'},tiny[0],tiny[1]);
 // The optimizer's runMatch: the same result with and without exMARS, and it says which engine ran.
@@ -95,7 +103,10 @@ for(const job of [{config:nanoConfig,a:nano[3].source,b:nano[9].source,rounds:14
  assert.equal(ex.engine,'exmars');assert.equal(pm.engine,'pmars');
  assert.deepEqual([ex.wins,ex.ties,ex.losses],[pm.wins,pm.ties,pm.losses]);
 }
-assert.equal((await runMatch({config:{...nanoConfig,rules88:true},a:'mov 0, 1\n',b:'mov 0, 1\n',rounds:10,position:'40'})).fallback,'ICWS ’88 rules');
+{const job={config:{...nanoConfig,rules88:true},a:'mov 0, 1\n',b:'mov 0, 1\n',rounds:10,position:'40'};
+ const ex=await runMatch(job),pm=await runMatch(job,{useExmars:false});
+ assert.equal(ex.engine,'exmars');assert.equal(pm.engine,'pmars');
+ assert.deepEqual([ex.wins,ex.ties,ex.losses],[pm.wins,pm.ties,pm.losses]);}
 assert.deepEqual(plannedEngine(nanoConfig,{exact:true,rounds:142}),{engine:'exmars',why:''});
 assert.equal(plannedEngine({...nanoConfig,formula:'X'},{exact:false,rounds:250}).engine,'pmars');
 assert.equal(engineSummary({exmars:97,pmars:3}),'exMARS 97% · pMARS 3%');
@@ -105,4 +116,4 @@ for(const [text,value] of [['1+2*3',7],['(1+2)*3',9],['7/2',3],['-7/2',-3],['-7%
  assert.equal(evaluateFormula(text,{W:2,S:1}),value,text);
 assert.equal(plainFormula('(W*W-1)/S'),true);assert.equal(plainFormula('X+1'),false);assert.equal(plainFormula('S==1'),true);assert.equal(plainFormula('W=3'),false);
 assert.deepEqual(formulaTable('(W*W-1)/S',2),[3,1]);assert.equal(scoreFrom([5,10,7],[3,1]),37);
-console.log(`PASS: exMARS equals pMARS on ${compared} matches (${compared-melee} pairs: nano exact and sampled, tiny, 94nop, P-space, lp; ${melee} melees of 3–10 warriors and custom formulas); settings and warriors it must not run go to pMARS.`);
+console.log(`PASS: exMARS equals pMARS on ${compared} matches (${compared-melee} pairs: nano exact and sampled, tiny, 94nop, P-space, lp, '88; ${melee} melees of 3–10 warriors and custom formulas); settings and warriors it must not run go to pMARS.`);

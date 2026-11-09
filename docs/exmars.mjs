@@ -2,8 +2,9 @@
 // exMARS for headless matches of 2 to 36 warriors (Tournaments and Tools). exMARS gives the
 // same results as pMARS round for round (exmars-lock.json; tested in test-exmars.mjs) and is
 // several times faster, and its fighter stays loaded, so a warrior is assembled once per worker.
-// It runs a match only when the result is the same as pMARS's: ICWS '94, the default P-space
-// size, a numeric or no placement seed, a score formula in W and S (scored here from exMARS's
+// It runs a match only when the result is the same as pMARS's: ICWS '94 or '88 (its assembler
+// enforces pMARS -8's rules, so a warrior that isn't valid '88 falls back to pMARS for the error
+// messages), the default P-space size, a numeric or no placement seed, a score formula in W and S (scored here from exMARS's
 // survivor counts, as pMARS scores them: score-formula.mjs), and a permutation only when it
 // covers every position (exMARS's exact mode, pMARS's -P: one match, so P-space persists between
 // its rounds, and the placement seed orders them as -F does). Everything else, and anything the
@@ -22,7 +23,6 @@ function pmarsPspace(c){if(c.pspace)return c.pspace;for(let i=16;i>0;i--)if(c.co
 export function exmarsBlocker(config){
  const c={...defaults,...config};
  if(c.warriors<2||c.warriors>36)return 'a single warrior';
- if(c.rules88)return 'ICWS ’88 rules';
  if(!formulaTable(c.formula,c.warriors))return 'a score formula with other registers or an error';
  if(c.warriors*separationOf(c)>c.coreSize)return 'warriors that do not fit the core';
  if(c.coreSize>65535)return 'a core above 65535';
@@ -61,12 +61,13 @@ export class ExmarsRunner{
   else if(key!==this.hillKey||this.loaded.size>=this.maxWarriors){this.fighter.configure(hill);this.loaded.clear();}
   this.hillKey=key;return this.fighter;
  }
- // The ROUNDS constant takes the match's round count, as in pMARS.
- #cached(source,rounds){return this.loaded.get(rounds+'\0'+source);}
- async #warrior(source,hill,rounds){
-  const key=rounds+'\0'+source;
+ // The ROUNDS constant takes the match's round count, as in pMARS. '88 rules (pMARS -8) can
+ // reject a source that '94 accepts, so they are part of the key.
+ #cached(source,rounds,icws88){return this.loaded.get(rounds+(icws88?'/88':'')+'\0'+source);}
+ async #warrior(source,hill,rounds,icws88){
+  const key=rounds+(icws88?'/88':'')+'\0'+source;
   if(this.loaded.has(key))return this.loaded.get(key);
-  const {assemble}=await this.#load(),w=await assemble(source,hill,{rounds});
+  const {assemble}=await this.#load(),w=await assemble(source,hill,{rounds,icws88});
   const entry=w.ok?{ok:true,handle:this.fighter.load(w),name:w.name,pspace:usesPspace(w)}:{ok:false};
   this.loaded.set(key,entry);return entry;
  }
@@ -79,7 +80,7 @@ export class ExmarsRunner{
   const hill=hillOf(c),table=formulaTable(c.formula,sources.length);
   try{
    await this.#fighterFor(hill);
-   const list=[];for(const source of sources)list.push(await this.#warrior(source,hill,c.rounds));
+   const list=[];for(const source of sources)list.push(await this.#warrior(source,hill,c.rounds,!!c.rules88));
    if(list.some(w=>!w.ok))return {fallback:'assembly'};
    const pspace=list.some(w=>w.pspace);
    if(c.noPspace&&pspace)return {fallback:'P-space on a no-P-space hill'};
@@ -116,7 +117,7 @@ export class ExmarsRunner{
   const base=config.fixedPosition,hill=hillOf(c);
   try{
    await this.#fighterFor(hill);
-   const a=await this.#warrior(source,hill,c.rounds);
+   const a=await this.#warrior(source,hill,c.rounds,!!c.rules88);
    if(!a.ok)return {fallback:'assembly'};
    if(c.noPspace&&a.pspace)return {fallback:'P-space on a no-P-space hill'};
    const out=new Array(others.length);
@@ -124,7 +125,7 @@ export class ExmarsRunner{
     const p=positions?positions[i]:base,why=positionBlocker(c,p);
     if(why){out[i]={fallback:why};continue;}
     if(otherSize&&/PSPACESIZE/i.test(others[i])){out[i]={fallback:'PSPACESIZE with another P-space size'};continue;}
-    const b=this.#cached(others[i],c.rounds)??await this.#warrior(others[i],hill,c.rounds);
+    const b=this.#cached(others[i],c.rounds,!!c.rules88)??await this.#warrior(others[i],hill,c.rounds,!!c.rules88);
     if(!b.ok){out[i]={fallback:'assembly'};continue;}
     if(c.noPspace&&b.pspace){out[i]={fallback:'P-space on a no-P-space hill'};continue;}
     const position=p?Number(p):0;
