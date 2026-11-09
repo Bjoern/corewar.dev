@@ -193,6 +193,9 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
   const other=cont(9);assert.notDeepEqual(other.snapshot().slice(0,48).map(genomeKey),cells.map(genomeKey),'another size: scattered');
   assert.equal(same.generation,4);await same.init();await same.step();assert.equal(same.generation,5);assert.equal(same.history.at(-1).generation,5);
   assert.match(same.bestSource('b'),/^;name Evolved-g[45]$/m);
+  // A population continuing a soup starts from its best: the hall of fame first, then a warrior of each kind.
+  const bf=a.bestFirst();assert.deepEqual(bf.slice(0,a.hall.length).map(genomeKey),a.hall.map(m=>m.key));
+  assert.equal(new Set(bf.map(genomeKey)).size,bf.length);assert(bf.length>=a.kinds().length);
  }
  // Known warriors: copies (and with 'designs' the same designs) are not scored and never join.
  {

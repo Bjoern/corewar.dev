@@ -154,6 +154,19 @@ export class SoupEvolution extends Evolution{
  get population(){return this.view();}
  ranked(){return this.view();}
  snapshot(){return this.cells.map(g=>({code:g.code.map(i=>i.slice()),start:g.start}));}
+ // The soup's best first, for a population to continue from: the hall of fame (scored, best first),
+ // then one warrior of each kind, the commonest kind first (its best harvested warrior, or the first
+ // of its cells), without duplicates.
+ bestFirst(){
+  const out=[],seen=new Set(),add=g=>{const k=genomeKey(g);if(!seen.has(k)){seen.add(k);out.push({code:g.code.map(i=>i.slice()),start:g.start});}};
+  for(const m of this.hall)add(m.genome);
+  for(const {cells} of this.kinds()){
+   let best=cells[0],score=-Infinity;
+   for(const c of cells){const s=this.scored.get(genomeKey(this.cells[c]));if(s!=null&&s>score){score=s;best=c;}}
+   add(this.cells[best]);
+  }
+  return out;
+ }
  // The grid in cell order (row by row), with the benchmark score of warriors that were harvested.
  view(){return this.cells.map(g=>{const s=this.scored.get(genomeKey(g));return {genome:g,score:s??null,fit:s??null};});}
  profiles(){return null;}

@@ -145,7 +145,7 @@ async function report(r,stats){
   // Niches by results: the population view groups by these instead of by code.
   profiles:e.profiles(),
   // A soup: the grid, row by row (the population view draws it as a grid).
-  ...(e.grid?{grid:e.grid}:{})});
+  ...(e.grid?{grid:e.grid,bestFirst:e.bestFirst()}:{})});
 }
 function finish(r,reason){
  if(r.state!=='stopped')r.elapsed=elapsed(r);

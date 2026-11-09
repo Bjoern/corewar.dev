@@ -32,9 +32,9 @@ const TOPICS=[
  ['Self fight','Some hills, Koenigstuhl among them, score a warrior against a copy of itself too. With “Self fight” on, each warrior fights itself as one more opponent, so with 50 benchmark warriors the self fight is 1 of 51 in the average (in the held-out score as well). A self fight has as many wins as losses (exactly so with exact scoring), so its score depends only on the ties: 150 when no round is tied, 100 when every round is, 150 − 50 × the tied share in between. So a warrior whose self fights end decisively gains up to 50 points there over one that ties itself, and selection takes that into account. It is the row “itself (self fight)” in the score per opponent.'],
  ['Breeding and survival','The evolver and the constant optimizer’s genetic algorithm share one population search, each with its own defaults. The evolver breeds whole generations (μ + λ): a child per place, then parents and children compete for the places, by score with niching (clearing). One child at a time (steady state) breeds from the latest population after every warrior instead; it adapts sooner but scores one warrior at a time, so with fewer opponents than CPU cores it leaves cores idle. Crowding (the optimizer’s default) lets a child replace the most similar weaker warrior, so each kind of warrior competes only with its own kind; the niche radius is then not used. With sampled scores, every few generations the warriors fight on new positions: “latest placements” takes the new score, “average over placements” the mean of all positions a warrior fought on, which is steadier and counts a warrior as the best only once it was scored on two sets. Racing stops scoring a child once it is clearly below the weakest warrior (sampled scores only); it saves time but also cuts short children that might have started a new niche.'],
  ['Runs and luck','A blind run (random code, no seed) on the nano hill needs a few thousand generations before it levels off, which is why the nano preset runs 3000: about 300,000 warriors scored at population 100, a quarter of an hour to an hour depending on your CPU cores. Even then a strong warrior is a lucky run. In tests against the nano top 50, about 1 run in 10 found one of the best kinds of warrior; the others settled 10 to 25 points lower, and a larger population did not change that. So rather than one very long run, run several with different random seeds (under More settings) and keep the best; a run that has not improved for a thousand generations seldom does. Stopping at 200 generations leaves a blind nano run about 10 points below where it would end.'],
- ['Seeding','A seed warrior is assembled for the chosen settings (labels, EQU and FOR loops are fine) and joins the first population with mutants of it; the rest is random code. “The last run” continues from the population the last run ended with, for the same settings, and the generation count goes on from where it stopped (Generations is then how many to add). A soup continued as a soup on a grid of the same size keeps every warrior in its cell; otherwise the warriors are scattered over the grid, or fill the population in order.'],
+ ['Seeding','A seed warrior is assembled for the chosen settings (labels, EQU and FOR loops are fine) and joins the first population with mutants of it; the rest is random code. “The last run” continues from the population the last run ended with, for the same settings, and the generation count goes on from where it stopped (Generations is then how many to add). A soup continued as a soup on a grid of the same size keeps every warrior in its cell (on another size they are scattered). A population continued as a soup is scattered over the grid, and mutants of it fill the rest. A soup continued as a population starts from the soup’s best: its hall of fame, best first, then one warrior of each kind, the commonest first.'],
  ['Keeping the seed’s structure','With a seed warrior, “Keep the seed’s structure” tunes the warrior you have instead of letting the evolver redesign it. Every warrior of the run keeps the seed’s length and its instructions in the same order: a seed of SPL, SPL, MOV, SPL, MOV stays SPL, SPL, MOV, SPL, MOV. What changes is everything else: the numbers in the fields, the modifiers (.I, .AB …), the addressing modes, and where the warrior starts; two lines with the same instruction may also swap places. Crossover then mixes two warriors line by line, and the random newcomers are random code with the same instructions. Use it when the design is right but the constants are not, or to see how far a known shape can go against your benchmark. In tests on the nano hill, runs started from a top warrior with a fifth to a quarter of its numbers and modes scrambled found their way back near it in about half the runs, so give such a run a few thousand generations and several random seeds too. Without it, mutations may insert, delete and change instructions, and a run started from your warrior can end up as something else entirely.'],
- ['Soup','“Method: Soup” is a different way to evolve from the classic population, after Terry Newton’s yabevolver. The warriors live on a grid whose edges wrap around. Again and again a random warrior and one of its eight neighbours fight a short duel (100 rounds); the loser’s place goes to a copy of the winner, most copies changed a little (a number, a mode, now and then an instruction), some crossed with a neighbour, and about half exact. A tie changes nothing. The benchmark plays no part in this: a warrior only has to beat its neighbours, so a lineage can pass through weak forms on its way to a strong one, and different kinds of warrior hold their own patches of the grid for a long time. To track how strong the soup is, one random warrior is scored against the benchmark every so often (at least once per generation, exactly on nano); the best of these make up a hall of fame, whose best is the run’s best warrior, and the Population mean is the mean of the ones scored in that generation. A generation is as many duels as the grid has cells; since the pairs are drawn at random, a warrior takes part in about two duels per generation, some in none and some in several. The grid size is a setting: the default 20 × 12 suits most computers; bigger grids (yabevolver’s is 77 × 20) keep more kinds alive and more CPU cores busy, but each generation takes longer. The population view draws the grid as it is. Warriors with the same instructions in the same order are one kind, and a kind’s colour comes from those instructions, so it is the same in every generation and every run; a warrior whose instruction changed is another kind, with another colour. With 48 colours two kinds now and then share one: the table of kinds shows each colour. A light edge marks a warrior that was scored against the benchmark. In tests on the nano hill a 77 × 20 soup reached about 150 against the top 50 within a quarter of an hour on one core and then mostly levelled off, so run several. With Soup chosen, the card shows only the soup’s own settings; the classic method’s (population, mutation rates, breeding, survival, niches, selection) do not apply.'],
+ ['Soup','“Method: Soup” is a different way to evolve from the classic population, after Terry Newton’s yabevolver. The warriors live on a grid whose edges wrap around. Again and again a random warrior and one of its eight neighbours fight a short duel (100 rounds); the loser’s place goes to a copy of the winner, most copies changed a little (a number, a mode, now and then an instruction), some crossed with a neighbour, and about half exact. A tie changes nothing. The benchmark plays no part in this: a warrior only has to beat its neighbours, so a lineage can pass through weak forms on its way to a strong one, and different kinds of warrior hold their own patches of the grid for a long time. To track how strong the soup is, one random warrior is scored against the benchmark every so often (at least once per generation, exactly on nano); the best of these make up a hall of fame, whose best is the run’s best warrior, and the Population mean is the mean of the ones scored in that generation. A generation is as many duels as the grid has cells; since the pairs are drawn at random, a warrior takes part in about two duels per generation, some in none and some in several. The grid size is a setting: the default 20 × 12 suits most computers; bigger grids (yabevolver’s is 77 × 20) keep more kinds alive and more CPU cores busy, but each generation takes longer. The population view draws the grid as it is. Warriors with the same instructions in the same order are one kind (a warrior whose instruction changed is another kind). Eight colours go to the commonest kinds that hold at least 3% of the grid, and the rest are grey; a kind keeps its colour for as long as it is on the grid, a kind that dies out keeps it reserved until another kind needs one, so it usually gets it back, and a newcomer takes a colour from a smaller kind only once it has twice as many cells, so colours seldom change hands. The table of kinds shows each colour. A light edge marks a warrior that was scored against the benchmark. In tests on the nano hill a 77 × 20 soup reached about 150 against the top 50 within a quarter of an hour on one core and then mostly levelled off, so run several. With Soup chosen, the card shows only the soup’s own settings; the classic method’s (population, mutation rates, breeding, survival, niches, selection) do not apply.'],
  ['Markov chain','“A Markov chain of the opponents” assembles the benchmark’s warriors (and yours) and counts how often each instruction shape (opcode, modifier and both addressing modes) follows the one and two before it, and which shapes start and end a warrior. New warriors are drawn from those odds, each instruction with an A and B field seen on that shape. The chain mostly follows the longest context it knows and now and then forgets one, so it recombines warriors rather than copying them. It writes the first population and the immigrants of every generation.'],
  ['Benchmarks','The benchmark list has the preset’s own picks first, then every other suite of the Tournaments tab’s Benchmark mode with the same core size and a length that fits: built-in suites, and your own: imported, or made from your warriors or the library (saved with your workspace). Under “Other hills” come the suites made for other settings (ICWS ’94 only, as the evolver writes no ’88 code): picking one switches to its settings, to the preset with the same core, processes, cycles, length and distance, or to Custom with its values. When that would replace custom settings of your own, the evolver asks first. Population, generations and rounds then take the new preset’s defaults, as when you pick a preset, unless you changed them from the old preset’s defaults: values of your own are kept. Reset to defaults always sets them. An opponent that does not assemble for the hill’s settings (your own, or one checked in the Battle tab) is left out when the run starts, as in the Tournaments tab, and the Run card lists it with the assembler’s message.'],
  ['Warrior length','The longest warrior the evolver writes, at most the hill’s maximum length (empty: the hill’s). The hill’s length and distance still hold for the matches, so a benchmark of full-length warriors can be fought by short evolved ones: the best 20-instruction warrior against the LP hill, to build on later (add a q-scan by hand, say), or entries for a tournament that caps length below the hill’s. Shorter warriors also mean a much smaller search space. With a Markov chain, the chain learns from the opponents’ first instructions only, up to the warrior length.'],
@@ -215,7 +215,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const popCode=el('pre',{className:'evo-pop-code',hidden:true});
  const popEdit=el('button',{type:'button',className:'small',textContent:'Open in editor',hidden:true});
  const MAP_HINT='Each dot is a warrior; similar code sits close together. Colour: score (darker is lower). Ringed: niche leaders. Click a dot or a row for its code.';
- const GRID_HINT='The soup as it is: each square a warrior, coloured by its kind (its instructions in order; the same kind keeps its colour). A light edge: scored against the benchmark. Click a square or a row for its code.';
+ const GRID_HINT='The soup as it is: each square a warrior, coloured by its kind (its instructions in order; grey: the less common kinds). A light edge: scored against the benchmark. Click a square or a row for its code.';
  const popHint=el('p',{className:'hint',textContent:MAP_HINT});
  const popBox=el('details',{className:'opt-advanced evo-population',open:!!saved.populationOpen},el('summary',{textContent:'Population and niches'}),
   el('div',{className:'tool-actions'},popSlider,popLatest),popLabel,popMap,
@@ -428,10 +428,14 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
    loadingKnown=true;start.disabled=true;runStatus.textContent='Loading the known warriors…';
    try{known=(await knownList(c)).list.map(({name,source,hill})=>({name,source,hill}));}finally{loadingKnown=false;start.disabled=false;}
   }
-  if(seedSelect.value==='last'){if(lastPopulation?.key!==populationKey(c,length)){runStatus.textContent='There is no earlier population for these settings.';return;}seedGenomes.push(...lastPopulation.genomes);}
-  // A soup continued on a grid of the same size keeps every warrior in its cell.
-  const seedLayout=seedSelect.value==='last'&&lastPopulation.grid?lastPopulation.grid:null;
-  const soup=methodSelect.value==='soup',width=Math.min(200,Math.max(3,Number(soupWidth.value)|0||20)),height=Math.min(100,Math.max(3,Number(soupHeight.value)|0||12));
+  const soup=methodSelect.value==='soup';
+  // Continuing: a soup continued as a soup keeps its cells (in their places on a grid of the same
+  // size); a population takes a soup's best first (its hall of fame, then one warrior of each kind).
+  if(seedSelect.value==='last'){if(lastPopulation?.key!==populationKey(c,length)){runStatus.textContent='There is no earlier population for these settings.';return;}
+   seedGenomes.push(...(!soup&&lastPopulation.bestFirst?lastPopulation.bestFirst:lastPopulation.genomes));}
+  const seedLayout=seedSelect.value==='last'&&soup&&lastPopulation.grid?lastPopulation.grid:null;
+  const fromPopulation=seedSelect.value==='last'&&soup&&!lastPopulation.grid;
+  const width=Math.min(200,Math.max(3,Number(soupWidth.value)|0||20)),height=Math.min(100,Math.max(3,Number(soupHeight.value)|0||12));
   const p=preset(),now=new Date(),two=n=>String(n).padStart(2,'0');
   const day=`${now.getFullYear()}${two(now.getMonth()+1)}${two(now.getDate())}`,time=`${two(now.getHours())}${two(now.getMinutes())}`;
   const name=runName.value.trim().replace(/\s+/g,' ')||`${p.id}-${day}-${time}`;
@@ -445,7 +449,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
     structural:Math.min(1,Math.max(0,Number(structural.value))),crossover:Math.min(1,Math.max(0,Number(crossoverRate.value))),immigrants:Math.min(0.5,Math.max(0,Number(immigrants.value))),
     elite:Math.max(0,Number(elite.value)|0),niche:Math.min(1,Math.max(0,Number(niche.value)||0)),nicheSize:Math.max(1,Number(nicheSize.value)|0||1),
     scheme:soup?'soup':schemeSelect.value,...(soup?{soupWidth:width,soupHeight:height,duelRounds:Math.max(1,Number(duelRounds.value)|0||100)}:{}),survival:survivalSelect.value,scoreMemory:memorySelect.value,race:race.checked&&fitnessSelect.value!=='shared'&&!(Number(novelty.value)>0),fitness:fitnessSelect.value,nicheBy:nicheBySelect.value,
-    avoidKnown:avoidSelect.value,novelty:Math.min(3,Math.max(0,Number(novelty.value)||0)),seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):0,
+    avoidKnown:avoidSelect.value,novelty:Math.min(3,Math.max(0,Number(novelty.value)||0)),seedShare:seedSources.length?Math.min(1,Math.max(0,Number(seedShare.value))):fromPopulation?1:0,
     keepStructure:keepStructure.checked&&seedSources.length>0}};
   const held=job.holdOut&&list.length>1?Math.min(list.length-1,Math.max(1,Math.round(list.length*job.holdOut))):0;
   const mode=scoringMode(matchConfig(c),list.map(o=>o.source),job.scoring);
@@ -479,7 +483,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
    r.history.push(data.stats);r.last=data;keepSnapshot(r,data);
    if(data.best&&(!r.best||data.best.score!==r.best.score||data.best.source!==r.best.source)){r.best=data.best;showBest(r);}
    // generation: this run's own count (the lineage adds them up); grid: a soup's size, to keep its layout.
-   lastPopulation={key:r.populationKey,genomes:data.population,run:r.job.name,generation:data.stats.generation-(r.job.before||0),lineage:r.job.lineage,...(data.grid?{grid:data.grid}:{})};
+   lastPopulation={key:r.populationKey,genomes:data.population,run:r.job.name,generation:data.stats.generation-(r.job.before||0),lineage:r.job.lineage,...(data.grid?{grid:data.grid,bestFirst:data.bestFirst}:{})};
    if(r.best)lastBest={source:r.best.source,score:r.best.score,key:r.key,opponents:heldRows(r.best),heldOut:r.best.heldOut?.score??null,benchmark:r.job.benchmarkName};
    showStats(r);drawChart();showPopulation(false);schedulePersist();return;
   }
@@ -582,8 +586,9 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
  const SNAPSHOT_BUDGET=1500000;let selected=null;
  // A soup's kinds of warrior get their colour from a hash of their instructions in order, so a kind
  // has the same colour in every generation and every run: 24 hues at two lightnesses.
- const KIND_COLOURS=Array.from({length:48},(_,i)=>`hsl(${(i%24)*15},${i<24?70:55}%,${i<24?62:45}%)`);
- const kindColour=k=>{let h=2166136261;for(const c of k)h=Math.imul(h^c.charCodeAt(0),16777619)>>>0;return KIND_COLOURS[h%KIND_COLOURS.length];};
+ const KIND_COLOURS=['#54d8df','#f9a567','#c792ea','#9ccc65','#ef6f6c','#ffd54f','#4f9cf9','#f48fb1'],GREY='#5b6b78';
+ // A kind's preferred colour, from a hash of its instructions, so a kind often gets the same one in another run.
+ const preferredColour=k=>{let h=2166136261;for(const c of k)h=Math.imul(h^c.charCodeAt(0),16777619)>>>0;return h%KIND_COLOURS.length;};
  function keepSnapshot(r,data){
   if(!data.ranked)return;
   const following=Number(popSlider.value)>=r.snapshots.length-1;
@@ -597,15 +602,36 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   if(following)popSlider.value=popSlider.max;
  }
  function snapshotShown(){const list=run?.snapshots;if(!list?.length)return null;return list[Math.min(list.length-1,Number(popSlider.value)||0)];}
- // A soup snapshot: kinds of warrior by their instructions in order, most cells first, and each
- // kind's leader (its best harvested warrior, else its first cell).
+ // A soup snapshot: kinds of warrior by their instructions in order, most cells first, each kind's
+ // leader (its best harvested warrior, else its first cell), and its colour. Colours are few (eight;
+ // the other kinds are grey) and sticky, worked out as snapshots arrive so the slider shows the same
+ // ones: a kind keeps its colour for as long as it is on the grid, and while it is gone its colour
+ // waits for it until another kind needs one. A kind among the eight commonest, with at least 3% of
+ // the cells, takes a free colour: the one it had before, else its preferred one, else any, else that
+ // of the kind gone longest; when none is free, it takes
+ // the colour of the smallest coloured kind, but only once it has at least twice as many cells, so two
+ // kinds of about the same size do not swap colours back and forth.
  function soupKinds(r,snap){
   const names=snap.genomes.map(g=>structureText(structureOf(g))),cells=new Map();
   names.forEach((k,i)=>{if(!cells.has(k))cells.set(k,[]);cells.get(k).push(i);});
   const order=[...cells.entries()].sort((a,b)=>b[1].length-a[1].length),index=new Map(order.map(([k],i)=>[k,i]));
   snap.kinds=order.map(([k])=>k);snap.groups=names.map(k=>index.get(k));
   snap.leaders=order.map(([,list])=>list.reduce((b,i)=>snap.scores[i]!=null&&(snap.scores[b]==null||snap.scores[i]>snap.scores[b])?i:b,list[0]));
-  snap.colours=snap.kinds.map(kindColour);
+  const owners=r.kindColours??=new Array(KIND_COLOURS.length).fill(null),last=r.kindLast??=new Map(),seen=r.kindSeen??=new Map(),size=k=>cells.get(k)?.length??0;
+  const t=r.kindTime=(r.kindTime??0)+1,least=Math.max(3,Math.ceil(0.03*snap.genomes.length));
+  for(const k of cells.keys())seen.set(k,t);
+  // A colour is free when no kind has it, and can be reused when its kind has died out (that kind
+  // gets it back if it returns first); the one gone longest goes first.
+  const free=c=>owners[c]===null||!size(owners[c]);
+  for(const k of snap.kinds.slice(0,KIND_COLOURS.length)){
+   if(owners.includes(k)||size(k)<least)continue;
+   let c=[last.get(k),preferredColour(k)].find(c=>c!=null&&owners[c]===null)??owners.indexOf(null);
+   if(c<0){let gone=-1;owners.forEach((o,i)=>{if(free(i)&&(gone<0||seen.get(o)<seen.get(owners[gone])))gone=i;});c=gone;}
+   if(c<0){let small=-1;owners.forEach((o,i)=>{if(small<0||size(o)<size(owners[small]))small=i;});if(size(k)>=2*size(owners[small]))c=small;}
+   if(c>=0){owners[c]=k;last.set(k,c);if(last.size>5000)last.delete(last.keys().next().value);}
+  }
+  if(seen.size>20000)for(const [k,v] of seen)if(v<t-50)seen.delete(k);
+  snap.colours=snap.kinds.map(k=>{const c=owners.indexOf(k);return c>=0?KIND_COLOURS[c]:GREY;});
  }
  // Niches and map positions are worked out once per snapshot, when it is first shown.
  function analyse(snap){
@@ -687,7 +713,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   }
   ctx.globalAlpha=1;ctx.font='11px system-ui';ctx.fillStyle='#aec0ce';ctx.fillText(`score ${fmt(lo,0)} … ${fmt(hi,0)}`,8,h-6);
  }
- // A soup's grid: one square per cell, coloured by its kind of warrior (kindColour); a light edge marks
+ // A soup's grid: one square per cell, coloured by its kind of warrior (soupKinds); a light edge marks
  // harvested warriors.
  function drawGrid(ctx,snap,w,h){
   const {width:gw,height:gh}=snap.grid,cell=Math.max(2,Math.floor(Math.min((w-8)/gw,(h-22)/gh))),ox=Math.floor((w-cell*gw)/2),oy=4,gap=cell>4?1:0;
