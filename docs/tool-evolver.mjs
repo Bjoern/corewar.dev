@@ -434,6 +434,8 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   if(seedSelect.value==='last'){if(lastPopulation?.key!==populationKey(c,length)){runStatus.textContent='There is no earlier population for these settings.';return;}
    seedGenomes.push(...(!soup&&lastPopulation.bestFirst?lastPopulation.bestFirst:lastPopulation.genomes));}
   const seedLayout=seedSelect.value==='last'&&soup&&lastPopulation.grid?lastPopulation.grid:null;
+  // The last run's best warriors, scored in full at the start, so the best score carries on.
+  const carry=seedSelect.value==='last'?(lastPopulation.bestFirst??lastPopulation.genomes).slice(0,20):[];
   const fromPopulation=seedSelect.value==='last'&&soup&&!lastPopulation.grid;
   const width=Math.min(200,Math.max(3,Number(soupWidth.value)|0||20)),height=Math.min(100,Math.max(3,Number(soupHeight.value)|0||12));
   const p=preset(),now=new Date(),two=n=>String(n).padStart(2,'0');
@@ -444,7 +446,7 @@ export function mount(root,{roster,addWarrior,openInEditor,openInDebugger,loadSt
   const job={config:{...c,warriorLength:length},opponents:list.map(({name,source,own})=>({name,source,own:!!own})),benchmarkName:suite?.name||'your warriors',name,lineage,
    before:lineage.every(x=>x.generations!=null)?lineage.reduce((t,x)=>t+x.generations,0):0,
    seed:seed.value,workers:Math.max(1,Math.min(processors,Number(workers.value)||1)),scoring:{mode:scoringSelect.value,rounds:Math.max(10,Number(rounds.value)||100),screenRounds:Math.max(1,Number(screenRounds.value)|0||8)},seedSources,seedGenomes,
-   markov:seedSelect.value==='markov',known,seedLayout,selfFight:selfFight.checked,holdOut:holdOut.checked?Math.min(0.5,Math.max(0.05,Number(holdOutShare.value)||0.2)):0,
+   markov:seedSelect.value==='markov',known,seedLayout,carry,selfFight:selfFight.checked,holdOut:holdOut.checked?Math.min(0.5,Math.max(0.05,Number(holdOutShare.value)||0.2)):0,
    params:{population:soup?width*height:Math.max(4,Number(population.value)||40),generations:Math.max(0,Number(generations.value)||0),mutation:Math.max(1,Number(mutation.value)||1.5),
     structural:Math.min(1,Math.max(0,Number(structural.value))),crossover:Math.min(1,Math.max(0,Number(crossoverRate.value))),immigrants:Math.min(0.5,Math.max(0,Number(immigrants.value))),
     elite:Math.max(0,Number(elite.value)|0),niche:Math.min(1,Math.max(0,Number(niche.value)||0)),nicheSize:Math.max(1,Number(nicheSize.value)|0||1),

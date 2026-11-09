@@ -97,7 +97,7 @@ async function start(job){
    ({known}=await assembleKnown(job.known.map(w=>({...w,hill:{...config,...(w.hill||{})}}))));
    if(r.state==='stopped'||run!==r)return;
   }
-  const setup={evaluator,judge,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model,notes:job.notes||[],before:job.before||0,known};
+  const setup={evaluator,judge,config:own,params:job.params,seeds,seed:job.seed,name:job.name||'Evolved',model,notes:job.notes||[],before:job.before||0,known,carry:job.carry||[]};
   r.evolution=soup?new SoupEvolution({...setup,duel:duels(pool,config),layout:job.seedLayout||null}):new Evolution(setup);
   const engine=plannedEngine(config,mode);
   post({type:'started',why:mode.why,exact:mode.exact,rounds:mode.rounds,engine:engine.engine,engineWhy:engine.why,workers:pool?size:1,nested:!!pool||size===1,

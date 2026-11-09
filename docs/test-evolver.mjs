@@ -147,6 +147,9 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
   const notes=runNotes({when:'w',seed:1,length:5,benchmark:{name:'b',opponents:20},params:{...s.params},scoring:{exact:false,rounds:8,judge:142}});
   assert(notes.includes('Scoring: screened, 8 random placements per opponent for selection, exact (all 142) for the best'),notes.join('\n'));
   assert.match(notes.at(-1),/new placements every generation/);
+  // Continuing with screened scores: the last run's best (carry) is scored exactly at the start.
+  const c=new Evolution({evaluator:screen,judge,config:nano,params:{population:24},seeds:s.snapshot(),carry:[s.best.genome],seed:'carry'});
+  await c.init();assert(c.best.score>=s.best.score,'the best carries on: '+c.best.score+' vs '+s.best.score);
  }
  // Keeping the seed's structure: every warrior has the seed's length and opcodes in order.
  {
@@ -196,6 +199,8 @@ for(const p of EVOLVER_PRESETS)for(const id of p.benchmarks){
   // A population continuing a soup starts from its best: the hall of fame first, then a warrior of each kind.
   const bf=a.bestFirst();assert.deepEqual(bf.slice(0,a.hall.length).map(genomeKey),a.hall.map(m=>m.key));
   assert.equal(new Set(bf.map(genomeKey)).size,bf.length);assert(bf.length>=a.kinds().length);
+  const carried=new SoupEvolution({evaluator,config:nano,params:{scheme:'soup',soupWidth:8,soupHeight:6,duelRounds:20},seeds:cells,seed:'c',duel,layout:{width:8,height:6},before:a.generation,carry:bf.slice(0,20)});
+  await carried.init();assert(carried.best.score>=a.best.score,'a continued soup starts at least at the last best');assert(carried.hall.some(m=>m.key===a.hall[0].key));
  }
  // Known warriors: copies (and with 'designs' the same designs) are not scored and never join.
  {

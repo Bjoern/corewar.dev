@@ -111,9 +111,11 @@ export class Evolution{
  // opcodes in order (structureOf), for tuning a warrior without the evolver rewriting its design;
  // new code is random code with those opcodes, crossover goes line by line, and a Markov chain is not used.
  // known: warriors ({name, genome}) that new warriors may not copy, with params.avoidKnown; the seeds
- // themselves are let through.
- constructor({evaluator,judge=null,config,params={},seeds=[],seed='1',name='Evolved',model=null,notes=[],before=0,known=[]}){
-  this.evaluator=evaluator;this.judge=judge;this.config=config;this.rules=genomeRules(config);this.name=name;this.model=model;this.notes=notes;this.before=before;
+ // themselves are let through. carry: the best warriors of the run this one continues, best first;
+ // they are scored in full at the start and count for this run's best, so it does not start lower
+ // than where the last run ended (with screened scoring, the leaders by a few rounds might miss them).
+ constructor({evaluator,judge=null,config,params={},seeds=[],seed='1',name='Evolved',model=null,notes=[],before=0,known=[],carry=[]}){
+  this.evaluator=evaluator;this.judge=judge;this.carry=carry.map(g=>normalize(g,genomeRules(config)));this.config=config;this.rules=genomeRules(config);this.name=name;this.model=model;this.notes=notes;this.before=before;
   const rules=this.rules;
   this.ops={
    random:r=>this.model?markovGenome(r.fn(),this.model,rules):randomGenome(r.fn(),rules),
@@ -170,6 +172,11 @@ export class Evolution{
  // The first population: the seeds, mutants of them, and new code (random or from the chain).
  async init(){
   while(this.engine.initializing)await this.run(this.engine.ask());
+  // Seeds are scored in full anyway unless scores are screened; then the judge scores the carried ones.
+  if(this.judge&&this.carry.length){
+   const results=await Promise.all(this.carry.map(g=>this.judge.evaluate(this.source(g))));
+   results.forEach((r,i)=>{const g=this.carry[i];if(r&&(!this.best||r.score>this.best.score))this.best={genome:g,key:genomeKey(g),score:r.score,se:0,result:r,generation:this.generation};});
+  }
   await this.record();return this.stats();
  }
  survivors(list,n){return this.engine.survivors(list,n);}

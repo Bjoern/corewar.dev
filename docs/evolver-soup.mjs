@@ -125,17 +125,20 @@ export class SoupEvolution extends Evolution{
   for(let k=Math.floor(before/this.harvestEvery);k<Math.floor(this.battles/this.harvestEvery);k++)await this.harvest(this.rand.below(this.cells.length));
  }
  // Score one cell's warrior against the benchmark; the hall of fame keeps the best HALL.
- async harvest(c){
-  const g=this.cells[c],key=genomeKey(g);
+ async harvest(c){return this.score(this.cells[c],this.sources[c]);}
+ // Score a warrior against the benchmark; the hall of fame keeps the best HALL.
+ async score(g,source=this.source(g)){
+  const key=genomeKey(g);
   if(this.scored.has(key)){this.harvested.push(this.scored.get(key));return;}
-  const r=await this.evaluator.evaluate(this.sources[c]);this.evaluations++;
+  const r=await this.evaluator.evaluate(source);this.evaluations++;
   if(!r)return;
   this.scored.set(key,r.score);this.harvested.push(r.score);
   if(this.scored.size>20000)this.scored.delete(this.scored.keys().next().value);
   const m={genome:{code:g.code.map(i=>i.slice()),start:g.start},key,score:r.score,se:r.se,result:r,generation:this.generation};
   this.hall.push(m);this.hall.sort((a,b)=>b.score-a.score||a.genome.code.length-b.genome.code.length);this.hall.length=Math.min(this.hall.length,HALL);
  }
- async init(){await this.harvest(this.rand.below(this.cells.length));this.record();return this.stats();}
+ // The last run's best (carry) go into the hall of fame first, so a continued run starts where it ended.
+ async init(){for(const g of this.carry)await this.score(g);await this.harvest(this.rand.below(this.cells.length));this.record();return this.stats();}
  async step(){const g=this.generation;while(this.generation===g)await this.round();this.record();return this.stats();}
  record(){
   const top=this.hall[0];
