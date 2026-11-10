@@ -294,11 +294,13 @@ async function pace(run) {
     if (run.abort) throw new Error('stopped');
     const now = await nextFrame(), speed = $('speed').value;
     if (run.paused) {
-      run.last = undefined; run.started += 1000 / 60;  // a pause does not count towards Normal's speed-up
+      // A pause does not count towards Normal's speed-up: the start moves on by the time this frame took.
+      // (Not by 1/60 s: on a 120 Hz screen that would push the start into the future and stall the run.)
+      run.started += now - (run.last ?? now); run.last = now;
       if (run.steps > 0) { const n = run.steps; run.steps = 0; run.stepped = true; return n; }
       continue;
     }
-    if (speed === 'fast' || speed === 'instant') { run.slice = performance.now(); return 100000; }
+    if (speed === 'fast' || speed === 'instant') { run.slice = run.last = performance.now(); return 100000; }
     const elapsed = (now - run.started) / 1000, dt = Math.min(0.1, (now - (run.last ?? now)) / 1000);
     run.last = now;
     const rate = speed === 'slow' ? 6 : Math.min(200000, 12 * Math.pow(1.9, elapsed));
@@ -318,8 +320,10 @@ async function play({paused = false} = {}) {
   let lastIndex = -1, tally = null;
   $('result').hidden = true; $('next').hidden = true;
   const frame = async (update, {index, setup, engine}) => {
-    if (current !== stage) throw new Error('stopped');  // another stage is open: drop this run, print nothing
-    debug.engine = engine; debug.update = update; debug.stage = stage;
+    // Another stage is open, or Reset battle or Stop came while the engine was advancing: drop this run and
+    // draw nothing, so the last instructions don't land on a core that was just cleared.
+    if (current !== stage || run.abort) throw new Error('stopped');
+    debug.engine = engine; debug.update = update; debug.stage = stage; debug.setup = setup;
     if (index !== lastIndex) {
       if (lastIndex >= 0) setupStates[lastIndex] = 'pass';
       lastIndex = index; setupStates[index] = 'busy'; renderSetups(setupStates, scores);
@@ -344,7 +348,7 @@ async function play({paused = false} = {}) {
     // Cycle and process counters, as in the Battle tab: each program's live processes in its own colour.
     const rounds = stage.settings.rounds ?? 1;
     const processes = update.warriors.map((w, i) => {
-      const who = i === 0 && !setup.warriors ? 'you' : w.name;
+      const who = nameOf(update, i);
       return `<span class="who" style="color:${battleColor(i)}">${escapeHtml(who)}</span> ${w.tasks.toLocaleString('en')} process${w.tasks === 1 ? '' : 'es'}`;
     }).join(', ');
     $('progress').innerHTML = [rounds > 1 ? `Round ${Math.min(Math.max(update.round, 1), rounds)} of ${rounds}` : '',
@@ -356,7 +360,12 @@ async function play({paused = false} = {}) {
       run.stepped = false;
       printRan(update, update.trace);
       if (!update.done) printNext(update);
-      if (update.done) printText(`Over at cycle ${update.cycle.toLocaleString('en')}: ${update.warriors[0].wins ? 'you won' : update.warriors[0].losses ? 'you lost' : 'a tie'}.\n`);
+      if (update.done) {
+        // A drill runs your program alone, so it can lose with nobody winning. A demo fight has no "you".
+        const me = update.warriors[0], winner = update.warriors.find(w => w.wins);
+        const outcome = !setup.warriors ? (me.wins ? 'you won' : me.losses ? 'you lost' : 'a tie') : winner ? `${winner.name} won` : 'a tie';
+        printText(`Over at cycle ${update.cycle.toLocaleString('en')}: ${outcome}.\n`);
+      }
     }
     return update.done ? 0 : pace(run);
   };
@@ -393,7 +402,9 @@ $('resetBattle').addEventListener('click', resetBattle);
 // ---- Debugger ----------------------------------------------------------------------------------
 // The panel works on the engine of the current or last run: Pause and Step drive the run, clicking a cell
 // lists the core from there, and other commands go to pMARS's own debugger, cdb.
-const debug = {engine: null, update: null, stage: null};
+const debug = {engine: null, update: null, stage: null, setup: null};
+// The player's program is "you"; in a setup with fixed warriors (a prologue's demo fight) each goes by its name.
+const nameOf = (update, i) => i === 0 && !debug.setup?.warriors ? 'you' : update.warriors[i].name;
 // Each stage has its own debugger log, kept while the page is open, so output never leaks between stages.
 const terminals = new Map(), TERM_INTRO = $('term').innerHTML;
 function switchTerminal(from, to) {
@@ -423,7 +434,7 @@ function printRan(update, entries) {
     printText(`${'cycle'.padStart(cycleWidth)}  addr  ${'instruction'.padEnd(20)}  ran by\n`, 'addr');
   }
   print(entries.map(entry => {
-    const who = entry.warrior === 0 ? 'you' : update.warriors[entry.warrior].name;
+    const who = nameOf(update, entry.warrior);
     const cycle = update.cycle.toLocaleString('en').padStart(cycleWidth);
     return `<span class="addr">${cycle}  ${String(entry.address).padStart(4, '0')}</span>  ${escapeHtml(compact(entry.instruction).padEnd(20))}  <span style="color:${battleColor(entry.warrior)}">${escapeHtml(who)}</span>\n`;
   }).join(''));
@@ -437,7 +448,7 @@ function printNext(update) {
   while (!update.warriors[w].tasks && w !== last) w = (w + 1) % n;
   const pc = update.warriors[w].pc;
   if (!update.warriors[w].tasks || pc < 0) return;
-  const who = w === 0 ? 'you' : update.warriors[w].name;
+  const who = nameOf(update, w);
   const cycleWidth = stage.settings.cycles.toLocaleString('en').length;
   print(`<span class="next-up"><span class="addr">${'next'.padStart(cycleWidth)}  ${String(pc).padStart(4, '0')}</span>  ${escapeHtml(compact(engine.inspect(pc)).padEnd(20))}  <span style="color:${battleColor(w)}">${escapeHtml(who)}</span>\n</span>`);
 }
@@ -469,7 +480,7 @@ function ownerOf(address) {
 function listAt(start, count = 10) {
   const {engine, update, stage} = debug;
   if (!engine) { printText('Run the stage first, then click the core.\n'); return; }
-  const size = stage.settings.coreSize, names = update.warriors.map((w, i) => i === 0 ? 'you' : w.name);
+  const size = stage.settings.coreSize, names = update.warriors.map((w, i) => nameOf(update, i));
   const lines = [];
   for (let i = 0; i < count; ++i) {
     const address = ((start + i) % size + size) % size, owner = ownerOf(address);
