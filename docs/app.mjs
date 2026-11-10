@@ -37,6 +37,9 @@ const consoles=[];let consoleSerial=0;
 let nativeBusy=false,nativeResume=false,nativeInput=null,nativeCancelled=false;
 // The log (the first tracker) interleaves executed instructions with cdb blocks: a command and its output, or a core listing. Both carry a sequence number.
 let logSeq=0,logFrom=0,logStick=false,cdbLog=[],cdbBlock=null,cdbStepping=false,liveTasks=[];
+// The engine reports one cycle count per slice; each executed instruction gets its own the way the engine counts:
+// a cycle ends when a warrior that already moved in it is about to move again.
+let traceClock={cycle:0,round:0,moved:new Set()};
 let maxSlice = 0, pendingReject = null, latest = null, history = [], combined = [];
 let lastText = 0, dirty = false, stepping = false, stepEpoch = 0;
 let collapsedEditors=[], scoreViewKey=null, openTabs=[], originals=[], welcomeDismissed=false, pausedByEditor=false;
@@ -576,12 +579,19 @@ function markBreakpointRow(row,address,active){
   row.title=(active?'Remove':'Set')+' breakpoint at '+addressText(address)+' (click pauses execution)';
   row.setAttribute('aria-label',row.title);
 }
-function instructionRow(address, instruction, owner = null, suffix = '', listing = false) {
+// Executed instructions start with their cycle, as in the Trials log; the instruction that runs next says "next" there.
+const cycleWidth=()=>(engine?.config.cycles ?? 80000).toLocaleString().length;
+function instructionRow(address, instruction, owner = null, suffix = '', listing = false, cycle = null) {
   const row=document.createElement('button');row.type='button';
   row.className='instruction-row'+(listing?' listing-line':'');row.dataset.address=String(address);
   markBreakpointRow(row,address,engine?.breakpoint(address) || false);
   if(owner!==null)row.style.color=battleColor(owner);
   row.textContent=addressText(address)+'  '+instruction+suffix+'\n';
+  if(cycle!==null){
+    const label=document.createElement('span');label.className='cycle';
+    label.textContent=(typeof cycle==='number'?cycle.toLocaleString():cycle).padStart(cycleWidth())+'  ';
+    row.prepend(label);
+  }
   row.onclick=()=>{
     if(nativeBusy || !engine?.started)return;
     const host=row.closest('.console-output');
@@ -596,7 +606,35 @@ function instructionRow(address, instruction, owner = null, suffix = '', listing
   return row;
 }
 function traceRow(entry) {
-  return instructionRow(entry.address,entry.instruction,entry.warrior,'  · '+latest.warriors[entry.warrior].name);
+  return instructionRow(entry.address,entry.instruction,entry.warrior,'  · '+latest.warriors[entry.warrior].name,false,entry.cycle ?? null);
+}
+// While the battle is paused, the instruction that runs next. Warriors take turns, so in a log of all warriors that is the
+// next warrior after the last one that moved that still has processes. Before anything moved in a round, it is the warrior
+// that starts the round: the first one in round 1, the next one each round after (unless -P picks it).
+function nextUp(panel){
+  if(!latest || !engine?.started || state!=='paused' || nativeBusy)return null;
+  const warriors=latest.warriors,n=warriors.length,live=warriors.filter(w=>w.tasks).length;
+  // A round that just ended has no next instruction: the next round loads the warriors afresh.
+  if(live<=(n>1?1:0) || latest.cycle>=engine.config.cycles && traceClock.moved.size>=live)return null;
+  if(panel.select.value!=='all'){
+    const i=Number(panel.select.value.split(':')[1]);
+    return warriors[i]?.tasks?{warrior:i,address:warriors[i].pc}:null;
+  }
+  const last=combined.at(-1);
+  let w;
+  if(last && last.round===latest.round){
+    w=(last.warrior+1)%n;
+    while(!warriors[w].tasks && w!==last.warrior)w=(w+1)%n;
+  }else if(!engine.config.permutate && latest.cycle===0)w=(latest.round-1)%n;
+  else return null;
+  return warriors[w]?.tasks?{warrior:w,address:warriors[w].pc}:null;
+}
+function nextRow(panel){
+  const next=nextUp(panel);
+  if(!next)return null;
+  const row=instructionRow(next.address,engine.inspect(next.address),next.warrior,panel.select.value==='all'?'  · '+latest.warriors[next.warrior].name:'',false,'next');
+  row.classList.add('next-up');row.title='Runs next · '+row.title;
+  return row;
 }
 // Clicking the core lists it from there into the log, as it is at that moment.
 function inspect() {
@@ -629,7 +667,16 @@ function addConsole(kind='all',{log=false}={}) {
   panel.select.setAttribute('aria-label',(log?'Log':'Tracker '+id)+' warrior');
   const pauseButton=document.createElement('button');pauseButton.type='button';pauseButton.textContent='Ⅱ';pauseButton.title=log?'Pause the executed instructions (cdb output still appears)':'Pause tracker';pauseButton.setAttribute('aria-label','Pause '+(log?'log':'tracker '+id));pauseButton.setAttribute('aria-pressed','false');
   pauseButton.onclick=()=>{panel.paused=!panel.paused;panel.frozen=panel.paused?traceEntries(panel).slice():null;pauseButton.setAttribute('aria-pressed',String(panel.paused));syncTrace();renderTrace();};
-  header.append(panel.select,pauseButton);
+  // Clear empties the panel; it goes on with what runs from now on.
+  const clearButton=document.createElement('button');clearButton.type='button';clearButton.textContent='Clear';
+  clearButton.title=log?'Clear the log; new instructions and cdb output still appear':'Clear the tracker; new instructions still appear';
+  clearButton.setAttribute('aria-label','Clear '+(log?'log':'tracker '+id));
+  clearButton.onclick=()=>{
+    if(log)clearLog();else panel.from=logSeq;
+    if(panel.frozen)panel.frozen=[];
+    logStick=true;renderTrace();
+  };
+  header.append(panel.select,pauseButton,clearButton);
   if(log){
     const title=document.createElement('span');title.className='log-title';title.textContent='Log · cdb';header.prepend(title);
     panel.output.id='instruction';panel.output.setAttribute('aria-label','Executed instructions and cdb output');
@@ -652,8 +699,11 @@ function nextTrackerKind(){
  for(let i=0;i<count;i++)if(!tracked.has('warrior:'+i))return 'warrior:'+i;
  return 'all';
 }
-const traceEntries=panel=>panel.select.value==='all'?combined:(history[Number(panel.select.value.split(':')[1])]||[]);
-const traceNode=(panel,e)=>panel.select.value==='all'?traceRow(e):instructionRow(e.address,e.instruction,e.warrior);
+const traceEntries=panel=>{
+ const entries=panel.select.value==='all'?combined:(history[Number(panel.select.value.split(':')[1])]||[]);
+ return panel.from?entries.filter(e=>e.seq>panel.from):entries;
+};
+const traceNode=(panel,e)=>panel.select.value==='all'?traceRow(e):instructionRow(e.address,e.instruction,e.warrior,'',false,e.cycle ?? null);
 // Trackers also update while a cdb command runs, so long steps or a continue show what was executed.
 function renderTrace() {
   const frozen=fastMode || $('pauseViews').checked;
@@ -661,7 +711,8 @@ function renderTrace() {
     if(panel.log){renderLog(panel);continue;}
     if(panel.paused || frozen)continue;
     if(!latest){panel.output.textContent='Load a battle to watch executed instructions.';continue;}
-    panel.output.replaceChildren(...traceEntries(panel).map(e=>traceNode(panel,e)));
+    const next=nextRow(panel);
+    panel.output.replaceChildren(...traceEntries(panel).map(e=>traceNode(panel,e)),...(next?[next]:[]));
     panel.output.scrollTop=panel.output.scrollHeight;
   }
 }
@@ -716,6 +767,8 @@ function renderLog(panel=consoles.find(p=>p.log)) {
   const newest=items.at(-1)?.kind==='cdb'?items.at(-1):null; // Once something ran after it, a cdb line is no longer next.
   if(!items.length)host.textContent=(latest?'Run or step to see executed\ninstructions here.':'Load a battle to see executed\ninstructions here.')+'\ncdb commands go in the line below.';
   else host.replaceChildren(...items.flatMap(item=>item.kind==='cdb'?blockNodes(item,item===newest):[traceNode(panel,item)]));
+  const next=!newest && !panel.frozen && !$('pauseViews').checked?nextRow(panel):null;
+  if(next){if(!items.length)host.replaceChildren();host.append(next);}
   if(stick){host.scrollTop=host.scrollHeight;logStick=false;}
 }
 function textViews() {
@@ -727,6 +780,17 @@ function present(update) {
   latest = update; display.apply(update.events,!fastMode);
   $('activeSettings').textContent = 'Loaded cycle limit: ' + engine.config.cycles.toLocaleString() +
     ' per warrior per round · ' + engine.config.warriors + ' warriors';
+  if(update.round!==traceClock.round || update.cycle<traceClock.cycle)traceClock={cycle:0,round:update.round,moved:new Set()};
+  for (const entry of update.trace) {
+    if(!traceClock.moved.size || traceClock.moved.has(entry.warrior)){traceClock.cycle++;traceClock.moved.clear();}
+    traceClock.moved.add(entry.warrior);entry.cycle=traceClock.cycle;entry.round=update.round;
+  }
+  // Trace and count can only part if instructions ran without a trace (Fast); then the count wins.
+  if(traceClock.cycle!==update.cycle){
+    const offset=update.cycle-traceClock.cycle;
+    for(const entry of update.trace)entry.cycle=Math.max(1,entry.cycle+offset);
+    traceClock.cycle=update.cycle;
+  }
   for (const entry of update.trace) {
     if($('pauseViews').checked)continue;
     entry.seq=++logSeq;entry.cdb=cdbStepping;
@@ -772,7 +836,7 @@ async function load() {
   traceControls(banks.map(b=>b.name));engine.setDebug($('debugEnabled').checked);
   const initial=engine.start();present(initial);legend();
   if(initial.done){state='done';status('Assembly complete. No battles run.');controls();return false;}
-  state = 'paused'; controls();
+  state = 'paused'; controls(); renderTrace();
   status('Paused before instruction 1. Step or Run battle.');
   return true;
 }
@@ -968,6 +1032,8 @@ $('core').onpointermove=event=>{
 };
 $('core').onpointerleave=clearHover;
 document.querySelector('.arena-viewport').addEventListener('scroll',clearHover);
+// Clear empties the arena: the battle goes on, and only what is written from now on is painted.
+$('clearCore').onclick = () => display.clear();
 $('core').onclick = event => { const address=display.addressAt(event);if(address===null)return;pause();showAddress(address); };
 $('core').oncontextmenu = event => { event.preventDefault();const address=display.addressAt(event);if(address===null)return;pause();showAddress(address-lineCount()+1); };
 $('commandForm').onsubmit = event => {
@@ -1070,7 +1136,7 @@ $('theme').onchange=()=>{
  display.redraw();legend();textViews();processChart.draw();scoreChart.draw();renderCenterTabs();scoreViewKey=null;if(latest)scores(latest);
 };
 $('pauseProcesses').onchange=()=>{if(latest)processIndicators(latest);};
-$('pauseViews').onchange=()=>{syncTrace();if(latest)processIndicators(latest);};
+$('pauseViews').onchange=()=>{syncTrace();renderTrace();if(latest)processIndicators(latest);};
 $('clearConsole').onclick=event=>{event.preventDefault();event.stopPropagation();consoleText='';$('consoleOutput').textContent='';compileIssues=[];refreshDiagnostics();};
 $('consoleWindow').ontoggle=()=>{if($('consoleWindow').open)$('consoleOutput').textContent=consoleText;};
 $('consoleWindow').querySelector('summary').addEventListener('click',event=>{if(!event.target.closest('button'))event.preventDefault();});

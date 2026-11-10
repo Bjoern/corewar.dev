@@ -717,3 +717,7 @@ button.small{padding:3px 8px;font-size:12px}
 .sidebar .editors.reordering{position:relative}.sidebar .editors.reordering>div{position:relative}
 .sidebar .editors.reordering>.dragging{z-index:1}
 .sidebar .editors>.dragging .editor-title{background:var(--raised);box-shadow:0 4px 14px rgba(0,0,0,.35)}
+/* The cycle each traced instruction ran in, as in the Trials log; "next" marks the instruction that runs next. */
+.instruction-row .cycle{color:#8cabbf}
+.instruction-row.next-up{background:#ffffff0d}
+.instruction-row.next-up .cycle{color:#e4edf3;font-weight:600}

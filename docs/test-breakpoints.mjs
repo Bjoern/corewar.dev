@@ -19,8 +19,9 @@ try{
  await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Paused before'));
  await page.locator('#step').click();await page.locator('#step').click();await page.waitForFunction(()=>document.querySelector('#timing').dataset.instructions==='2');
  
- assert.equal(await page.locator('.tracker').first().locator('.instruction-row').count(),2);
- const colors=await page.locator('.tracker').first().locator('.instruction-row').evaluateAll(es=>es.map(e=>e.style.color));assert.notEqual(colors[0],colors[1]);
+ assert.equal(await page.locator('.tracker').first().locator('.instruction-row:not(.next-up)').count(),2);
+ assert.equal(await page.locator('.tracker').first().locator('.next-up').count(),1,'The log ends with the instruction that runs next');
+ const colors=await page.locator('.tracker').first().locator('.instruction-row:not(.next-up)').evaluateAll(es=>es.map(e=>e.style.color));assert.notEqual(colors[0],colors[1]);
  assert(!(await page.locator('#trackers').textContent()).includes('#1'));
  const address=await page.locator('.tracker').first().locator('.instruction-row').first().getAttribute('data-address');
  await page.locator('.tracker').first().locator('.instruction-row').first().click();assert(await page.locator('#debugEnabled').isChecked());

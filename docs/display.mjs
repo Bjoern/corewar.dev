@@ -50,6 +50,11 @@ export class CoreDisplay {
     this.cells = new Uint8Array(size*4);
     this.redraw();
   }
+  // Forgets who wrote each cell, so only later writes are painted. The program counters stay marked.
+  clear() {
+    this.cells.fill(0);
+    this.redraw();
+  }
   setCellSize(size) {
     if (![0,4,6,8,12,16,24].includes(size)) return;
     this.preferredCellSize = size;

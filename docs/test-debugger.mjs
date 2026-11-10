@@ -22,7 +22,7 @@ try {
   assert.equal(await count(),0);
   assert.equal(await page.locator('#instruction .listing-line').count(),0);
   assert.equal(await page.locator('.tracker').count(),1);
-  assert.equal(await page.locator('.tracker .instruction-row').count(),0);
+  assert.equal(await page.locator('.tracker .instruction-row:not(.next-up)').count(),0);
   await page.locator('#step').click(); await ready('Paused after');
   assert.equal(await count(),1);
   // Resizing an active arena preserves execution and cell inspection after scrolling.
@@ -51,7 +51,7 @@ try {
   assert(await count()>1);
   await page.locator('#reset').click(); await ready('Paused before');
   assert.equal(await count(),0);
-  assert.equal(await page.locator('.tracker .instruction-row').count(),0);
+  assert.equal(await page.locator('.tracker .instruction-row:not(.next-up)').count(),0);
 
   await command('list 7998,1');
   assert.deepEqual(await page.locator('#instruction .listing-line').allTextContents().then(a=>a.map(s=>s.slice(0,4))),
@@ -67,7 +67,7 @@ try {
   await command('alive'); await command('tproc');
   assert((await page.locator('#instruction').textContent()).includes('2'));
   await page.locator('.tracker select').first().selectOption('all');
-  assert.equal(await page.locator('.tracker').first().locator('.instruction-row:not(.listing-line)').count(),2,'The log shows the two executed instructions besides the listings');
+  assert.equal(await page.locator('.tracker').first().locator('.instruction-row:not(.listing-line):not(.next-up)').count(),2,'The log shows the two executed instructions besides the listings');
   // Clicking a cell lists the core from that cell, filling the listing's height.
   await page.locator('#core').click({position:{x:40,y:30}});
   const clicked=(await page.locator('#hoverAddress').textContent()).replace('Cell: ','');
@@ -99,7 +99,7 @@ try {
   assert.equal(await count(),3);
   const rows = await page.locator('.tracker pre.console-output').allTextContents();
   assert(rows[0].startsWith('> step~!3'),'The log echoes the command');
-  assert(rows.slice(1).every(s=>/^\d{4}\s/.test(s)));
+  assert(rows.slice(1).every(s=>/^ *\d+  \d{4}\s/.test(s)),'Tracker rows start with the cycle and the address');
   const colors = await page.locator('.tracker .instruction-row').evaluateAll(nodes=>nodes.map(n=>n.style.color));
   assert.equal(new Set(colors).size,3);
   await page.screenshot({path:'docs/test-output/debugger-desktop.png',fullPage:true});
