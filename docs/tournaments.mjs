@@ -174,6 +174,8 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   $('tournamentExport').disabled=!run;$('tournamentExportKoen').disabled=!scoreMatrix();
   $('tournamentSetup').disabled=!!busy;$('parallelSetup').disabled=!!busy;
  }
+ // An entrant keeps the colour its warrior has in the Battle list when the tournament was planned.
+ const entrantColor=i=>warriorColor(run.plan.entrants[i]?.colorIndex??i);
  function resultRows(){
   if(!run)return [];
   const totals=run.plan.entrants.filter(w=>!run.excluded.some(e=>e.source===w.source)).map(w=>({...w,wins:0,ties:0,losses:0,score:0,rounds:0}));
@@ -226,7 +228,7 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   $('pushoffStandings').replaceChildren(...[...result.candidates].sort((a,b)=>a.place-b.place).map(c=>{
    const tr=document.createElement('tr'),values=c.step.size>1?c.step.values:[];
    for(const value of [c.name,`${c.place} of ${c.size}`,...columns.map((_,i)=>values[i]===undefined?'—':values[i].toFixed(3)),...(diverse?[c.step.nearest===undefined?'—':c.names[c.step.nearest]]:[])]){const td=document.createElement('td');td.textContent=value;tr.append(td);}
-   tr.firstChild.style.color=warriorColor(run.plan.entrants.findIndex(w=>w.id===c.id));return tr;
+   tr.firstChild.style.color=entrantColor(run.plan.entrants.findIndex(w=>w.id===c.id));return tr;
   }));
   $('pushoffLog').textContent=result.candidates.map(c=>`${c.name} (place ${c.place} of ${c.size})\n`+logLines(c.steps,c.names,diverse)).join('\n\n');
  }
@@ -241,7 +243,7 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   $('pushoffStandings').replaceChildren(...steps.map((step,place)=>{
    const tr=document.createElement('tr');
    for(const [value,cls] of [[place+1,'place'],[names[step.removed]],...columns.map((_,i)=>[step.values[i]===undefined?'—':step.values[i].toFixed(3)]),...(diverse?[[step.nearest===undefined?'—':names[step.nearest]]]:[]),[step.size>1?`at ${step.size}`:'—']]){const td=document.createElement('td');td.textContent=value;if(cls)td.className=cls;tr.append(td);}
-   tr.children[1].style.color=warriorColor(step.removed);return tr;
+   tr.children[1].style.color=entrantColor(step.removed);return tr;
   }));
   $('pushoffLog').textContent=logLines(result.steps,names,diverse);
  }
@@ -296,7 +298,7 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
  const redrawResults=()=>renderResultTables(resultRows());
  function renderResultTables(rows){
   pairs=run?pairTotals({plan:run.plan,results:run.results,suite:run.suite,excluded:run.excluded}):null;
-  const colored=rows.map((r,i)=>({...r,color:warriorColor(i),rowClass:r.id===picked?'picked':''}));
+  const colored=rows.map((r,i)=>({...r,color:warriorColor(r.colorIndex??i),rowClass:r.id===picked?'picked':''}));
   const nameColumn={key:'name',label:'Warrior',firstDir:'asc',value:r=>r.name,cell:r=>{
    const node=document.createElement(pairs?'button':'span');node.textContent=r.name;node.style.color=r.color;
    if(pairs){node.type='button';node.className='link-button';node.title=`${r.name}: results against each opponent`;node.onclick=()=>pick(r.id);}

@@ -709,3 +709,11 @@ button.small{padding:3px 8px;font-size:12px}
 .score-matrix tbody th,.score-matrix tfoot th{position:sticky;left:0;z-index:1;background:var(--bg);text-align:right;padding:2px 8px;white-space:nowrap;max-width:16em;overflow:hidden;text-overflow:ellipsis;font-weight:600}
 .score-matrix th.m-col{vertical-align:bottom;padding:4px 0;font-weight:600}.score-matrix th.m-col span{writing-mode:vertical-rl;transform:rotate(180deg);display:inline-block;max-height:12em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .score-matrix .m-avg{color:var(--muted);font-weight:600}
+/* Reordering the warrior list: a grip on each row (the only drag handle on touch screens), and the dragged row lifted above the others */
+.sidebar .drag-warrior{flex:0 0 auto;display:flex;align-items:center;padding:2px 1px;margin-right:-2px;color:var(--muted);opacity:.45;cursor:grab;touch-action:none}
+.sidebar .editor-title:hover .drag-warrior,.sidebar .editors>.dragging .drag-warrior{opacity:1}
+.sidebar .editors.reordering{user-select:none;-webkit-user-select:none;cursor:grabbing}
+.sidebar .editors.reordering .editor-title{cursor:grabbing}
+.sidebar .editors.reordering{position:relative}.sidebar .editors.reordering>div{position:relative}
+.sidebar .editors.reordering>.dragging{z-index:1}
+.sidebar .editors>.dragging .editor-title{background:var(--raised);box-shadow:0 4px 14px rgba(0,0,0,.35)}

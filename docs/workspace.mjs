@@ -16,7 +16,8 @@ export function parseWorkspace(data) {
  const warriors=data.warriors.map((w,i)=>{
   if(!w || typeof w!=='object')fail('warrior '+(i+1)+' is not an object');
   return {source:text(w.source,MAX_SOURCE,'warrior source'),original:w.original==null?null:text(w.original,MAX_SOURCE,'original source'),
-   file:w.file==null?null:text(w.file,255,'file name'),excluded:w.excluded===true};
+   file:w.file==null?null:text(w.file,255,'file name'),excluded:w.excluded===true,
+   color:Number.isInteger(w.color) && w.color>=0 && w.color<MAX_WARRIORS?w.color:null};
  });
  const index=value=>Number.isInteger(value) && value>=0 && value<warriors.length;
  const openTabs=Array.isArray(data.openTabs)?[...new Set(data.openTabs.filter(index))]:[];

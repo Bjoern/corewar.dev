@@ -46,6 +46,15 @@ let tournaments=null,library=null,tools=null;
 let persistTimer=null, persistReady=false, persistWarned=false;
 let sources = [], sourceFiles = [];
 let excludedWarriors = [];
+// Each warrior keeps its palette colour while the list is reordered or others are removed; a new warrior takes the lowest colour number not in use.
+let warriorColors = [];
+function fillColors(){
+ warriorColors.length=sources.length;
+ const used=new Set();
+ warriorColors=warriorColors.map(c=>Number.isInteger(c) && !used.has(c)?(used.add(c),c):undefined);
+ for(let i=0;i<sources.length;i++)if(warriorColors[i]===undefined){let c=0;while(used.has(c))c++;used.add(c);warriorColors[i]=c;}
+}
+const rosterColor=i=>{if(warriorColors.length!==sources.length)fillColors();return warriorColor(warriorColors[i]??i);};
 const selectedIndices = () => sources.map((_,i)=>i).filter(i=>!excludedWarriors[i]);
 function rosterCount() {
  const selected=selectedIndices().length;
@@ -170,7 +179,7 @@ function legend() {
   const names = loaded ? latest.warriors.map(w => w.name) : selected.map(i=>draftName(sources[i],i));
   $('legendNames').replaceChildren(...names.map((name,i) => {
     const span = document.createElement('span');
-    span.style.color = loaded ? battleColor(i) : warriorColor(selected[i]);
+    span.style.color = loaded ? battleColor(i) : rosterColor(selected[i]);
     const swatch=document.createElement('span');swatch.className='warrior-swatch';
     const eliminated=document.createElement('span');eliminated.className='eliminated-marker';eliminated.dataset.eliminated=i;
     swatch.append(eliminated);span.append(swatch,` ${name} `);
@@ -182,9 +191,10 @@ function legend() {
 function editors() {
  sourceEditors.forEach(e=>e.destroy());sourceEditors=[];
  $('editorViews').replaceChildren();
+ fillColors();
   $('editors').replaceChildren(...sources.map((source, i) => {
     const box = document.createElement('div'), top = document.createElement('div');
-    top.className = 'editor-title'; top.style.color = warriorColor(i);
+    top.className = 'editor-title'; top.style.color = rosterColor(i);
     const swatch=document.createElement('span');swatch.className='warrior-swatch';swatch.setAttribute('aria-hidden','true');
     const label = document.createElement('button');
     label.htmlFor = i === 0 ? 'first' : i === 1 ? 'second' : `warrior-${i}`;
@@ -212,7 +222,16 @@ function editors() {
       if(selectedIndices().length)await load();
       else {clearBattle();status('Select at least one warrior for the next run.');}
     });
-    top.append(include,swatch,nameGroup,compile,save,remove);
+    const grip=document.createElement('span');grip.className='drag-warrior';grip.title='Drag to reorder';grip.setAttribute('aria-hidden','true');
+    grip.innerHTML='<svg viewBox="0 0 8 14" width="8" height="14" fill="currentColor"><circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="6" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="6" cy="12" r="1.2"/></svg>';
+    label.title='Open in the editor. Drag to reorder, or press Alt+↑/↓';
+    label.onkeydown=e=>{
+     if(!e.altKey || (e.key!=='ArrowUp' && e.key!=='ArrowDown'))return;
+     e.preventDefault();const to=i+(e.key==='ArrowUp'?-1:1);
+     if(moveWarrior(i,to))document.querySelectorAll('#editors .warrior')[to]?.focus();
+    };
+    top.addEventListener('pointerdown',e=>dragWarrior(e,i,box));
+    top.append(grip,include,swatch,nameGroup,compile,save,remove);
     const area=document.createElement('div');area.className='source-editor';
     const editor=createEditor(area,{theme:$('editorTheme').value,syntax:$('editorSyntax').value,value:source,id:label.htmlFor,label:`Warrior ${i+1} source`,onChange:value=>{
       sources[i]=value;
@@ -245,9 +264,85 @@ $('editors').addEventListener('scroll',listScrollHints,{passive:true});
 new ResizeObserver(listScrollHints).observe($('editors'));
 function removeWarrior(i){
  if(nativeBusy)return;
- sources.splice(i,1);sourceFiles.splice(i,1);excludedWarriors.splice(i,1);collapsedEditors.splice(i,1);originals.splice(i,1);openTabs=openTabs.filter(x=>x!==i).map(x=>x>i?x-1:x);
- loadedSlots=loadedSlots.map(x=>x>i?x-1:x);setBattleSlots(loadedSlots);
+ sources.splice(i,1);sourceFiles.splice(i,1);excludedWarriors.splice(i,1);collapsedEditors.splice(i,1);originals.splice(i,1);warriorColors.splice(i,1);openTabs=openTabs.filter(x=>x!==i).map(x=>x>i?x-1:x);
+ loadedSlots=loadedSlots.map(x=>x>i?x-1:x);
  markDirty(); if(!sources.length)clearBattle(); editors();
+}
+// Move warrior `from` to position `to`. Everything kept per warrior moves with it, its colour too.
+function moveWarrior(from,to){
+ if(nativeBusy || from===to || to<0 || to>=sources.length)return false;
+ const order=sources.map((_,i)=>i);order.splice(to,0,...order.splice(from,1));
+ const where=[];order.forEach((old,i)=>where[old]=i);
+ const pick=list=>order.map(old=>list[old]);
+ sources=pick(sources);sourceFiles=pick(sourceFiles);excludedWarriors=pick(excludedWarriors);collapsedEditors=pick(collapsedEditors);originals=pick(originals);warriorColors=pick(warriorColors);
+ openTabs=openTabs.map(x=>where[x]);
+ loadedSlots=loadedSlots.map(x=>where[x]);
+ markDirty();editors();
+ return true;
+}
+// Drag a row of the warrior list to reorder it: anywhere on the row with a mouse, by its grip on touch screens (elsewhere a touch scrolls the list).
+// The row moves in the list while it is dragged, so the same code serves the one-column list and the wrapped rows of narrow windows.
+function dragWarrior(e,from,row){
+ if(e.button!==0 || nativeBusy || sources.length<2)return;
+ if(e.pointerType==='touch' && !e.target.closest('.drag-warrior'))return;
+ const list=$('editors'),startX=e.clientX,startY=e.clientY;
+ let dragging=false,pointerX=startX,pointerY=startY,frame=0,left0=0,top0=0,scrollLeft0=0,scrollTop0=0;
+ const follow=()=>{row.style.transform=`translate(${pointerX-startX+left0-row.offsetLeft+list.scrollLeft-scrollLeft0}px,${pointerY-startY+top0-row.offsetTop+list.scrollTop-scrollTop0}px)`;};
+ // Put the row before or after the nearest other row, by which half of it the pointer is over.
+ const place=()=>{
+  const across=getComputedStyle(list).flexDirection==='row';
+  let near=null,best=Infinity;
+  for(const other of list.children){
+   if(other===row)continue;
+   const r=other.getBoundingClientRect(),dx=Math.max(r.left-pointerX,0,pointerX-r.right),dy=Math.max(r.top-pointerY,0,pointerY-r.bottom);
+   if(dx*dx+dy*dy<best){best=dx*dx+dy*dy;near={other,r};}
+  }
+  if(near){
+   const {other,r}=near,after=across && pointerY>=r.top && pointerY<=r.bottom?pointerX>r.left+r.width/2:pointerY>r.top+r.height/2;
+   const before=after?other.nextElementSibling:other;
+   if(before!==row && row.nextElementSibling!==before)list.insertBefore(row,before);
+  }
+  follow();
+ };
+ // Scroll the list while the pointer is held near the edge it scrolls along.
+ const scroll=()=>{
+  const box=list.getBoundingClientRect(),sideways=list.scrollWidth>list.clientWidth+1 && list.scrollHeight<=list.clientHeight+1;
+  const [p,lo,hi]=sideways?[pointerX,box.left,box.right]:[pointerY,box.top,box.bottom],edge=Math.min(40,(hi-lo)/4);
+  const over=p<lo+edge?p-(lo+edge):p>hi-edge?p-(hi-edge):0;
+  if(over){
+   const step=Math.sign(over)*Math.min(12,Math.ceil(Math.abs(over)/3)),key=sideways?'scrollLeft':'scrollTop',before=list[key];
+   list[key]+=step;if(list[key]!==before)place();
+  }
+  frame=requestAnimationFrame(scroll);
+ };
+ const finish=commit=>{
+  window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',key,true);
+  if(!dragging)return;
+  cancelAnimationFrame(frame);
+  list.classList.remove('reordering');row.classList.remove('dragging');row.style.transform='';
+  // The release would otherwise click the button under the pointer.
+  const swallow=ev=>{ev.stopPropagation();ev.preventDefault();};
+  window.addEventListener('click',swallow,true);setTimeout(()=>window.removeEventListener('click',swallow,true),0);
+  if(!row.isConnected)return;
+  const to=[...list.children].indexOf(row);
+  if(commit && moveWarrior(from,to))return;
+  list.insertBefore(row,[...list.children].filter(other=>other!==row)[from]??null);
+ };
+ const move=ev=>{
+  if(ev.pointerId!==e.pointerId)return;
+  pointerX=ev.clientX;pointerY=ev.clientY;
+  if(!dragging){
+   if(Math.hypot(pointerX-startX,pointerY-startY)<5)return;
+   dragging=true;try{row.setPointerCapture(e.pointerId);}catch{}list.classList.add('reordering');row.classList.add('dragging');
+   left0=row.offsetLeft;top0=row.offsetTop;scrollLeft0=list.scrollLeft;scrollTop0=list.scrollTop;
+   frame=requestAnimationFrame(scroll);
+  }
+  place();
+ };
+ const up=ev=>{if(ev.pointerId===e.pointerId)finish(true);},cancel=ev=>{if(ev.pointerId===e.pointerId)finish(false);};
+ const key=ev=>{if(ev.key==='Escape' && dragging){ev.preventDefault();ev.stopPropagation();finish(false);}};
+ window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',cancel);window.addEventListener('keydown',key,true);
+ if(e.pointerType==='touch')e.preventDefault();
 }
 function activeEditor(){return collapsedEditors.findIndex(value=>value===false);}
 let shownEditor=-1;
@@ -306,7 +401,7 @@ function renderCenterTabs(){
  core.onclick=()=>showCore();tabs.push(core);
  for(const i of openTabs){
   if(i>=sources.length)continue;
-  const tab=document.createElement('span');tab.className='tab warrior-tab';tab.style.color=warriorColor(i);tab.dataset.tab=String(i);tab.setAttribute('role','presentation');
+  const tab=document.createElement('span');tab.className='tab warrior-tab';tab.style.color=rosterColor(i);tab.dataset.tab=String(i);tab.setAttribute('role','presentation');
   const open=document.createElement('button');open.type='button';open.setAttribute('role','tab');open.setAttribute('aria-selected',String(i===active));
   const swatch=document.createElement('span');swatch.className='warrior-swatch';
   const name=document.createElement('span');name.className='tab-name';name.textContent=(warriorFile(i));
@@ -671,7 +766,7 @@ async function load() {
   next.import(banks);
   // Reserve the widest counter for this match so digit changes cannot reflow the toolbar.
   $('timing').style.width = (('Cycle '+config.cycles.toLocaleString()+' / '+config.cycles.toLocaleString()+' · round '+next.config.rounds.toLocaleString()).length)+'ch';
-  loadedSlots = slots; setBattleSlots(slots);
+  loadedSlots = slots; fillColors(); setBattleSlots(slots.map(i=>warriorColors[i]));
   engine = next; total = 0; maxSlice = 0; credit = 0; history = []; combined = [];
   display.configure(config.coreSize);clearHover(); inspectionAddress=0;
   traceControls(banks.map(b=>b.name));engine.setDebug($('debugEnabled').checked);
@@ -937,7 +1032,7 @@ $('welcomeNew').onclick=()=>$('newWarrior').click();
 $('welcomeUpload').onclick=()=>$('warriorFiles').click();
 async function startDemo(selected){
  if(sources.length && !(await askUser('Replace the '+sources.length+' loaded warrior'+(sources.length===1?'':'s')+' with this example?','Replace')))return;
- sources=[...selected];originals=[...selected];sourceFiles=selected.map(source=>bundledWarriors.find(w=>w.source===source)?.file||null);excludedWarriors=[];collapsedEditors=[];openTabs=[];welcomeDismissed=true;
+ sources=[...selected];originals=[...selected];sourceFiles=selected.map(source=>bundledWarriors.find(w=>w.source===source)?.file||null);excludedWarriors=[];warriorColors=[];collapsedEditors=[];openTabs=[];welcomeDismissed=true;
  $('preset').value='94';$('preset').onchange();
  $('rounds').value='1';$('debugEnabled').checked=false;
  $('speed').value='3';$('speed').oninput();
@@ -971,7 +1066,7 @@ window.addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();dra
 for(const card of document.querySelectorAll('.demo-card'))card.onclick=()=>$(card.dataset.demo).click();
 $('theme').onchange=()=>{
  setTheme($('theme').value);
- document.querySelectorAll('#editors .editor-title').forEach((row,i)=>{row.style.color=warriorColor(i);});
+ document.querySelectorAll('#editors .editor-title').forEach((row,i)=>{row.style.color=rosterColor(i);});
  display.redraw();legend();textViews();processChart.draw();scoreChart.draw();renderCenterTabs();scoreViewKey=null;if(latest)scores(latest);
 };
 $('pauseProcesses').onchange=()=>{if(latest)processIndicators(latest);};
@@ -992,7 +1087,7 @@ $('editorTheme').onchange=$('editorSyntax').onchange=()=>{
 // Workspace autosave: warriors, roster choices and settings survive a reload; battles and results do not.
 function workspaceSnapshot(){
  return {format:WORKSPACE_FORMAT,version:WORKSPACE_VERSION,saved:new Date().toISOString(),
-  warriors:sources.map((source,i)=>({source,original:originals[i]===undefined || originals[i]===source?null:originals[i],file:sourceFiles[i]??null,excluded:!!excludedWarriors[i]})),
+  warriors:sources.map((source,i)=>({source,original:originals[i]===undefined || originals[i]===source?null:originals[i],file:sourceFiles[i]??null,excluded:!!excludedWarriors[i],color:warriorColors[i]??null})),
   openTabs:openTabs.filter(i=>i<sources.length),active:activeEditor(),mode,welcomeDismissed,
   settings:settingsSnapshot(),battle:{speed:$('speed').value,debugEnabled:$('debugEnabled').checked},
   tournament:{mode:$('tournamentMode').value,rounds:$('tournamentRounds').value,seed:$('tournamentSeed').value,selfFights:$('selfFights').checked,suite:$('benchmarkSuite').value},
@@ -1011,7 +1106,7 @@ function schedulePersist(){if(!persistReady)return;clearTimeout(persistTimer);pe
 // Startup and import share this; tournament fields and the mode tab follow once tournaments are set up.
 function applyWorkspace(w){
  sources=w.warriors.map(x=>x.source);originals=w.warriors.map(x=>x.original??x.source);sourceFiles=w.warriors.map(x=>x.file);
- excludedWarriors=w.warriors.map(x=>x.excluded);openTabs=[...w.openTabs];collapsedEditors=sources.map((_,i)=>i!==w.active);
+ excludedWarriors=w.warriors.map(x=>x.excluded);warriorColors=w.warriors.map(x=>x.color??undefined);openTabs=[...w.openTabs];collapsedEditors=sources.map((_,i)=>i!==w.active);
  welcomeDismissed=w.welcomeDismissed || sources.length>0;
  applySettingsSnapshot(w.settings);
  if(w.battle.speed!==undefined){$('speed').value=w.battle.speed;$('speed').oninput();}
@@ -1248,7 +1343,7 @@ tools=setupTools({
  loadBenchmark:id=>tournaments.loadBenchmark(id)
 });
 tournaments=setupTournaments({
- roster:()=>selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:warriorFile(i),source:sources[i]})),
+ roster:()=>{fillColors();return selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:warriorFile(i),source:sources[i],colorIndex:warriorColors[i]}));},
  readConfig:()=>readSettings({warriors:2}),
  // A benchmark suite's settings become the match settings (as custom settings); warriors revalidate.
  applyConfig:values=>{applySettingsSnapshot({preset:'custom',values});markDirty();},

@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Classic and accessible are pMARS's two palettes (sdldisp.c), the 16-colour X11 set and its SAFECOLORS Okabe–Ito set,
+// first the two colours pMARS gives a duel, then its colours for more warriors in its order. Black (the empty core)
+// and white are left out: white frames the instruction each process runs next.
 const palettes = {
- modern:['#54d8df','#f9a567','#b4a0ff','#91d97e','#ff8bb8','#f0db75'],
- classic:['#00ff00','#ff0000','#00ffff','#ffff00','#ff00ff','#0000ff'],
- accessible:['#0072b2','#e69f00','#f0e442','#cc79a7','#d55e00','#56b4e9','#009e73']
+ modern:['#54d8df','#f9a567','#b4a0ff','#91d97e','#ff8bb8','#f0db75','#5c9dff','#ff5f5f','#d77af0','#c7a07c','#c4ec5f','#3fbf9f'],
+ classic:['#00ff00','#ff0000','#0000cd','#00cd00','#00cdcd','#cd0000','#cd00cd','#cdcd00','#d3d3d3','#bebebe','#0000ff','#00ffff','#ff00ff','#ffff00'],
+ accessible:['#0072b2','#e69f00','#f0e442','#cc79a7','#d55e00','#56b4e9','#009e73','#3ba3cd','#efc159','#f5ed84','#dea8c6','#e49659','#91cef1','#59c0a4']
 };
 let theme='modern';
 export function setTheme(value){theme=palettes[value]?value:'modern';document.body.dataset.theme=theme;}
 export function warriorColor(i) {
  return palettes[theme][i % palettes[theme].length];
 }
-// Battle slot j shows the colour of the roster row it was loaded from, so excluded warriors don't shift colours.
+// Battle slot j shows the colour number of the warrior it was loaded from, so excluded or reordered warriors don't shift colours.
 let battleSlots=[];
 export function setBattleSlots(slots){battleSlots=slots.slice();}
 export function battleColor(j){return warriorColor(battleSlots[j] ?? j);}
