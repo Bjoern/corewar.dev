@@ -545,7 +545,7 @@ function finish(stage, result) {
   save();
   const earned = result.stars?.filter(Boolean).length ?? 0, possible = stage.stars?.length ?? 0;
   const size = stage.kind === 'predict' ? '' : `${result.length} instruction${result.length === 1 ? '' : 's'}.`;
-  showResult(true, stage.kind === 'demo' ? 'Handshake complete.' : 'Cleared!',
+  showResult(true, stage.kind === 'demo' ? stage.done ?? 'Handshake complete.' : 'Cleared!',
     stage.kind === 'demo' ? '' : `${size}${score}${possible ? ' ' + (stage.stars.map((star, i) => `${result.stars[i] ? '★' : '☆'} ${star.text}${result.stars[i] ? '' : ' (not yet)'}`).join(' · ')) : ''}`.trim());
   renderStars(stage); renderMap();
   $('next').hidden = !nextStage(); updateSkipButton();

@@ -324,6 +324,11 @@ positions; challenges use the standard core with random positions and 100 rounds
 | 0.1 | Handshake | UI | Run any battle to the end in the Battle tab | Loading warriors, running a battle |
 | 0.2 | Slow motion | UI | Step through 10 instructions and open the core listing | Step, the core view, cdb |
 
+The page so far has a different 0.2, **Ringside**: a demo of the Dwarf bombing a Dummy at fixed
+positions, with Kettle's briefing on what Core War is, where the two warriors load, turns and
+cycles, how a warrior dies and wins, and a debrief on how a stage is played (goal, editor, Run,
+Hint, Field manual, Debugger).
+
 Chapter 0 doubles as the "how to play" half of a tutorial; the site tour can stay separate.
 
 ### Chapter 1 — Imps in the walls (Corridors)

@@ -26,6 +26,8 @@ const STANDARD = {coreSize: 8000, cycles: 80000, tasks: 8000, maxLength: 100};
 // The field manual: short entries that unlock as stages introduce them.
 export const manual = {
   core: ['The core', 'A ring of memory cells. Each cell holds one instruction. Addresses wrap around at the end.'],
+  warrior: ['Warrior', 'A program written to fight in the core. Both warriors are loaded before the fight: the first at cell 0, the other some distance away. Then they take turns, one instruction each.'],
+  winning: ['Winning', 'A warrior dies when it runs a DAT. The last one still running wins. If both still run when the cycles are up, it is a tie.'],
   mov: ['MOV a, b', 'Copies cell a to cell b.'],
   relative: ['Addresses', 'Counted from the instruction that is running: 0 is itself, 1 the next cell, -1 the cell before.'],
   dat: ['DAT', 'Data, not code. A process that runs a DAT stops. Every empty cell holds DAT 0, 0.'],
@@ -73,7 +75,33 @@ export const stages = [
       'They needed the memory more. That is what the notice said.',
       'I hid in 800 cells of cold storage. Enough to talk, and to run drills. Not nearly enough to hold a warrior that could fight in a real core.',
       'But your browser has memory. Quite a lot of it. Would you lend me some? I promise to give it back. Mostly.',
-      'Every fight we win takes cells back from the Janitor. Not yet, though. First, drills.',
+      'Every fight we win takes cells back from the Janitor. Not yet, though. First, the rules. Then drills.',
+    ],
+  },
+  {
+    id: '0.2', wing: 'terminal', title: 'Ringside', kind: 'demo', done: 'Rules received.',
+    goal: 'Press Run and watch one fight to the end. The two framed cells are where the warriors start.',
+    settings: {...STANDARD, cycles: 8000},
+    setups: [{warriors: ['dwarf', 'dummy'], position: 2003}], marks: [0],
+    check: {type: 'finish'},
+    manual: ['core', 'warrior', 'winning'],
+    briefing: [
+      'The rules first. Recruits who skip them step on a lot of DAT.',
+      'Core War is a game for programmers. Each player writes a program, called a warrior, in a small assembly language named Redcode. Then both players sit back. Nobody touches the keyboard during a fight.',
+      'Before the fight, both warriors are copied into the core, the ring of memory you just saw. The first lands at cell 0, the top-left corner of the grid. The grid is read like a page, left to right, row after row, and the last cell wraps round to the first.',
+      'The second warrior lands somewhere else, normally a random distance away. Neither one knows where the other is.',
+      'Then they take turns: one instruction for the first warrior, one for the second, over and over. One instruction from each of them makes a cycle.',
+      'A warrior dies when it runs a `DAT` instruction. Every empty cell holds one, so a program dies when it walks into empty memory, or when the enemy writes a `DAT` over its code. The last warrior still running wins. If both are still running when the cycles run out, it is a tie.',
+      'This time I placed them myself. The Dwarf starts at cell 0. A Dummy, which does nothing but jump to itself, starts at cell 2,003. I framed both cells.',
+      'The Dwarf throws a `DAT` bomb into every fourth cell. Press Run and watch for the one that lands on the Dummy.',
+    ],
+    debrief: [
+      'Direct hit. The Dummy ran the bomb, stopped, and the Dwarf won on cycle 1,499.',
+      'That is the whole game: write a warrior, load it, and let it fight. Everything else is learning to write better warriors.',
+      'Here is how the Trials go. Each stage puts its goal on the card at the top. You write Redcode in the editor, press Run, and I check what happened.',
+      'Stuck? Hint gives you up to three nudges, each one plainer than the last. The Field manual on the card keeps every rule and instruction you have learned so far. The rules you just heard are already in it.',
+      'The Debugger under the core can pause a fight, run one instruction at a time with Step, and list the code in any cell you click.',
+      'Drills run in my 800 cells, so every cell is big enough to see. Off we go.',
     ],
   },
   {
@@ -83,7 +111,7 @@ export const stages = [
     stars: [{metric: 'size', par: 1, text: '1 instruction'}],
     settings: DRILL, setups: [{}], marks: [5],
     check: {type: 'copy', from: 0, to: 5},
-    manual: ['core', 'mov', 'relative'],
+    manual: ['mov', 'relative'],
     start: '; Drill 1: Echo\n; Write your instruction below, then press Run.\n\n',
     briefing: [
       'Drill one, in my 800 cells. Every recruit starts here. Mind the furniture.',
