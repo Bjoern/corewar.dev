@@ -147,8 +147,12 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   // A workspace restored in Benchmark mode keeps its saved settings, changes included.
   if(mode==='benchmark'&&settingsFrom===null)settingsFrom=suiteId(suite);
   const config=matchConfig(),changed=usesSuite()&&config?differences(config,suite.config):[];
-  $('suiteSettingsNote').hidden=!usesSuite();
-  $('suiteSettingsText').textContent=!usesSuite()?'':changed.length?`The match settings above differ from “${suite.name}” in ${changed.map(k=>settingNames[k]).join(', ')}. Runs use the match settings; the suite’s own are ${describeSettings(suite.config)}.`:`The match settings above are “${suite.name}”’s own. Change them there for your runs; Suite details changes the suite itself.`;
+  // A suite added to round robin or melee keeps the match settings, so a difference gets a warning
+  // here: with a shorter length, say, its longer warriors do not assemble.
+  $('suiteWarning').hidden=!suiteJoins()||!changed.length;
+  $('suiteWarningText').textContent=$('suiteWarning').hidden?'':`The match settings differ from “${suite.name}” in ${changed.map(k=>settingNames[k]).join(', ')}, so its warriors may not assemble or may not fight as on their hill. The suite’s own: ${describeSettings(suite.config)}.`;
+  $('suiteSettingsNote').hidden=mode!=='benchmark';
+  $('suiteSettingsText').textContent=mode!=='benchmark'?'':changed.length?`The match settings above differ from “${suite.name}” in ${changed.map(k=>settingNames[k]).join(', ')}. Runs use the match settings; the suite’s own are ${describeSettings(suite.config)}.`:`The match settings above are “${suite.name}”’s own. Change them there for your runs; Suite details changes the suite itself.`;
   $('useSuiteSettings').hidden=!changed.length;
   const pushing=benchmarkPushoff();$('hillStatus').hidden=!pushing;
   if(pushing&&pending){
@@ -411,7 +415,9 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
       slot.job=null;dispatch(slot);settle();return;
      }
      if(run.skipped.includes(data.id)){slot.job=null;dispatch(slot);settle();return;}
-     if(data.type==='error'){fail('Matchup '+(data.id+1)+' ('+run.plan.jobs[data.id].warriors.map(w=>w.name).join(' / ')+'): '+data.message+' '+data.diagnostics);return;}
+     // pMARS's diagnostics do not say whose source they are about, so name the warrior it was assembling.
+     if(data.type==='error'){const job=run.plan.jobs[data.id],failing=job.warriors[data.assemblyWarrior];
+      fail('Matchup '+(data.id+1)+' ('+job.warriors.map(w=>w.name).join(' / ')+'): '+(failing?failing.name+' did not assemble. ':'')+data.message+' '+data.diagnostics);return;}
      run.results.push(data);slot.job=null;dispatch(slot);settle();
     };
     dispatch(slot);
@@ -473,6 +479,8 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   refresh();
  }
  $('useSuiteSettings').onclick=()=>{useSuiteSettings();refresh();};
+ // Outside Benchmark mode, so entering it later still sets the suite's rounds.
+ $('useSuiteSettingsHere').onclick=()=>{useSuiteSettings();settingsFrom=null;refresh();};
  for(const id of ['benchmarkFiles','benchmarkFolder'])$(id).onchange=async()=>{
   try{const suite=await importBenchmarkFiles($(id).files,'import-'+(++serial));suites.push(suite);refresh();$('benchmarkSuite').value=suite.id;suiteDefaults();$('tournamentStatus').textContent=`Imported “${suite.name}” (${suite.warriors.length} opponents). It is saved with your workspace in this browser.`;onSuitesChanged();}
   catch(error){$('tournamentStatus').textContent=error.message;}finally{$(id).value='';}
