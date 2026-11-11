@@ -123,6 +123,7 @@
 </div></fieldset>
 <div class="t-actions">
 <button id="tournamentStart" class="primary" type="button">▶ Run tournament</button><button id="tournamentPause" type="button" disabled title="Finish active matchups, then pause">Pause</button><button id="tournamentCancel" type="button" disabled title="Stop active matchups immediately">Cancel</button>
+<label id="replaceRunField" class="t-check-inline t-replace" title="When this run finishes, its results take the place of that past run instead of being added as a new one" hidden><input id="replaceRun" type="checkbox"> <span id="replaceRunText"></span></label>
 <span class="foot-spacer"></span>
 <fieldset id="parallelSetup" class="t-worker-set"><legend class="sr-only">Parallel execution</legend>
 <label class="t-workers" title="Parallel workers: each runs one matchup at a time">Workers <input id="tournamentWorkers" type="number" min="1" value="1" aria-label="Parallel workers" aria-describedby="workerExplanation"><output id="workerSummary"></output></label>
@@ -133,6 +134,13 @@
 <p id="workerExplanation" class="hint">One worker per matchup. More workers can finish sooner but leave less CPU time for other apps.</p></div></details>
 </fieldset>
 </div>
+<details id="runHistory" class="t-card t-history"><summary>Past runs <span id="historyCount"></span></summary>
+<p class="hint">The last <span id="historyLimit">30</span> finished runs are kept in this browser, the oldest dropped first. Pick one to show its results again, run it again as it was (its warriors as they were then), or load its setup above to change it before running. <span id="historyStorage" hidden>This browser does not let the page store data, so past runs are kept only until it reloads.</span></p>
+<p id="historyEmpty" class="hint">No past runs yet. Each run that finishes is added here.</p>
+<div id="historyList" hidden><div class="tournament-table history-table"><table id="historyTable"></table></div>
+<div class="t-row history-actions"><button id="historyShow" type="button" title="Show this run’s results below (double-click a row does the same)">Show results</button><button id="historyRerun" type="button" title="Run it again with the same warriors, opponents, settings and options">Run again</button><button id="historyLoad" type="button" title="Put its warriors, suite, settings and options into the setup above, to change before running">Load setup</button><span class="foot-spacer"></span><button id="historyDelete" type="button">Delete</button></div></div>
+<p id="historyStatus" role="status" aria-live="polite"></p>
+</details>
 <section class="t-card t-results" aria-labelledby="resultsHeading"><div class="t-results-head"><h2 id="resultsHeading">Results</h2><p id="tournamentStatus" role="status">Ready.</p><span class="foot-spacer"></span><button id="tournamentExport" type="button" disabled>Export results (.json)</button><button id="tournamentExportKoen" type="button" disabled title="Koenigstuhl hill32.dat and hill32.scores, after a complete round robin">Export score matrix (.zip)</button></div>
 <progress id="tournamentProgress" value="0" max="1" aria-label="Tournament progress"></progress>
 <div id="tournamentExclusions" class="tournament-exclusions" role="alert" hidden></div>

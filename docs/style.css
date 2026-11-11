@@ -752,3 +752,10 @@ button.small{padding:3px 8px;font-size:12px}
 .bm-json{width:100%;box-sizing:border-box;height:260px}
 .bm-advanced summary{font-weight:600;cursor:pointer}
 .tool-view button.danger{color:#ff8a8a;border-color:#6b2f35}.tool-view button.danger:hover:not(:disabled){background:#3a1b20;color:#ffb3b3}
+/* Past runs (tournaments.mjs, run-history.mjs) */
+.t-history>summary{font-size:14px;font-weight:600;cursor:pointer}.t-history[open]>summary{margin-bottom:6px}.t-history .hint{margin:4px 0 8px}
+.history-table{max-height:340px;overflow:auto;margin-bottom:8px}.history-table table{font-variant-numeric:normal}.history-table td,.history-table th{padding:6px 8px;text-align:left;vertical-align:top}
+.history-table thead th{position:sticky;top:0;background:var(--panel)}.history-table td:first-child{width:2em}.history-table td:first-child input{margin:0}
+.history-table tbody tr{cursor:pointer}.history-table tbody tr:hover td{background:var(--raised)}.history-table td:nth-child(2),.history-table td:nth-child(6){white-space:nowrap}
+.history-actions button{font-size:12px;padding:6px 10px}#historyStatus{margin:8px 0 0;font-size:13px}#historyStatus:empty{display:none}
+.t-replace{font-size:13px;white-space:normal;margin-left:4px}

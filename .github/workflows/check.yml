@@ -23,6 +23,7 @@ jobs:
       - run: node docs/test-hill-scores.mjs
       - run: node docs/test-permutation.mjs
       - run: node docs/test-benchmarks.mjs
+      - run: node docs/test-run-history.mjs
       - run: node docs/test-catalog-engine.mjs
       - run: node docs/test-stepfinder.mjs
       - run: node docs/test-optimizer.mjs
@@ -43,6 +44,7 @@ jobs:
           node docs/test-tournaments.mjs
           node docs/test-benchmark-import.mjs
           node docs/test-benchmark-exclusions.mjs
+          node docs/test-past-runs.mjs
           node docs/test-selection.mjs
           node docs/test-shared-editor.mjs
           node docs/test-empty-roster.mjs

@@ -1432,6 +1432,16 @@ tournaments=setupTournaments({
  // Checked opponents in a warrior's results can join the roster, as from the library.
  addWarrior:addRosterWarrior,
  loadedSources:()=>sources,
+ // A past run's setup: its warriors are found by source (or added as they were then) and only they are selected.
+ selectWarriors:warriors=>{
+  const missing=new Set(warriors.map(w=>w.source).filter(source=>!sources.includes(source)));
+  if(sources.length+missing.size>36)throw new Error(`At most 36 warriors can be loaded: ${sources.length} are loaded and this run needs ${missing.size} more. Remove some first.`);
+  for(const w of warriors)if(!sources.includes(w.source))addRosterWarrior(w.source,(w.file||'').split('/').pop()||undefined);
+  const wanted=warriors.map(w=>sources.indexOf(w.source));
+  excludedWarriors=sources.map((_,i)=>!wanted.includes(i));
+  markDirty();editors();rosterCount();controls();legend();
+  return wanted.map(i=>'roster-'+i);
+ },
  onTab:index=>{
   const from=shownMode(),name=MODE_NAMES[index];
   // The match settings move into the tournament view and back out to the battle view.

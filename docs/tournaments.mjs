@@ -9,6 +9,7 @@ import {HistoryChart} from './charts.mjs';
 import {warriorColor} from './display.mjs';
 import {defaults} from './settings.mjs';
 import {pairTotals,perRound,renderTable,renderMatrix} from './results-tables.mjs';
+import {createRunHistory,snapshotRun,restoreRun,replan,summarize,HISTORY_LIMIT} from './run-history.mjs';
 const $=id=>document.getElementById(id);
 function download(blob,name){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 // One line for the settings a run uses, including the ones that are easy to miss.
@@ -23,7 +24,9 @@ const differences=(a,b)=>suiteKeys.filter(k=>String(a[k])!==String(b[k]));
 const settingNames={coreSize:'core size',cycles:'cycles',tasks:'processes',maxLength:'length',distance:'distance',pspace:'P-space size',rules88:'ICWS standard',noPspace:'P-space',permutate:'permutation',formula:'score formula'};
 // store: the shared benchmark suites (benchmark-store.mjs). onEditSuite(id): open a suite in the
 // Benchmarks tool. applyConfig: puts a suite's settings into the match settings, which every run then uses.
-export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,store,onEditSuite=()=>{},addWarrior=null,loadedSources=()=>[],maxLoaded=36}) {
+// selectWarriors(warriors): loads the warriors that are not loaded yet and selects exactly these in the
+// roster, returning their roster ids in order (to load a past run's setup).
+export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,store,onEditSuite=()=>{},addWarrior=null,loadedSources=()=>[],maxLoaded=36,selectWarriors=null,history=createRunHistory()}) {
  const suites=store.suites,loadSuite=suite=>store.load(suite);
  const editLink=id=>{const b=document.createElement('button');b.type='button';b.className='link-button';b.textContent='Edit it in Tools › Benchmarks';b.onclick=()=>onEditSuite(id);return b;};
  let run=null,workers=[],pendingRender=null,displayedSuite=null;
@@ -168,6 +171,7 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,sto
   $('tournamentPause').disabled=!busy||run.state==='pausing';$('tournamentCancel').disabled=!busy;
   $('tournamentExport').disabled=!run;$('tournamentExportKoen').disabled=!scoreMatrix();
   $('tournamentSetup').disabled=!!busy;$('parallelSetup').disabled=!!busy;
+  historyControls();
  }
  // An entrant keeps the colour its warrior has in the Battle list when the tournament was planned.
  const entrantColor=i=>warriorColor(run.plan.entrants[i]?.colorIndex??i);
@@ -257,13 +261,14 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,sto
   pendingRender=null;if(!run)return;
   const completed=run.results.length,active=workers.filter(w=>w.job!==null).length;
   $('tournamentProgress').max=run.plan.jobs.length;$('tournamentProgress').value=completed+run.skipped.length;
-  $('tournamentStatus').textContent=run.error||`${run.state[0].toUpperCase()+run.state.slice(1)} · ${completed} / ${run.plan.jobs.length} matchups · ${active} active${run.skipped.length?` · ${run.skipped.length} matchups skipped`:""} · ${duration(elapsed())}${engineNote(run.results)}`;
+  const state=run.state[0].toUpperCase()+run.state.slice(1);
+  $('tournamentStatus').textContent=run.error||`${run.restored?`${state} · past run of ${when(run.restored.savedAt)}`:state} · ${completed} / ${run.plan.jobs.length} matchups · ${active} active${run.skipped.length?` · ${run.skipped.length} matchups skipped`:""} · ${duration(elapsed())}${engineNote(run.results)}`;
   const exclusions=$('tournamentExclusions');exclusions.hidden=!run.excluded.length;
   exclusions.replaceChildren();
   if(run.excluded.length){const title=document.createElement('strong');title.textContent=`${run.excluded.length} warrior(s) excluded from this benchmark`;exclusions.append(title);
    const list=document.createElement('ul');for(const entry of run.excluded){const li=document.createElement('li');li.textContent=`${entry.name}: ${entry.reason}`;list.append(li);}exclusions.append(list);}
   const rows=resultRows();
-  chart.add(completed,rows.map(r=>r.rounds?r.score*100/r.rounds:0));
+  if(!run.restored)chart.add(completed,rows.map(r=>r.rounds?r.score*100/r.rounds:0)); // a past run brings its chart
   renderResultTables(rows);
   $('matchupResults').replaceChildren(...[...run.results].sort((a,b)=>a.id-b.id).map(result=>{
    const row=document.createElement('li');row.textContent=run.plan.jobs[result.id].warriors.map((w,i)=>`${w.name}: ${result.warriors[i].wins} wins, ${result.warriors[i].losses} losses, ${result.warriors[i].ties} ties (${result.warriors[i].score} points)`).join(' / ')+` · ${result.completed} rounds`;return row;
@@ -380,21 +385,33 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,sto
   slot.worker.postMessage(job);
  }
  function settle(){
-  if(run.results.length+run.skipped.length===run.plan.jobs.length){run.state='complete';stopClock();dispose();cacheRunHill();}
+  if(run.results.length+run.skipped.length===run.plan.jobs.length){run.state='complete';stopClock();dispose();cacheRunHill();keepRun(run);}
   else if(run.state==='pausing'&&workers.every(w=>w.job===null)){run.state='paused';stopClock();}
   scheduleRender();controls();
  }
+ // What a past run needs besides its plan to be planned again or loaded into the setup.
+ const setupNow=()=>{const suite=usesSuite()?currentSuite():null;
+  return {selfFights:$('selfFights').checked,withSuite:suiteJoins(),challenger:$('tournamentMode').value==='challenge'?$('challenger').value:null,
+   ranking:$('tournamentRanking').value,suiteId:suite?.id??null,suiteName:suite?.name??null};};
  $('tournamentStart').onclick=async()=>{
   try {
    if(usesSuite())await loadSuite(currentSuite());
    if(benchmarkPushoff())await lookupHill(currentSuite(),configForRun());
-   const next=plan(),count=Number($('tournamentWorkers').value);
+   const next=plan();
+   startRun(next,{config:configForRun(),setup:setupNow(),suite:next.mode==='benchmark'?{name:currentSuite().name,warriors:currentSuite().warriors}:null,
+    variant:$('tournamentRanking').value,hillKey:hill.key,hillData:hill.data});
+  }catch(error){if(run?.state==='running')fail(error.message);else $('tournamentStatus').textContent=error.message;}
+ };
+ // setup: kept with the run in the past runs (setupNow). basedOn: the past run it may replace.
+ function startRun(next,{config,setup,suite=null,variant,hillKey=null,hillData=null,basedOn=historyBase}){
+   const count=Number($('tournamentWorkers').value);
    if(!Number.isInteger(count)||count<1||count>processors)throw new Error(`Choose 1–${processors} workers.`);
    dispose();clearTimeout(pendingRender);pendingRender=null;chart.clear();
-   run={plan:next,config:configForRun(),results:[],excluded:[],skipped:[],next:0,state:'running',elapsed:0,since:performance.now(),workers:Math.min(count,next.jobs.length)};
+   run={plan:next,config,setup,basedOn,results:[],excluded:[],skipped:[],next:0,state:'running',elapsed:0,since:performance.now(),workers:Math.min(count,next.jobs.length)};
    picked=null;checked.clear();$('subsetStatus').hidden=true;
-   if(next.mode==='benchmark')run.suite={name:currentSuite().name,warriors:currentSuite().warriors};
-   if(next.pushoff)Object.assign(run,{variant:$('tournamentRanking').value,hillKey:hill.key,hillData:next.jobs.some(j=>j.kind==='hill')?null:hill.data});
+   if(next.mode==='benchmark')run.suite=suite;
+   if(next.pushoff)Object.assign(run,{variant,hillKey,hillData:next.jobs.some(j=>j.kind==='hill')?null:hillData});
+   historyControls();
    for(let i=0;i<run.workers;i++){
     const worker=new Worker(new URL('./tournament-worker.mjs',import.meta.url),{type:'module'}),slot={worker,job:null,timer:null};workers.push(slot);
     worker.onerror=e=>{if(workers.includes(slot))fail(e.message||'Worker failed.');};
@@ -420,13 +437,157 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,sto
     dispatch(slot);
    }
    render();
-  }catch(error){if(run?.state==='running')fail(error.message);else $('tournamentStatus').textContent=error.message;}
- };
+ }
  $('tournamentPause').onclick=()=>{
   if(run.state==='paused'){run.state='running';run.since=performance.now();for(const slot of workers)dispatch(slot);}
   else {run.state='pausing';settle();}render();
  };
- $('tournamentCancel').onclick=()=>{run.state='cancelled';stopClock();dispose();render();};
+ // A cancelled run is kept too when some matchups finished, as far as it got.
+ $('tournamentCancel').onclick=()=>{run.state='cancelled';stopClock();dispose();render();if(run.results.length)keepRun(run);};
+
+ // Past runs: finished (and cancelled) runs kept in this browser, newest first (run-history.mjs).
+ const modeNames={'round-robin':'Round robin',benchmark:'Benchmark',challenge:'Challenge',melee:'Melee'};
+ function when(iso){const d=new Date(iso);return isNaN(d)?iso:d.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'});}
+ let historyEntries=[],historyPick=null;
+ // The past run whose setup was loaded or run again: a run started from it can replace it.
+ let historyBase=null;
+ const busyNow=()=>!!run&&['running','pausing','paused'].includes(run.state);
+ // The best warriors of a run, for the list: by place in a push-off benchmark, else by score.
+ function topOf(r){
+  if(r.state==='complete'&&r.plan.pushoff){const result=benchmarkResult();if(result)return [...result.candidates].sort((a,b)=>a.place-b.place).slice(0,3).map(c=>({name:c.name,place:c.place,size:c.size}));}
+  return resultRows().filter(row=>row.rounds).sort((a,b)=>perRound(b)-perRound(a)).slice(0,3).map(row=>({name:row.name,score:perRound(row)*100}));
+ }
+ async function keepRun(r){
+  if(!r.setup||r!==run)return;
+  const replace=r.basedOn&&r.basedOn===historyBase&&$('replaceRun').checked&&historyEntries.some(e=>e.id===r.basedOn);
+  const id=replace?r.basedOn:`run-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`;
+  // Hill fights with gaps (an excluded hill warrior) are not cached, but this run's ranking used them.
+  const hillData=r.plan.pushoff?r.hillData??(r.state==='complete'&&r.plan.jobs.some(j=>j.kind==='hill')?{rounds:r.plan.hillRounds,permutate:r.plan.hillPermutate,seed:r.plan.seed,scores:runHill(),source:'run'}:null):null;
+  try{
+   const record=snapshotRun(r,{id,setup:r.setup,samples:chart.samples,hillData});
+   await history.save(record,summarize(record,{top:topOf(r),settings:describeSettings(r.config)}));
+   r.savedAs=id;
+   if(replace)$('replaceRun').checked=false;
+   historyPick=id;
+   await showHistory();
+   $('historyStatus').textContent=replace?`Replaced the past run with this one.`:'';
+  }catch(error){$('historyStatus').textContent=`This run was not kept: ${error.message}`;}
+ }
+ async function showHistory(){
+  historyEntries=await history.list();
+  if(!historyEntries.some(e=>e.id===historyPick))historyPick=historyEntries[0]?.id??null;
+  if(historyBase&&!historyEntries.some(e=>e.id===historyBase))historyBase=null;
+  $('historyCount').textContent=historyEntries.length?`(${historyEntries.length})`:'';
+  $('historyEmpty').hidden=!!historyEntries.length;$('historyList').hidden=!historyEntries.length;
+  $('historyStorage').hidden=history.persistent;
+  const head=document.createElement('tr');
+  for(const text of ['','Run','Mode','Warriors','Opponents','Rounds','Best']){const th=document.createElement('th');th.textContent=text;th.scope='col';head.append(th);}
+  const rows=historyEntries.map(entry=>{
+   const tr=document.createElement('tr');tr.dataset.id=entry.id;if(entry.id===historyPick)tr.className='picked';tr.title=entry.settings;
+   const radio=document.createElement('input');radio.type='radio';radio.name='historyPick';radio.checked=entry.id===historyPick;radio.setAttribute('aria-label',`Past run of ${when(entry.savedAt)}`);
+   radio.onchange=()=>pickHistory(entry.id);
+   const names=entry.entrants.length>3?`${entry.entrants.slice(0,3).join(', ')} +${entry.entrants.length-3}`:entry.entrants.join(', ');
+   const ranking=entry.pushoff||(entry.mode==='round-robin'&&entry.ranking&&entry.ranking!=='average')?rankings[entry.variant||entry.ranking]?.label:'';
+   const best=entry.top.map(t=>t.place?`${t.name}: ${t.place} of ${t.size}`:`${t.name} ${t.score.toFixed(1)}`).join(' · ');
+   const cells=[radio,`${when(entry.savedAt)}${entry.state==='complete'?'':` (${entry.state})`}`,[modeNames[entry.mode]||entry.mode,ranking].filter(Boolean).join(' · '),
+    names,entry.suiteName?`${entry.suiteName} (${entry.opponents})`:'—',`${entry.rounds.toLocaleString()} · seed ${entry.seed}`,best||'—'];
+   for(const cell of cells){const td=document.createElement('td');td.append(cell);tr.append(td);}
+   tr.onclick=event=>{if(event.target!==radio)pickHistory(entry.id);};
+   tr.ondblclick=()=>showPastRun(entry.id);
+   return tr;
+  });
+  const thead=document.createElement('thead'),tbody=document.createElement('tbody');thead.append(head);tbody.append(...rows);
+  $('historyTable').replaceChildren(thead,tbody);
+  historyControls();
+ }
+ function pickHistory(id){if(id!==historyPick)resetDelete();historyPick=id;for(const tr of $('historyTable').querySelectorAll('tbody tr')){const on=tr.dataset.id===id;tr.classList.toggle('picked',on);tr.querySelector('input').checked=on;}historyControls();}
+ function historyControls(){
+  const busy=busyNow(),none=!historyEntries.some(e=>e.id===historyPick);
+  $('historyShow').disabled=busy||none;$('historyRerun').disabled=busy||none;$('historyLoad').disabled=busy||none;$('historyDelete').disabled=none;
+  const base=historyEntries.find(e=>e.id===historyBase);
+  $('replaceRunField').hidden=!base;
+  if(base)$('replaceRunText').textContent=`Replace the past run of ${when(base.savedAt)} with this run`;
+  else $('replaceRun').checked=false;
+ }
+ async function pastRun(id){const record=await history.get(id);if(!record)throw new Error('That past run is gone. It may have been deleted in another tab.');return record;}
+ const historyFeedback=error=>{$('historyStatus').textContent=error.message;};
+ async function showPastRun(id){
+  if(busyNow())return;
+  try{
+   const record=await pastRun(id);
+   dispose();clearTimeout(pendingRender);pendingRender=null;
+   run=restoreRun(record);chart.samples=record.samples.map(s=>({...s}));chart.draw();
+   picked=null;checked.clear();$('subsetStatus').hidden=true;$('historyStatus').textContent='';
+   render();$('resultsHeading').scrollIntoView({block:'nearest',behavior:'smooth'});
+  }catch(error){historyFeedback(error);}
+ }
+ // Runs it again as it was: the same warriors (as they were then), opponents, settings and options,
+ // whatever the roster and the setup above now hold.
+ async function rerunPastRun(id){
+  if(busyNow())return;
+  try{
+   const record=await pastRun(id),s=record.setup,needHill=s.pushoff&&!record.hillData;
+   const next=replan(record,{hill:needHill});
+   historyBase=id;$('replaceRun').checked=false;
+   startRun(next,{config:record.config,setup:s,suite:s.mode==='benchmark'?{name:record.suiteName,warriors:record.opponents}:null,variant:record.variant,
+    hillKey:needHill?await cacheKey(record.opponents,record.config,await engine):null,hillData:record.hillData,basedOn:id});
+   $('historyStatus').textContent=`Running the past run of ${when(record.savedAt)} again, with its own warriors and settings.`;
+  }catch(error){if(run?.state==='running')fail(error.message);else historyFeedback(error);}
+ }
+ // Puts a past run's setup above, to change before running: its warriors are loaded (if needed) and
+ // selected, its suite picked (made again from the kept opponents if it was deleted), and its match
+ // settings, rounds, seed and options filled in.
+ async function loadPastRun(id){
+  if(busyNow())return;
+  const notes=[];
+  try{
+   const record=await pastRun(id),s=record.setup,usesOpponents=s.mode==='benchmark'||s.withSuite;
+   let suite=usesOpponents?store.get(s.suiteId):null;
+   if(usesOpponents&&!suite){
+    const warriors=record.opponents.map(({fromSuite,colorIndex,...w})=>w),files=suiteFilenames(warriors);
+    const descriptor={version:1,name:(s.suiteName||'Suite').slice(0,100),parameters:{...Object.fromEntries(suiteKeys.map(k=>[k,record.config[k]])),rounds:s.rounds},warriors:files};
+    suite=store.create(descriptor,Object.fromEntries(warriors.map((w,i)=>[files[i],w.source])),{from:'history'});
+    notes.push(`“${s.suiteName}” no longer exists, so it was made again from this run’s opponents.`);
+   }else if(usesOpponents){
+    const loaded=await loadSuite(suite).catch(()=>null);suite=loaded||suite;
+    if(loaded&&(loaded.warriors.length!==record.opponents.length||loaded.warriors.some((w,i)=>w.source!==record.opponents[i].source)))notes.push(`“${suite.name}” has changed since this run.`);
+   }
+   if(!selectWarriors)throw new Error('Warriors cannot be selected here.');
+   const ids=selectWarriors(record.entrants);
+   if(suite){$('benchmarkSuite').replaceChildren(...suites.map(x=>new Option(x.name,x.id)));$('benchmarkSuite').value=suite.id;}
+   $('tournamentMode').value=s.mode;
+   // The run's own settings, not the suite's: keep Benchmark mode from putting the suite's back.
+   settingsFrom=s.mode==='benchmark'&&suite?suiteId(suite):null;
+   applyConfig(Object.fromEntries(suiteKeys.map(k=>[k,record.config[k]])));
+   $('tournamentRounds').value=s.rounds;$('tournamentSeed').value=s.seed;$('selfFights').checked=!!s.selfFights;$('includeSuite').checked=!!s.withSuite;
+   if(s.ranking&&rankings[s.ranking])$('tournamentRanking').value=s.ranking;
+   if(s.pushoff){$('recomputeHill').checked=false;if(s.hillRounds){$('hillPermutate').checked=s.hillPermutate;$('hillRounds').value=s.hillRounds;}}
+   displayedSuite=suite; // keeps refresh from resetting the hill rounds just set
+   refresh();
+   if(s.mode==='challenge'){const i=record.entrants.findIndex(w=>w.id===s.challenger);if(i>=0)$('challenger').value=ids[i];refresh();}
+   historyBase=id;$('replaceRun').checked=false;historyControls();
+   $('historyStatus').textContent=[`Loaded the setup of the past run of ${when(record.savedAt)}. Change it and run it; tick “Replace” beside the Run button to keep the new results in its place.`,...notes].join(' ');
+   $('tournamentSetup').scrollIntoView({block:'nearest',behavior:'smooth'});
+  }catch(error){historyFeedback(error);}
+ }
+ // Deleting takes a second click, as removing a suite does, so a stray click does not lose a run.
+ let deleteTimer=null;
+ function resetDelete(){clearTimeout(deleteTimer);deleteTimer=null;$('historyDelete').textContent='Delete';}
+ async function deletePastRun(id){
+  const entry=historyEntries.find(e=>e.id===id);if(!entry)return;
+  if(!deleteTimer){$('historyDelete').textContent=`Click again to delete the run of ${when(entry.savedAt)}`;deleteTimer=setTimeout(resetDelete,4000);return;}
+  resetDelete();
+  await history.remove(id);
+  if(run?.restored?.id===id)run.restored={...run.restored,deleted:true};
+  if(historyPick===id){const i=historyEntries.findIndex(e=>e.id===id);historyPick=(historyEntries[i+1]||historyEntries[i-1])?.id??null;}
+  await showHistory();$('historyStatus').textContent='Deleted the past run.';
+ }
+ $('historyShow').onclick=()=>showPastRun(historyPick);
+ $('historyRerun').onclick=()=>rerunPastRun(historyPick);
+ $('historyLoad').onclick=()=>loadPastRun(historyPick);
+ $('historyDelete').onclick=()=>deletePastRun(historyPick);
+ $('historyLimit').textContent=HISTORY_LIMIT;
+ showHistory().catch(()=>{});
  $('tournamentExport').onclick=()=>{
   const result=pushoffResult();
   download(new Blob([JSON.stringify({...run,standings:resultRows(),...(result&&{pushoff:result})},null,2)],{type:'application/json'}),'corewar-results.json');

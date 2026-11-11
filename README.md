@@ -180,6 +180,16 @@ Progress, normalized rankings, and charts update in batches at most ten times pe
 second while results arrive. Charts retain the last 300 samples. Pause stops new
 jobs and finishes active matchups; Cancel terminates workers and retains completed
 results. JSON export includes sources, settings, seeds, results, and run status.
+
+Past runs (`docs/run-history.mjs`) keeps the last 30 finished runs, and cancelled ones with
+results, in this browser's IndexedDB (`corewar-run-history`). A record holds what
+`planTournament` needs to plan the run again (sources, opponents, settings, options),
+the results and the chart, but not the jobs, and a push-off benchmark keeps its hill scores
+instead of the hill fights. A past run can be shown again, run again with its own warriors,
+loaded into the setup (its warriors are added to the roster if needed and selected; a removed
+suite is made again from the kept opponents) or deleted. A run started from a loaded or rerun
+entry can replace that entry. Tests: `node docs/test-run-history.mjs` and
+`node docs/test-past-runs.mjs` (preview and Playwright).
 Engine API comparisons and serial/parallel browser comparisons cover the execution
 boundary. New tournament tests: `node docs/test-tournament-plan.mjs` and
 `node docs/test-tournaments.mjs` (the latter needs the preview and Playwright).
