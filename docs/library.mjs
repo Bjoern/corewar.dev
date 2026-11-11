@@ -346,7 +346,7 @@ export function setupLibrary({addWarrior,loadedFiles,addBenchmark}){
  $('libraryBenchmarkUse').onclick=()=>finish(({descriptor,files})=>{addBenchmark(descriptor,files);dialog.close();});
  $('libraryBenchmarkZip').onclick=()=>finish(({descriptor,files})=>{
   download(benchmarkZip(readBenchmark(descriptor,files)),safeName(descriptor.name)+'.zip');
-  $('libraryBenchmarkStatus').textContent='Saved. Import it later under Tournaments → Benchmark → Import a suite.';
+  $('libraryBenchmarkStatus').textContent='Saved. Import it later in Tools › Benchmarks.';
  });
 
  let typing=0;

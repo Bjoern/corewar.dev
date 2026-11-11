@@ -5,6 +5,9 @@
 const $=id=>document.getElementById(id);
 const el=(tag,props={},...children)=>{const e=Object.assign(document.createElement(tag),props);e.append(...children.filter(c=>c!=null));return e;};
 export const TOOLS=[
+ {id:'benchmarks',title:'Benchmarks',icon:'☰',
+  summary:'Look into and edit benchmark suites: their warriors, sources and match settings. Make suites from your warriors, import or download them, and copy a built-in one to change it.',
+  load:()=>import('./tool-benchmarks.mjs')},
  {id:'optimizer',title:'Constant optimizer',icon:'⚙',
   summary:'Tune the numbers in your warrior (steps, offsets, decoy distances, even opcodes and modes) against a benchmark, with simulated annealing or a genetic algorithm.',
   load:()=>import('./tool-optimizer.mjs')},
@@ -60,11 +63,15 @@ export function setupTools(context){
    const root=el('section',{className:'tool-view'});root.dataset.tool=tool.id;
    root.append(el('div',{className:'tool-head'},el('h2',{},el('span',{className:'tools-icon',ariaHidden:'true',textContent:tool.icon}),' '+tool.title),el('p',{className:'tools-lead',textContent:tool.summary})));
    const view={root,api:null};mounted.set(tool.id,view);body.append(root);
-   try{const module=await tool.load();view.api=module.mount(root,{...context,loadState:()=>loadToolState(tool.id),saveState:v=>saveToolState(tool.id,v)})||null;}
-   catch(error){root.append(el('p',{className:'t-warning',textContent:'This tool could not load: '+error.message}));}
-   root.hidden=current!==tool.id;
+   view.ready=(async()=>{
+    try{const module=await tool.load();view.api=module.mount(root,{...context,loadState:()=>loadToolState(tool.id),saveState:v=>saveToolState(tool.id,v)})||null;}
+    catch(error){root.append(el('p',{className:'t-warning',textContent:'This tool could not load: '+error.message}));}
+    root.hidden=current!==tool.id;
+   })();
   }
-  mounted.get(tool.id).api?.show?.();
+  const view=mounted.get(tool.id);await view.ready;
+  if(current===tool.id)view.api?.show?.();
+  return view.api; // what the tool's mount returned, for callers that open it with something to show
  }
  return {
   show(){

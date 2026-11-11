@@ -8,6 +8,13 @@ const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(
 await page.addInitScript(()=>Object.defineProperty(navigator,'hardwareConcurrency',{value:4}));
 const file=(name,text)=>({name,mimeType:'text/plain',buffer:Buffer.from(text)});
 const red=(name,code)=>`;redcode\n;name ${name}\n;assert 1\n${code}\n`;
+// Suites are imported and edited in Tools › Benchmarks; Use in Tournaments selects one in Benchmark mode.
+const openBenchmarks=async()=>{await page.locator('#toolsTab').click();await page.locator('.tools-nav-item[data-tool="benchmarks"]').click();await page.locator('#bmImportFiles').waitFor({state:'attached'});};
+const importSuite=async(files,expect='Imported')=>{await openBenchmarks();await page.locator('#bmImportFiles').setInputFiles(files);
+ await page.waitForFunction(text=>document.querySelector('#bmListStatus').textContent.includes(text),expect);};
+const useSuite=async()=>{await page.locator('#bmUse').click();await page.locator('#tournamentPanel').waitFor({state:'visible'});};
+const editDescriptor=async value=>{await openBenchmarks();await page.locator('.bm-advanced summary').click();await page.locator('#bmDescriptor').fill(JSON.stringify(value));await page.locator('#bmApplyDescriptor').click();
+ await page.waitForFunction(()=>document.querySelector('#bmDescriptorStatus').textContent==='Applied.');await page.locator('#tournamentTab').click();};
 const complete=()=>page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Complete'));
 const exported=async()=>{const d=page.waitForEvent('download');await page.locator('#tournamentExport').click();return JSON.parse(await readFile(await(await d).path(),'utf8'));};
 try{
@@ -15,8 +22,7 @@ try{
  await page.locator('#warriorFiles').setInputFiles([file('a.red',red('Candidate A','jmp 0')),file('b.red',red('Candidate B','mov 0,1')),file('sunset.red',bundledWarriors.find(w=>w.file==='sunset.red').source)]);
  await page.locator('#tournamentTab').click();await page.locator('#mode-benchmark').click();
  const descriptor={version:1,name:'Exclusion test',parameters:{noPspace:true,cycles:100,rounds:2},warriors:['loop.red','dead.red','pspace.red']};
- await page.locator('#benchmarkFiles').setInputFiles([file('suite.benchmark.json',JSON.stringify(descriptor)),file('loop.red',red('Opponent loop','jmp 0,1')),file('dead.red',red('Opponent dead','dat 0,0')),file('pspace.red',red('Pspace opponent','ldp.a #0,1'))]);
- await page.waitForFunction(()=>document.querySelector('#tournamentStatus').textContent.startsWith('Imported'));
+ await importSuite([file('suite.benchmark.json',JSON.stringify(descriptor)),file('loop.red',red('Opponent loop','jmp 0,1')),file('dead.red',red('Opponent dead','dat 0,0')),file('pspace.red',red('Pspace opponent','ldp.a #0,1'))]);await useSuite();
  for(const workers of ['1','3']){
   await page.locator('#tournamentWorkers').fill(workers);await page.locator('#tournamentStart').click();await complete();
   const result=await exported();assert.equal(result.results.length,4);assert.equal(result.skipped.length,5);assert.equal(result.excluded.length,2);assert.equal(result.standings.length,2);
@@ -29,8 +35,7 @@ try{
  await page.locator('#tournamentStart').click();await complete();const empty=await exported();assert.equal(empty.results.length,0);assert.equal(empty.standings.length,0);assert.equal(empty.skipped.length,3);
  // A new compatible run clears the old warning.
  await page.locator('.include-warrior').nth(0).check();await page.locator('.include-warrior').nth(1).check();
- await page.locator('#benchmarkDetails summary').click();descriptor.parameters.noPspace=false;
- await page.locator('#benchmarkDescriptor').fill(JSON.stringify(descriptor));await page.locator('#applyBenchmark').click();
+ descriptor.parameters.noPspace=false;await editDescriptor(descriptor);
  await page.locator('#tournamentStart').click();await complete();assert.equal((await exported()).results.length,9);assert(await page.locator('#tournamentExclusions').isHidden());
  assert.deepEqual(errors,[]);console.log('PASS: serial/parallel exclusions, incompatible opponents, all-excluded run, exports and clean restart.');
 }finally{await browser.close();}

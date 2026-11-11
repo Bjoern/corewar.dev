@@ -1,8 +1,7 @@
 import {suiteFilenames} from './warrior-files.mjs';
-import {benchmarkZip,storeZip} from './benchmark-zip.mjs';
+import {storeZip} from './benchmark-zip.mjs';
 import {pushoff,rankings,koenScore,writeKoenigstuhl} from './pushoff.mjs';
-import {benchmarkCatalog} from './benchmark-catalog.mjs';
-import {readBenchmark,importBenchmarkFiles,benchmarkParameters,benchmarkHeader} from './benchmarks.mjs';
+import {benchmarkParameters} from './benchmarks.mjs';
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {planTournament} from './tournament-plan.mjs';
 import {cacheKey,loadCached,saveCached,withCandidate,writeHillScores,defaultHillRounds,permutationRounds,sameParameters,hillParameters} from './hill-scores.mjs';
@@ -22,27 +21,12 @@ const authorOf=source=>/^\s*;\s*author\s+(.*?)\s*$/im.exec(source)?.[1]||'Anonym
 const suiteKeys=benchmarkParameters.filter(k=>k!=='rounds');
 const differences=(a,b)=>suiteKeys.filter(k=>String(a[k])!==String(b[k]));
 const settingNames={coreSize:'core size',cycles:'cycles',tasks:'processes',maxLength:'length',distance:'distance',pspace:'P-space size',rules88:'ICWS standard',noPspace:'P-space',permutate:'permutation',formula:'score formula'};
-// onSuitesChanged: called when the user's own suites change, so the workspace saves them.
-// applyConfig: puts a suite's settings into the match settings, which every run then uses.
-export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onSuitesChanged=()=>{}}) {
- // Catalog suites start as their descriptors; warriors and hill scores load on first use.
- const suites=benchmarkCatalog.map(s=>({id:s.id,descriptor:s.descriptor,...benchmarkHeader(s.descriptor),data:s.data,warriors:null}));
- const loading=new Map();
- const builtIn=suite=>benchmarkCatalog.some(c=>c.id===suite.id);
- function loadSuite(suite){
-  if(suite.warriors)return Promise.resolve(suite);
-  if(!loading.has(suite.id))loading.set(suite.id,(async()=>{
-   try{
-    const response=await fetch(new URL(suite.data,import.meta.url));if(!response.ok)throw new Error('HTTP '+response.status);
-    const {files,scores}=await response.json(),loaded=readBenchmark(suite.descriptor,files,suite.id,scores??null);
-    const index=suites.indexOf(suite);if(index>=0)suites[index]=loaded;
-    if($('benchmarkSuite').value===suite.id)refresh();
-    return loaded;
-   }catch(error){loading.delete(suite.id);suite.loadError=`Could not load the opponents (${error.message})`;refresh();throw new Error(suite.loadError);}
-  })());
-  return loading.get(suite.id);
- }
- let serial=0,run=null,workers=[],pendingRender=null,displayedSuite=null;
+// store: the shared benchmark suites (benchmark-store.mjs). onEditSuite(id): open a suite in the
+// Benchmarks tool. applyConfig: puts a suite's settings into the match settings, which every run then uses.
+export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,store,onEditSuite=()=>{},addWarrior=null,loadedSources=()=>[],maxLoaded=36}) {
+ const suites=store.suites,loadSuite=suite=>store.load(suite);
+ const editLink=id=>{const b=document.createElement('button');b.type='button';b.className='link-button';b.textContent='Edit it in Tools › Benchmarks';b.onclick=()=>onEditSuite(id);return b;};
+ let run=null,workers=[],pendingRender=null,displayedSuite=null;
  // Hill scores for the selected suite: shipped with it, cached in this browser, or none yet.
  let hill={id:null,key:null,data:null};
  // The suite (id and settings) whose settings Benchmark mode last put into the match settings.
@@ -136,11 +120,7 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   if(displayedSuite!==suite||pending){
    displayedSuite=suite;
    $('benchmarkDescription').textContent=suite.descriptor.description||'';
-   $('benchmarkSummary').textContent=`${suite.name} · ${pending?suite.loadError||'loading opponents…':suite.warriors.length+' opponents'} · default ${suite.rounds} rounds`;
-   $('benchmarkMembers').replaceChildren(...(suite.warriors||[]).map(w=>{const li=document.createElement('li');li.textContent=w.name+' ('+w.file+')';return li;}));
-   $('benchmarkDescriptor').value=JSON.stringify(suite.descriptor,null,2);
-   $('removeBenchmark').hidden=builtIn(suite);resetRemove();
-   $('benchmarkEditHint').textContent=builtIn(suite)?'Editing a built-in suite changes it for this session only.':'Your suite: changes are saved with your workspace in this browser. Download benchmark (.zip) keeps a copy elsewhere.';
+   $('benchmarkSummary').textContent=`${pending?suite.loadError||'Loading opponents…':suite.warriors.length+' opponents'} · default ${suite.rounds} rounds · ${store.builtIn(suite)?'built in':'your suite'}`;
    const hillDefault=defaultHillRounds(matchConfig()||suite.config);$('hillRounds').value=hillDefault.rounds;$('hillPermutate').checked=hillDefault.permutate;
   }
   // Benchmark runs use the match settings above, which picking the suite set to the suite's own.
@@ -152,7 +132,7 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   $('suiteWarning').hidden=!suiteJoins()||!changed.length;
   $('suiteWarningText').textContent=$('suiteWarning').hidden?'':`The match settings differ from “${suite.name}” in ${changed.map(k=>settingNames[k]).join(', ')}, so its warriors may not assemble or may not fight as on their hill. The suite’s own: ${describeSettings(suite.config)}.`;
   $('suiteSettingsNote').hidden=mode!=='benchmark';
-  $('suiteSettingsText').textContent=mode!=='benchmark'?'':changed.length?`The match settings above differ from “${suite.name}” in ${changed.map(k=>settingNames[k]).join(', ')}. Runs use the match settings; the suite’s own are ${describeSettings(suite.config)}.`:`The match settings above are “${suite.name}”’s own. Change them there for your runs; Suite details changes the suite itself.`;
+  $('suiteSettingsText').textContent=mode!=='benchmark'?'':changed.length?`The match settings above differ from “${suite.name}” in ${changed.map(k=>settingNames[k]).join(', ')}. Runs use the match settings; the suite’s own are ${describeSettings(suite.config)}.`:`The match settings above are “${suite.name}”’s own. Change them there for your runs; Edit suite changes the suite itself.`;
   $('useSuiteSettings').hidden=!changed.length;
   const pushing=benchmarkPushoff();$('hillStatus').hidden=!pushing;
   if(pushing&&pending){
@@ -346,6 +326,7 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
  function subsetButton(){
   const n=detailRows.filter(row=>checked.has(row.id)).length;
   $('saveSubset').disabled=!n;$('saveSubset').textContent=n?`New benchmark from ${n} checked`:'New benchmark from checked';
+  $('addCheckedWarriors').disabled=!n;$('addCheckedWarriors').textContent=n?`Add ${n} checked to warriors`:'Add checked to warriors';
  }
  $('closeWarriorResults').onclick=()=>{picked=null;checked.clear();redrawResults();};
  $('checkAllOpponents').onclick=()=>{for(const row of detailRows)checked.add(row.id);redrawResults();};
@@ -359,12 +340,28 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   const feedback=$('subsetStatus');feedback.hidden=false;
   try{
    const warriors=detailRows.filter(row=>checked.has(row.id)).map(row=>row.warrior);if(!warriors.length)throw new Error('Check the opponents to put in the suite.');
-   const name=($('subsetName').value.trim()||$('subsetName').placeholder).slice(0,100),id='suite-'+(++serial),config=run.config;
+   const name=($('subsetName').value.trim()||$('subsetName').placeholder).slice(0,100),config=run.config;
    const descriptor={version:1,name,parameters:{...Object.fromEntries(benchmarkParameters.filter(k=>k in config&&k!=='rounds').map(k=>[k,config[k]])),rounds:run.plan.rounds},warriors:suiteFilenames(warriors)};
-   suites.push(readBenchmark(descriptor,Object.fromEntries(warriors.map((w,i)=>[descriptor.warriors[i],w.source])),id));
-   refresh();onSuitesChanged();
-   feedback.dataset.result='ok';feedback.textContent=`Created “${name}” with ${warriors.length} opponent${warriors.length===1?'':'s'}. Pick it under Opponent suite in Benchmark mode, or in the evolver’s benchmark list. It is saved with your workspace in this browser.`;
+   const suite=store.create(descriptor,Object.fromEntries(warriors.map((w,i)=>[descriptor.warriors[i],w.source])),{from:'tournament'});
+   feedback.dataset.result='ok';feedback.replaceChildren(`Created “${name}” with ${warriors.length} opponent${warriors.length===1?'':'s'}. Pick it under Opponent suite in Benchmark mode, or in the evolver’s benchmark list. It is saved with your workspace in this browser. `,editLink(suite.id));
   }catch(error){feedback.dataset.result='failed';feedback.textContent=error.message;}
+ };
+ // Checked opponents join your warriors, as from the library; ones already loaded (same source) are skipped.
+ $('addCheckedWarriors').hidden=!addWarrior;
+ $('addCheckedWarriors').onclick=()=>{
+  const feedback=$('subsetStatus');feedback.hidden=false;
+  const loaded=new Set(loadedSources()),seen=new Set(),todo=[];
+  for(const row of detailRows)if(checked.has(row.id)&&!loaded.has(row.warrior.source)&&!seen.has(row.warrior.source)){seen.add(row.warrior.source);todo.push(row.warrior);}
+  const plural=n=>n+' warrior'+(n===1?'':'s');
+  feedback.dataset.result='ok';
+  if(!todo.length){feedback.textContent='The checked opponents are already in your warriors.';return;}
+  feedback.dataset.result='failed';
+  if(loaded.size+todo.length>maxLoaded){feedback.textContent=`At most ${maxLoaded} warriors can be loaded: ${loaded.size} already loaded and ${todo.length} more checked.`;return;}
+  let added=0;
+  try{for(const w of todo){addWarrior(w.source,(w.file||'').split('/').pop()||undefined);added++;}
+   const skipped=checked.size-added;
+   feedback.dataset.result='ok';feedback.textContent=`${plural(added)} added to your warriors${skipped>0?` (${skipped} already there)`:''}. They are selected in the warrior list for your next run.`;}
+  catch(error){feedback.textContent=(added?plural(added)+' added. ':'')+error.message;}
  };
  function cacheRunHill(){
   if(!run.plan.pushoff||!run.plan.jobs.some(j=>j.kind==='hill'))return;
@@ -430,20 +427,6 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   else {run.state='pausing';settle();}render();
  };
  $('tournamentCancel').onclick=()=>{run.state='cancelled';stopClock();dispose();render();};
- $('saveBenchmark').onclick=()=>{
-  const feedback=$('saveBenchmarkStatus');feedback.hidden=false;
-  try {
-   const warriors=roster();if(!warriors.length)throw new Error('Select warriors to add to the suite.');
-   const name=$('benchmarkName').value.trim();if(!name){$('benchmarkName').focus();throw new Error('Enter a name for the new suite.');}
-   const config=readConfig();const id='suite-'+(++serial);
-   const descriptor={version:1,name,parameters:Object.fromEntries(benchmarkParameters.filter(k=>k in config).map(k=>[k,config[k]])),warriors:suiteFilenames(warriors)};
-   descriptor.parameters.rounds=Number($('tournamentRounds').value);
-   suites.push(readBenchmark(descriptor,Object.fromEntries(warriors.map((w,i)=>[descriptor.warriors[i],w.source])),id));
-   refresh();$('benchmarkSuite').value=id;refresh();
-   feedback.dataset.result='ok';feedback.textContent=`Created “${name}” with ${warriors.length} opponent${warriors.length===1?'':'s'} and selected it in Opponent suite above. It is saved with your workspace in this browser.`;
-   $('tournamentStatus').textContent=`Saved “${name}”.`;onSuitesChanged();
-  }catch(error){feedback.dataset.result='failed';feedback.textContent=error.message;}
- };
  $('tournamentExport').onclick=()=>{
   const result=pushoffResult();
   download(new Blob([JSON.stringify({...run,standings:resultRows(),...(result&&{pushoff:result})},null,2)],{type:'application/json'}),'corewar-results.json');
@@ -481,31 +464,15 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
  $('useSuiteSettings').onclick=()=>{useSuiteSettings();refresh();};
  // Outside Benchmark mode, so entering it later still sets the suite's rounds.
  $('useSuiteSettingsHere').onclick=()=>{useSuiteSettings();settingsFrom=null;refresh();};
- for(const id of ['benchmarkFiles','benchmarkFolder'])$(id).onchange=async()=>{
-  try{const suite=await importBenchmarkFiles($(id).files,'import-'+(++serial));suites.push(suite);refresh();$('benchmarkSuite').value=suite.id;suiteDefaults();$('tournamentStatus').textContent=`Imported “${suite.name}” (${suite.warriors.length} opponents). It is saved with your workspace in this browser.`;onSuitesChanged();}
-  catch(error){$('tournamentStatus').textContent=error.message;}finally{$(id).value='';}
- };
- $('applyBenchmark').onclick=async()=>{
-  try{const text=$('benchmarkDescriptor').value,old=await loadSuite(currentSuite()),updated=readBenchmark(JSON.parse(text),old.files,old.id,old.scoresData);suites[suites.indexOf(old)]=updated;suiteDefaults();$('tournamentStatus').textContent=builtIn(updated)?'Benchmark updated for this session.':'Benchmark updated and saved with your workspace.';onSuitesChanged();}
-  catch(error){$('tournamentStatus').textContent=error.message;}
- };
- $('downloadBenchmarkZip').onclick=async()=>{
-  let suite;try{suite=await loadSuite(currentSuite());}catch(error){$('tournamentStatus').textContent=error.message;return;}
-  const a=document.createElement('a'),url=URL.createObjectURL(benchmarkZip(suite));
-  a.href=url;a.download=(suite.name.replace(/[^a-z0-9_-]+/gi,'-').replace(/^-|-$/g,'')||'benchmark')+'.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
- };
- $('downloadBenchmark').onclick=()=>{
-  const suite=suites.find(s=>s.id===$('benchmarkSuite').value),a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify(suite.descriptor,null,2)],{type:'application/json'}));a.href=url;a.download='suite.benchmark.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
- };
- // Removing a suite of your own takes a second click, so a stray click does not lose it.
- let removeTimer=null;
- function resetRemove(){clearTimeout(removeTimer);removeTimer=null;$('removeBenchmark').textContent='Remove suite';}
- $('removeBenchmark').onclick=()=>{
-  const suite=currentSuite();if(!suite||builtIn(suite))return;
-  if(!removeTimer){$('removeBenchmark').textContent=`Click again to remove “${suite.name}”`;removeTimer=setTimeout(resetRemove,4000);return;}
-  resetRemove();suites.splice(suites.indexOf(suite),1);displayedSuite=null;$('benchmarkSuite').value=suites[0].id;suiteDefaults();
-  $('tournamentStatus').textContent=`Removed “${suite.name}”.`;onSuitesChanged();
- };
+ $('editSuite').onclick=()=>onEditSuite($('benchmarkSuite').value);
+ // A suite shown elsewhere (the Benchmarks tool, a restored workspace) may have changed or gone.
+ store.subscribe(change=>{
+  if(!suites.some(s=>s.id===$('benchmarkSuite').value))$('benchmarkSuite').value=suites[0].id;
+  if(change.type!=='loaded'||change.id===$('benchmarkSuite').value)displayedSuite=null;
+  // Editing the suite Benchmark mode runs puts its new settings and rounds into the run, as picking it does.
+  if(change.type==='changed'&&change.id===$('benchmarkSuite').value&&$('tournamentMode').value==='benchmark')suiteDefaults();
+  else if(displayedSuite===null)refresh();
+ });
  $('benchmarkSuite').addEventListener('change',suiteDefaults);
  $('tournamentMode').addEventListener('change',suiteDefaults);
  for(const id of ['tournamentRounds','tournamentSeed','selfFights','includeSuite'])$(id).addEventListener('change',refresh);
@@ -517,33 +484,18 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   const idle=()=>window.requestIdleCallback?requestIdleCallback(prefetch,{timeout:5000}):setTimeout(prefetch,1000);
   if(document.readyState==='complete')idle();else addEventListener('load',idle,{once:true});
  }
+ // Show a suite in Benchmark mode, its settings put into the match settings.
+ function useSuite(id){
+  if(!store.get(id))return;
+  selectTab(1);$('benchmarkSuite').value=id;
+  chooseMode(modeTabs.find(tab=>tab.dataset.mode==='benchmark'));
+ }
  // A suite made elsewhere (the library) joins the user's suites and is selected in Benchmark mode.
  function addSuite(descriptor,files){
-  const suite=readBenchmark(descriptor,files,'suite-'+(++serial));
-  suites.push(suite);refresh();$('benchmarkSuite').value=suite.id;
-  chooseMode(modeTabs.find(tab=>tab.dataset.mode==='benchmark'));
+  const suite=store.create(descriptor,files,{from:'library'});
+  useSuite(suite.id);
   $('tournamentStatus').textContent=`Created “${suite.name}” from the library with ${suite.warriors.length} opponent${suite.warriors.length===1?'':'s'}. It is saved with your workspace in this browser.`;
-  onSuitesChanged();return suite;
+  return suite;
  }
- // All suites (built in, imported, made from the roster or the library), for the tools.
- const benchmarks=()=>suites.map(s=>({id:s.id,name:s.name,config:s.config,builtIn:benchmarkCatalog.some(c=>c.id===s.id)}));
- const loadBenchmark=id=>{const suite=suites.find(s=>s.id===id);return suite?loadSuite(suite):Promise.reject(new Error('That benchmark is gone; reload the page or pick another.'));};
- // The user's own suites (imported, made from the roster or the library) for the workspace, and
- // back: restoring replaces them, keeps their ids (the saved selection refers to them) and skips
- // any that no longer read, saying which.
- const userSuites=()=>suites.filter(s=>!builtIn(s)).map(s=>({id:s.id,descriptor:s.descriptor,files:s.files,...(s.scoresData?{scores:s.scoresData}:{})}));
- function restoreSuites(list=[]){
-  for(let i=suites.length-1;i>=0;i--)if(!builtIn(suites[i]))suites.splice(i,1);
-  const problems=[];
-  for(const x of list){
-   try{
-    if(suites.some(s=>s.id===x.id))throw new Error('its id is used twice');
-    suites.push(readBenchmark(x.descriptor,x.files,x.id,x.scores??null));
-    const n=Number(/-(\d+)$/.exec(x.id)?.[1]);if(n>serial)serial=n;
-   }catch(error){problems.push(`${typeof x.descriptor?.name==='string'?x.descriptor.name:x.id} (${error.message})`);}
-  }
-  if(!suites.some(s=>s.id===$('benchmarkSuite').value))$('benchmarkSuite').value=suites[0].id;
-  displayedSuite=null;refresh();return problems;
- }
- return {refresh,selectTab,addSuite,benchmarks,loadBenchmark,userSuites,restoreSuites};
+ return {refresh,selectTab,addSuite,useSuite};
 }

@@ -38,7 +38,12 @@ try {
  await page.locator('#tournamentStart').click();await complete();assert.equal((await exportRun()).results.length,2);
  await page.locator('#permutate').uncheck();
  await page.locator('#mode-melee').click();await page.locator('#tournamentStart').click();await complete();assert.match(await status.textContent(),/ · run on exMARS$/);assert.equal((await exportRun()).results[0].warriors.length,3);
- await page.locator('#mode-benchmark').click();await page.getByText('Create a suite from selected warriors',{exact:true}).click();await page.locator('#saveBenchmark').click();assert.match(await page.locator('#saveBenchmarkStatus').textContent(),/Enter a name/);assert(await page.locator('#benchmarkName').evaluate(e=>e===document.activeElement));await page.locator('#benchmarkName').fill('My suite');await page.locator('#saveBenchmark').click();assert.match(await page.locator('#saveBenchmarkStatus').textContent(),/Created “My suite” with 3 opponents/);assert.equal(await page.locator('#benchmarkSuite option:checked').textContent(),'My suite');assert.deepEqual(JSON.parse(await page.locator('#benchmarkDescriptor').inputValue()).warriors,['Imp.red','Dwarf.red','Loop.red']);
+ // A suite of the selected warriors, made and named in Tools › Benchmarks, then run from there.
+ await page.locator('#toolsTab').click();await page.locator('.tools-nav-item[data-tool="benchmarks"]').click();await page.locator('#bmNewSuite').click();
+ assert.match(await page.locator('#bmListStatus').textContent(),/Created “New suite” with 3 warriors/);assert(await page.locator('#bmName').evaluate(e=>e===document.activeElement));
+ await page.locator('#bmName').fill('My suite');await page.locator('#bmName').press('Enter');
+ assert.deepEqual(JSON.parse(await page.locator('#bmDescriptor').inputValue()).warriors,['Imp.red','Dwarf.red','Loop.red']);
+ await page.locator('#bmUse').click();assert.equal(await page.locator('#mode-benchmark').getAttribute('aria-selected'),'true');assert.equal(await page.locator('#benchmarkSuite option:checked').textContent(),'My suite');
  await page.locator('.include-warrior').nth(1).uncheck();await page.locator('.include-warrior').nth(2).uncheck();
  await page.locator('#tournamentStart').click();await complete();const bench=await exportRun();assert.match(await status.textContent(),/ · run on exMARS$/);assert.equal(bench.results.length,2);assert.equal(bench.standings.length,1);
  // Restore three entrants and exercise pause at matchup boundaries.

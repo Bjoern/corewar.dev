@@ -123,19 +123,24 @@ pinned engine (pmars-ai `7c221e1`) has the fix, so text values typed
 into the Battle settings are safe too. The derived value is never the minimum separation itself:
 that is seed 0, which exMARS never advances.
 
-In the app, *Download hill scores (.json)* under Suite details saves the scores
+In the app, *Download hill scores (.json)* in Benchmark mode saves the scores
 of the last push-off benchmark run in the same format. Scores whose parameters
 or warrior list no longer match the descriptor are reported and ignored.
 
-## Session imports
+## Editing and importing suites
 
-In Benchmark mode choose Import benchmark and select exactly one JSON descriptor
-and its warrior files together. Import folder supports nested paths. The suite
-appears in the dropdown without changing the emulator roster. Expand Suite details
-to inspect opponents or edit the descriptor; changes are local to this session.
-Download descriptor saves edited metadata; retain the warrior sources separately.
-An import with missing, duplicate, or unsafe paths is rejected without replacing
-existing suites. Up to 500 opponents, 64 KiB per source, are supported.
+Suites are managed in Tools › Benchmarks (Edit suite in Benchmark mode opens it).
+Import a suite takes exactly one JSON descriptor and its warrior files together;
+Import a folder supports nested paths. The suite joins your suites without changing
+the emulator roster. Your own suites (imported, made from your selected warriors,
+from the library or from a warrior's tournament results) can be renamed and given a
+description, their settings and rounds changed, warriors added (your selected ones or
+files), removed or their sources edited, and the descriptor edited as JSON. Changes
+are saved with the workspace. Built-in suites are read only; Make an editable copy
+first. Changing a suite's warriors or settings drops shipped hill scores. Download
+.zip saves the descriptor and warrior files together. An import with missing,
+duplicate, or unsafe paths is rejected without replacing existing suites. Up to 500
+opponents, 64 KiB per source, are supported.
 
 Self fights includes a warrior against itself in round robin/Challenge. In
 Benchmark mode it includes opponents whose source text exactly matches the

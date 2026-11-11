@@ -2,6 +2,7 @@ import {warriorFilename} from './warrior-files.mjs';
 import {setupTournaments} from './tournaments.mjs';
 import {setupLibrary} from './library.mjs';
 import {setupTools} from './tools.mjs';
+import {createSuiteStore} from './benchmark-store.mjs';
 import {bundledWarriors} from './demo-warriors.mjs?v=bd68579c2c000dd9';
 import {createEditor} from './dist/editor.mjs?v=bd68579c2c000dd9';
 // SPDX-License-Identifier: GPL-2.0-or-later
@@ -46,6 +47,8 @@ let collapsedEditors=[], scoreViewKey=null, openTabs=[], originals=[], welcomeDi
 let sourceEditors=[], compileIssues=[];
 const demoSources = [";redcode-94\n;name Imp\n;author A. K. Dewdney\n;assert 1\nmov.i 0, 1\nend\n", ";redcode-94\n;name Dwarf\n;author A. K. Dewdney\n;assert 1\nadd.ab #4, bomb\nmov.i bomb, @bomb\njmp -2\nbomb dat.f #0, #0\nend\n"];
 let tournaments=null,library=null,tools=null;
+// The benchmark suites Tournaments, the library and the tools share; the user's own are saved with the workspace.
+const suiteStore=createSuiteStore({onSaved:()=>schedulePersist()});
 let persistTimer=null, persistReady=false, persistWarned=false;
 let sources = [], sourceFiles = [];
 let excludedWarriors = [];
@@ -1157,7 +1160,7 @@ function workspaceSnapshot(){
   openTabs:openTabs.filter(i=>i<sources.length),active:activeEditor(),mode,welcomeDismissed,
   settings:settingsSnapshot(),battle:{speed:$('speed').value,debugEnabled:$('debugEnabled').checked},
   tournament:{mode:$('tournamentMode').value,rounds:$('tournamentRounds').value,seed:$('tournamentSeed').value,selfFights:$('selfFights').checked,includeSuite:$('includeSuite').checked,suite:$('benchmarkSuite').value},
-  benchmarks:tournaments?tournaments.userSuites():[]};
+  benchmarks:suiteStore.userSuites()};
 }
 function persistNow(){
  clearTimeout(persistTimer);persistTimer=null;
@@ -1165,7 +1168,7 @@ function persistNow(){
  const snapshot=workspaceSnapshot();
  try{localStorage.setItem(WORKSPACE_KEY,JSON.stringify(snapshot));persistWarned=false;return;}catch{}
  // Too big for this browser's storage: keep the warriors and settings, and say the suites did not fit.
- try{localStorage.setItem(WORKSPACE_KEY,JSON.stringify({...snapshot,benchmarks:[]}));if(!persistWarned){persistWarned=true;status('Your benchmark suites are too big to save in this browser. Use Export workspace or Download benchmark (.zip) to keep them.');}}
+ try{localStorage.setItem(WORKSPACE_KEY,JSON.stringify({...snapshot,benchmarks:[]}));if(!persistWarned){persistWarned=true;status('Your benchmark suites are too big to save in this browser. Use Export workspace, or Download .zip in Tools › Benchmarks, to keep them.');}}
  catch{if(!persistWarned){persistWarned=true;status('This browser did not save the workspace. Use Export workspace to keep a copy.');}}
 }
 function schedulePersist(){if(!persistReady)return;clearTimeout(persistTimer);persistTimer=setTimeout(persistNow,500);}
@@ -1180,7 +1183,7 @@ function applyWorkspace(w){
 }
 function applyTournamentWorkspace(w){
  const t=w.tournament;
- const problems=tournaments.restoreSuites(w.benchmarks);
+ const problems=suiteStore.restore(w.benchmarks);
  if(t.suite!==undefined && [...$('benchmarkSuite').options].some(o=>o.value===t.suite))$('benchmarkSuite').value=t.suite;
  if(t.mode)$('tournamentMode').value=t.mode;
  if(t.rounds!==undefined)$('tournamentRounds').value=t.rounds;
@@ -1361,6 +1364,11 @@ $('modeTabs').addEventListener('click',event=>{
  if(!event.target.closest('button[role=tab]:not(:disabled)'))return;
  if(activeEditor()>=0)showCore();
 });
+// Tools › Benchmarks, showing one suite.
+async function editSuite(id){
+ $('toolsTab').click();
+ (await tools.open('benchmarks'))?.select(id);
+}
 // Adding from the library appends a warrior like an upload does, keeping its Koenigstuhl file name.
 function addRosterWarrior(source,file){
  if(sources.length>=36)throw new Error('At most 36 warriors can be loaded. Remove some before adding more.');
@@ -1402,19 +1410,28 @@ async function debugToolWarrior(source,file,opponent,config){
 tools=setupTools({
  roster:()=>sources.map((source,i)=>({name:draftName(source,i),source,checked:!excludedWarriors[i]})),
  addWarrior:addRosterWarrior,
+ loadedSources:()=>sources,
+ // Benchmarks: suites shown and edited in place; Use in Tournaments and Use in match settings.
+ suiteStore,
+ useSuite:id=>tournaments.useSuite(id),
+ applyConfig:values=>{applySettingsSnapshot({preset:'custom',values});markDirty();},
  openInEditor:openToolWarrior,
  openInDebugger:debugToolWarrior,
  readConfig:()=>readSettings({warriors:2}),
  // The Benchmark mode's suites, imported and session-made ones too.
- benchmarks:()=>tournaments.benchmarks(),
- loadBenchmark:id=>tournaments.loadBenchmark(id)
+ benchmarks:()=>suiteStore.benchmarks(),
+ loadBenchmark:id=>suiteStore.loadBenchmark(id)
 });
 tournaments=setupTournaments({
  roster:()=>{fillColors();return selectedIndices().map(i=>({id:'roster-'+i,name:draftName(sources[i],i),file:warriorFile(i),source:sources[i],colorIndex:warriorColors[i]}));},
  readConfig:()=>readSettings({warriors:2}),
  // A benchmark suite's settings become the match settings (as custom settings); warriors revalidate.
  applyConfig:values=>{applySettingsSnapshot({preset:'custom',values});markDirty();},
- onSuitesChanged:()=>schedulePersist(),
+ store:suiteStore,
+ onEditSuite:editSuite,
+ // Checked opponents in a warrior's results can join the roster, as from the library.
+ addWarrior:addRosterWarrior,
+ loadedSources:()=>sources,
  onTab:index=>{
   const from=shownMode(),name=MODE_NAMES[index];
   // The match settings move into the tournament view and back out to the battle view.
