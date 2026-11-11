@@ -26,7 +26,7 @@ try{
  assert.equal(await hash(),'#tools/optimizer');assert.equal(await visibleTool(),'optimizer');
  assert.equal(await page.locator('.tools-nav-item[aria-selected="true"]').getAttribute('data-tool'),'optimizer');
  // The tool switcher is the Tournaments mode control, with the same keys.
- assert.equal(await page.locator('#toolsPanel .mode-tabs[role=tablist] [role=tab]').count(),5);
+ assert.equal(await page.locator('#toolsPanel .mode-tabs[role=tablist] [role=tab]').count(),6); // Overview and the five tools.
  await page.locator('.tools-nav-item[data-tool="optimizer"]').press('ArrowRight');await settle();
  assert.equal(await hash(),'#tools/evolver');assert.equal(await page.evaluate(()=>document.activeElement.dataset.tool),'evolver');
  await page.locator('.tools-nav-item[data-tool="evolver"]').press('Home');await settle();assert.equal(await visibleTool(),'');
