@@ -37,6 +37,6 @@ export function parseWorkspace(data) {
   settings:{preset:typeof settings.preset==='string'?settings.preset:'custom',values},
   battle:{speed:pick(battle,'speed','string'),debugEnabled:pick(battle,'debugEnabled','boolean')},
   tournament:{mode:['melee','round-robin','benchmark','challenge'].includes(tournament.mode)?tournament.mode:undefined,
-   rounds:pick(tournament,'rounds','string'),seed:pick(tournament,'seed','string'),selfFights:pick(tournament,'selfFights','boolean'),
+   rounds:pick(tournament,'rounds','string'),seed:pick(tournament,'seed','string'),selfFights:pick(tournament,'selfFights','boolean'),includeSuite:pick(tournament,'includeSuite','boolean'),
    suite:pick(tournament,'suite','string')},benchmarks};
 }

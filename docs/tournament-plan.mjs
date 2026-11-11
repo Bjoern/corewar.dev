@@ -25,7 +25,16 @@ export function hillJobs(opponents,{seed,config,rounds,permutate=false}){
 // pushoff (benchmark mode): add each candidate's self fight and key placement by the warrior
 // pair, so a pair fights from the same positions in every run; hill also schedules hillJobs
 // (at hillRounds, optionally every starting position) when no stored scores exist.
-export function planTournament({mode,entrants,opponents=[],challenger,rounds,seed,config,selfFights=false,pushoff=false,hill=false,hillRounds=rounds,hillPermutate=false}) {
+// withSuite (round robin and melee): the suite's warriors join the selected ones as entrants, so
+// they also fight each other and the results hold every fight. A melee still fits in one core:
+// at most 36 warriors (pMARS MAXWARRIOR), suite included.
+export const MAX_MELEE=36;
+export function planTournament({mode,entrants,opponents=[],withSuite=false,challenger,rounds,seed,config,selfFights=false,pushoff=false,hill=false,hillRounds=rounds,hillPermutate=false}) {
+ if(withSuite&&['round-robin','melee'].includes(mode)){
+  if(!opponents.length)throw new Error('Choose a benchmark suite.');
+  entrants=[...entrants,...opponents];
+  if(mode==='melee'&&entrants.length>MAX_MELEE)throw new Error(`A melee holds at most ${MAX_MELEE} warriors; with the suite this one has ${entrants.length}.`);
+ }
  if(!entrants.length)throw new Error('Select at least one warrior in the roster.');
  if(!Number.isInteger(rounds)||rounds<1||rounds>2147483647)throw new Error('Rounds must be a positive integer.');
  if(typeof seed!=='string'||!seed.trim()||seed.length>120)throw new Error('Enter a seed of 1–120 characters.');

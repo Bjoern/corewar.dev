@@ -1156,7 +1156,7 @@ function workspaceSnapshot(){
   warriors:sources.map((source,i)=>({source,original:originals[i]===undefined || originals[i]===source?null:originals[i],file:sourceFiles[i]??null,excluded:!!excludedWarriors[i],color:warriorColors[i]??null})),
   openTabs:openTabs.filter(i=>i<sources.length),active:activeEditor(),mode,welcomeDismissed,
   settings:settingsSnapshot(),battle:{speed:$('speed').value,debugEnabled:$('debugEnabled').checked},
-  tournament:{mode:$('tournamentMode').value,rounds:$('tournamentRounds').value,seed:$('tournamentSeed').value,selfFights:$('selfFights').checked,suite:$('benchmarkSuite').value},
+  tournament:{mode:$('tournamentMode').value,rounds:$('tournamentRounds').value,seed:$('tournamentSeed').value,selfFights:$('selfFights').checked,includeSuite:$('includeSuite').checked,suite:$('benchmarkSuite').value},
   benchmarks:tournaments?tournaments.userSuites():[]};
 }
 function persistNow(){
@@ -1186,6 +1186,7 @@ function applyTournamentWorkspace(w){
  if(t.rounds!==undefined)$('tournamentRounds').value=t.rounds;
  if(t.seed!==undefined)$('tournamentSeed').value=t.seed;
  if(t.selfFights!==undefined)$('selfFights').checked=t.selfFights;
+ if(t.includeSuite!==undefined)$('includeSuite').checked=t.includeSuite;
  tournaments.refresh();
  if(w.mode!==mode)tournaments.selectTab(MODE_NAMES.indexOf(w.mode));
  // Said after the caller's own message, so it is not overwritten.

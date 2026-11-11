@@ -24,6 +24,18 @@ const pushed=plan('benchmark',{entrants:entrants.slice(0,2),opponents:hill,pusho
 assert.deepEqual(pushed.jobs.map(j=>j.kind),['candidate','candidate','candidate','self','candidate','candidate','candidate','self']);
 const withHill=plan('benchmark',{entrants:entrants.slice(0,1),opponents:hill,pushoff:true,hill:true});
 assert.deepEqual(withHill.jobs.filter(j=>j.kind==='hill').map(j=>[j.i,j.j]),[[0,0],[0,1],[0,2],[1,1],[1,2],[2,2]]);
+// Add a benchmark suite: its warriors join round robin and melee, so they fight each other too.
+const joined=plan('round-robin',{opponents:hill,withSuite:true});
+assert.equal(joined.jobs.length,15);assert.deepEqual(joined.entrants.map(w=>w.id),['A','B','C','X','Y','Z']);
+assert(joined.jobs.some(j=>j.warriors[0].id==='X'&&j.warriors[1].id==='Y'));
+assert.equal(plan('round-robin',{entrants:[],opponents:hill,withSuite:true}).jobs.length,3);
+assert.equal(plan('melee',{opponents:hill,withSuite:true}).jobs[0].warriors.length,6);
+assert.equal(plan('round-robin',{opponents:hill}).jobs.length,3); // without withSuite the suite stays out
+assert.equal(plan('challenge',{challenger:'B',opponents:hill,withSuite:true}).jobs.length,2); // only round robin and melee
+assert.throws(()=>plan('round-robin',{withSuite:true}),/suite/);
+const big=Array.from({length:34},(_,i)=>({id:'s'+i,name:'s'+i,source:';name s'+i+'\njmp 0'}));
+assert.throws(()=>plan('melee',{opponents:big,withSuite:true}),/at most 36/);
+assert.equal(plan('round-robin',{opponents:big,withSuite:true}).jobs.length,37*36/2);
 // Pair-keyed placement: the same two warriors get the same positions in any run.
 const key=(p,a,b)=>p.jobs.find(j=>j.warriors[0].id===a&&j.warriors[1].id===b).config.fixedPosition;
 assert.equal(key(pushed,'B','Y'),key(plan('benchmark',{entrants:[entrants[1]],opponents:hill,pushoff:true}),'B','Y'));

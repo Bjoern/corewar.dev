@@ -103,9 +103,18 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
  const configForRun=()=>readConfig();
  const currentSuite=()=>suites.find(s=>s.id===$('benchmarkSuite').value);
  const benchmarkPushoff=()=>$('tournamentMode').value==='benchmark'&&$('tournamentRanking').value!=='average';
+ // Round robin and melee can add a suite's warriors as entrants (Add a benchmark suite).
+ const suiteJoins=()=>['round-robin','melee'].includes($('tournamentMode').value)&&$('includeSuite').checked;
+ const usesSuite=()=>$('tournamentMode').value==='benchmark'||suiteJoins();
+ // Joining suite warriors take the colours after the roster's, so no two entrants share one at first.
+ function suiteEntrants(entrants){
+  const warriors=currentSuite()?.warriors;if(!warriors||!suiteJoins())return warriors;
+  const first=Math.max(-1,...entrants.map((w,i)=>w.colorIndex??i))+1;
+  return warriors.map((w,i)=>({...w,colorIndex:first+i,fromSuite:true}));
+ }
  function plan(){
-  const pushoff=benchmarkPushoff();
-  return planTournament({mode:$('tournamentMode').value,entrants:roster(),opponents:currentSuite()?.warriors,
+  const pushoff=benchmarkPushoff(),entrants=roster();
+  return planTournament({mode:$('tournamentMode').value,entrants,opponents:suiteEntrants(entrants),withSuite:suiteJoins(),
   challenger:$('challenger').value,rounds:Number($('tournamentRounds').value),seed:$('tournamentSeed').value,config:configForRun(),selfFights:$('selfFights').checked,
   pushoff,hill:pushoff&&(!hill.data||$('recomputeHill').checked),hillRounds:Number($('hillRounds').value),hillPermutate:$('hillPermutate').checked});
  }
@@ -115,14 +124,15 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   $('modePanel').setAttribute('aria-labelledby','mode-'+mode);
   $('modeDescription').textContent={'round-robin':'Each selected warrior fights every other selected warrior, one on one.',benchmark:'Test each selected warrior against the opponents in a benchmark suite.',challenge:'One challenger fights each of the other selected warriors, one on one.',melee:'All selected warriors fight together in the same core.'}[mode];
   $('selfFights').disabled=mode==='melee';
-  $('benchmarkSetup').hidden=$('suiteField').hidden=mode!=='benchmark';$('challengeSetup').hidden=mode!=='challenge';
+  $('benchmarkSetup').hidden=mode!=='benchmark';$('challengeSetup').hidden=mode!=='challenge';
+  $('includeSuiteField').hidden=!['round-robin','melee'].includes(mode);$('suiteField').hidden=!usesSuite();
   $('rankingField').hidden=!['round-robin','benchmark'].includes(mode);
   const ranking=$('tournamentRanking').value;$('rankingHint').hidden=$('rankingField').hidden||ranking==='average';
   $('rankingHint').textContent={sequential:'Repeatedly removes the warrior with the lowest total score, self fight included. Turn on Self fights to match the Koenigstuhl scripts.',diversity:'Repeatedly removes the warrior with the lowest average × distance to its most similar warrior (Astolfi).','sd-diversity':'Repeatedly removes the warrior with the lowest average × smallest SD-score to another warrior (Ismael 2025).'}[ranking]||'';
   const old=$('challenger').value;$('challenger').replaceChildren(...roster().map(w=>new Option(w.name,w.id)));if(roster().some(w=>w.id===old))$('challenger').value=old;
   const selected=$('benchmarkSuite').value;$('benchmarkSuite').replaceChildren(...suites.map(s=>new Option(s.name,s.id)));if(suites.some(s=>s.id===selected))$('benchmarkSuite').value=selected;
   const suite=suites.find(s=>s.id===$('benchmarkSuite').value),pending=!suite.warriors;
-  if(pending&&mode==='benchmark'&&!suite.loadError)loadSuite(suite).catch(()=>{});
+  if(pending&&usesSuite()&&!suite.loadError)loadSuite(suite).catch(()=>{});
   if(displayedSuite!==suite||pending){
    displayedSuite=suite;
    $('benchmarkDescription').textContent=suite.descriptor.description||'';
@@ -136,9 +146,9 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   // Benchmark runs use the match settings above, which picking the suite set to the suite's own.
   // A workspace restored in Benchmark mode keeps its saved settings, changes included.
   if(mode==='benchmark'&&settingsFrom===null)settingsFrom=suiteId(suite);
-  const config=matchConfig(),changed=mode==='benchmark'&&config?differences(config,suite.config):[];
-  $('suiteSettingsNote').hidden=mode!=='benchmark';
-  $('suiteSettingsText').textContent=mode!=='benchmark'?'':changed.length?`The match settings above differ from “${suite.name}” in ${changed.map(k=>settingNames[k]).join(', ')}. Runs use the match settings; the suite’s own are ${describeSettings(suite.config)}.`:`The match settings above are “${suite.name}”’s own. Change them there for your runs; Suite details changes the suite itself.`;
+  const config=matchConfig(),changed=usesSuite()&&config?differences(config,suite.config):[];
+  $('suiteSettingsNote').hidden=!usesSuite();
+  $('suiteSettingsText').textContent=!usesSuite()?'':changed.length?`The match settings above differ from “${suite.name}” in ${changed.map(k=>settingNames[k]).join(', ')}. Runs use the match settings; the suite’s own are ${describeSettings(suite.config)}.`:`The match settings above are “${suite.name}”’s own. Change them there for your runs; Suite details changes the suite itself.`;
   $('useSuiteSettings').hidden=!changed.length;
   const pushing=benchmarkPushoff();$('hillStatus').hidden=!pushing;
   if(pushing&&pending){
@@ -161,8 +171,9 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
   }
   // A hill-scores file ships with the suite, so it must be for the suite's own settings.
   $('downloadHillScores').disabled=!(config&&hill.id===hillId(suite,config)&&hill.data&&sameParameters(config,suite.config));
-  $('tournamentEntrants').textContent=roster().map(w=>w.name).join(', ')||'Select warriors in the roster above.';
-  try {const c=configForRun();$('tournamentRules').textContent=`Match settings · ${describeSettings(c)}`;if(mode==='benchmark'&&pending)throw new Error(suite.loadError||'Loading the suite’s opponents…');const p=plan(),hillJobs=p.jobs.filter(j=>j.kind==='hill').length;$('tournamentWorkload').textContent=`${p.jobs.length.toLocaleString()} matchups${hillJobs?` (${hillJobs.toLocaleString()} between hill warriors)`:''} · ${p.totalRounds.toLocaleString()} rounds`;}
+  const joining=suiteJoins()?`${pending?'all':suite.warriors.length} warriors of “${suite.name}”`:'';
+  $('tournamentEntrants').textContent=[roster().map(w=>w.name).join(', '),joining].filter(Boolean).join(' + ')||'Select warriors in the roster above.';
+  try {const c=configForRun();$('tournamentRules').textContent=`Match settings · ${describeSettings(c)}`;if(usesSuite()&&pending)throw new Error(suite.loadError||'Loading the suite’s opponents…');const p=plan(),hillJobs=p.jobs.filter(j=>j.kind==='hill').length;$('tournamentWorkload').textContent=`${p.jobs.length.toLocaleString()} matchups${hillJobs?` (${hillJobs.toLocaleString()} between hill warriors)`:''} · ${p.totalRounds.toLocaleString()} rounds`;}
   catch(error){$('tournamentWorkload').textContent=error.message;}
  }
  function dispose(){for(const slot of workers){clearTimeout(slot.timer);slot.worker.terminate();}workers=[];}
@@ -374,7 +385,7 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
  }
  $('tournamentStart').onclick=async()=>{
   try {
-   if($('tournamentMode').value==='benchmark')await loadSuite(currentSuite());
+   if(usesSuite())await loadSuite(currentSuite());
    if(benchmarkPushoff())await lookupHill(currentSuite(),configForRun());
    const next=plan(),count=Number($('tournamentWorkers').value);
    if(!Number.isInteger(count)||count<1||count>processors)throw new Error(`Choose 1–${processors} workers.`);
@@ -489,7 +500,7 @@ export function setupTournaments({roster,readConfig,applyConfig=()=>{},onTab,onS
  };
  $('benchmarkSuite').addEventListener('change',suiteDefaults);
  $('tournamentMode').addEventListener('change',suiteDefaults);
- for(const id of ['tournamentRounds','tournamentSeed','selfFights'])$(id).addEventListener('change',refresh);
+ for(const id of ['tournamentRounds','tournamentSeed','selfFights','includeSuite'])$(id).addEventListener('change',refresh);
  $('challenger').addEventListener('change',()=>{try{$('tournamentWorkload').textContent=`${plan().jobs.length} matchups`;}catch{}});
  refresh();controls();
  // Prefetch the rest when the browser is idle, the selected suite first, unless the visitor asked to save data.
